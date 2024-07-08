@@ -1,5 +1,9 @@
 * text=auto
 
 *.md text diff=markdown
+*.txt text
+
+*.jpg binary
+*.png binary
 
 *.py text diff=python
