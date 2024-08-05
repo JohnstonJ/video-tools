@@ -6,6 +6,7 @@ numpy.float = numpy.float64
 numpy.int = numpy.int_
 
 import argparse
+import sys
 
 import skvideo.io
 
@@ -91,6 +92,9 @@ def gather_frame_data(filename, num_frames, top_n, debug_frame):
         frame_data.append((frame_number, frame_mean))
 
         frame_number += 1
+
+        if frame_number % 1000 == 0:
+            print(f"Processed frame {frame_number}", file=sys.stderr)
 
     return frame_data
 
