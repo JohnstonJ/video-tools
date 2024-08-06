@@ -56,11 +56,13 @@ def parse_args():
         help="Number of frames to read from the input file; default is all frames.  A limited "
         "frame count is faster and useful for debugging, but returns incomplete results.",
     )
+
     parser.add_argument(
-        "--output-format",
-        choices=["csv", "ConditionalReader"],
-        default="ConditionalReader",
-        help="Format of the program output.",
+        "--frame-error-function",
+        choices=["find-dropouts", "mean"],
+        required=True,
+        help="How to calculate the frame error metric.  find-dropouts is a "
+        "horizontal dropout detector.  mean is a simple average of the image data.",
     )
     parser.add_argument(
         "--debug-frame",
@@ -71,9 +73,10 @@ def parse_args():
     parser.add_argument(
         "--frame-threshold",
         type=float,
+        # The default value was specifically tuned for find-dropouts.
         default=137.0,
-        help="Only output frames where the horizontal line error for the top erroneous lines "
-        "exceeds this value.  This threshold identifies bad frames.",
+        help="Only output frames where the error metric exceeds this value.  This "
+        "threshold identifies bad frames.",
     )
     parser.add_argument(
         "--exclude-frames",
@@ -82,6 +85,17 @@ def parse_args():
         help="Exclude the given frame numbers in the format start_num,end_num from "
         "the output.  start_num is inclusive, while end_num is exclusive.  Single "
         "integers can also be given to exclude a single frame.",
+    )
+
+    parser.add_argument(
+        "--output-csv",
+        type=argparse.FileType("w"),
+        help="Output results to a CSV file.",
+    )
+    parser.add_argument(
+        "--output-avisynth",
+        type=argparse.FileType("w"),
+        help="Output results to a file for use with AviSynth's ConditionalReader.",
     )
 
     # Parameters for find_dropouts
@@ -134,6 +148,18 @@ class FrameData:
 
     frame_number: int
     error: float
+
+
+def mean(debug_frame):
+    def compute_frame_data(frame_number, frame):
+        is_debug = debug_frame == frame_number
+
+        mean = frame.mean()
+        if is_debug:
+            print(f"Mean value for frame: {mean}")
+        return mean
+
+    return compute_frame_data
 
 
 def find_dropouts(
@@ -195,7 +221,7 @@ def find_dropouts(
     return compute_frame_data
 
 
-def gather_frame_data(filename, num_frames, frame_data_function):
+def gather_frame_data(filename, num_frames, frame_error_function):
     """Read input video file and calculate per-frame stats."""
     frames = skvideo.io.vreader(filename, num_frames=num_frames)
     frame_number = -1
@@ -206,7 +232,7 @@ def gather_frame_data(filename, num_frames, frame_data_function):
         if frame_number % 100 == 0:
             print(f"Processing frame {frame_number}", file=sys.stderr)
 
-        error = frame_data_function(frame_number, frame)
+        error = frame_error_function(frame_number, frame)
         if error is not None:
             frame_data.append(
                 FrameData(
@@ -242,50 +268,52 @@ def sort_frames(frame_data):
     return sorted(frame_data, key=lambda frame: frame.error, reverse=True)
 
 
-def output_csv(frame_data):
+def output_csv(frame_data, file):
     """Output frame data in CSV format."""
-    print("frame_number,error")
+    print("frame_number,error", file=file)
     for frame in frame_data:
-        print(f"{frame.frame_number},{frame.error}")
+        print(f"{frame.frame_number},{frame.error}", file=file)
 
 
-def output_conditional_reader(frame_data):
+def output_avisynth(frame_data, file):
     """Output frame data for use with Avisynth ConditionalReader filter."""
-    print("# Bad frame numbers for use with Avisynth ConditionalReader")
-    print("TYPE bool")
-    print("DEFAULT false")
-    print()
+    print("# Bad frame numbers for use with Avisynth ConditionalReader", file=file)
+    print("TYPE bool", file=file)
+    print("DEFAULT false", file=file)
+    print(file=file)
     for frame in frame_data:
-        print(f"# frame {frame.frame_number} error: {frame.error}")
-        print(f"{frame.frame_number} true")
-        print()
+        print(f"# frame {frame.frame_number} error: {frame.error}", file=file)
+        print(f"{frame.frame_number} true", file=file)
+        print(file=file)
 
 
 def main():
     args = parse_args()
 
-    frame_data_function = find_dropouts(
-        top_n=args.top_n,
-        filter_kernel_size=args.filter_kernel_size,
-        min_dropout_intensity=args.min_dropout_intensity,
-        min_change_intensity=args.min_change_intensity,
-        max_changed_rows=args.max_changed_rows,
-        debug_frame=args.debug_frame,
-    )
+    if args.frame_error_function == "find-dropouts":
+        frame_error_function = find_dropouts(
+            top_n=args.top_n,
+            filter_kernel_size=args.filter_kernel_size,
+            min_dropout_intensity=args.min_dropout_intensity,
+            min_change_intensity=args.min_change_intensity,
+            max_changed_rows=args.max_changed_rows,
+            debug_frame=args.debug_frame,
+        )
+    elif args.frame_error_function == "mean":
+        frame_error_function = mean(debug_frame=args.debug_frame)
 
     frame_data = gather_frame_data(
         filename=args.filename[0],
         num_frames=args.num_frames,
-        frame_data_function=frame_data_function,
+        frame_error_function=frame_error_function,
     )
     frame_data = filter_frames(frame_data, args.frame_threshold)
     frame_data = exclude_frames(frame_data, args.exclude_frames)
     frame_data = sort_frames(frame_data)
-    if args.debug_frame is None:
-        if args.output_format == "csv":
-            output_csv(frame_data)
-        elif args.output_format == "ConditionalReader":
-            output_conditional_reader(frame_data)
+    if args.output_csv:
+        output_csv(frame_data, args.output_csv)
+    if args.output_avisynth:
+        output_avisynth(frame_data, args.output_avisynth)
 
 
 if __name__ == "__main__":

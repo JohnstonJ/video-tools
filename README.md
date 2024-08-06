@@ -80,10 +80,10 @@ Next, run the top_line_errors script to analyze each output video that you rende
 
 ```
 # NOTE: the script provides default values for many parameters
-python top_line_errors.py diff_even.mkv > bad_frames_even.txt
+python top_line_errors.py diff_even.mkv --frame-error-function find-dropouts --output-avisynth bad_frames_even.txt
 ```
 
-The script works as follows for each frame:
+The script works as follows for each frame if using the `find-dropouts` error function:
 
 1.  The frame is converted to RGB if it is not already.
 2.  All pixel channels are averaged into a single value.
@@ -94,7 +94,9 @@ The script works as follows for each frame:
 7.  At this point, we have a simple one-dimensional list of average pixel error for each remaining line.  This list is sorted in descending order.  (If you'd like to see this intermediate list, look into the `--debug-frame` argument.)
 8.  The top-most erroneous lines are chosen.  The error values for each of these lines are then averaged together into a single error value for the entire frame.
 
-This results in a simple list of a single error value for each frame.  These are then filtered using the `--frame-threshold` parameter.
+This results in a simple list of a single error value for each frame.  These are then further filtered using the `--frame-threshold` parameter.
+
+Note that there is also a `mean` value for `--frame-error-function` that simply calculates the overall mean of each frame before they are filtered.  This is useful if looking for frames with large errors and we aren't specifically looking for horizontal dropouts.
 
 The output contains a list of frames that exceed the `--frame-threshold` frame error:
 
