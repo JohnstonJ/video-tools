@@ -1,13 +1,15 @@
-import numpy
+import numpy as np
 
 # Temporary workaround due to https://github.com/scikit-video/scikit-video/issues/154
 # Must run this code before importing any skvideo packages.
-numpy.float = numpy.float64
-numpy.int = numpy.int_
+np.float = np.float64
+np.int = np.int_
 
 import argparse
+from dataclasses import dataclass
 import sys
 
+from scipy.ndimage import convolve1d
 import skvideo.io
 
 
@@ -29,6 +31,11 @@ def FrameRangeParser(value):
 
 
 def parse_args():
+    # NOTE: The default values here assume that we are processing a standard
+    # definition video, with (converted) RGB values at (130, 130, 130) signifying
+    # no changes.  No smaller values are expected, and larger values signify
+    # differences between two frames.
+
     parser = argparse.ArgumentParser(
         prog="top_line_errors",
         description="Output the average error for the most erroneous horizontal lines in "
@@ -48,12 +55,6 @@ def parse_args():
         default=0,
         help="Number of frames to read from the input file; default is all frames.  A limited "
         "frame count is faster and useful for debugging, but returns incomplete results.",
-    )
-    parser.add_argument(
-        "--top-n",
-        type=int,
-        default=1,
-        help="Number of horizontal lines with the highest average pixel value to use.",
     )
     parser.add_argument(
         "--output-format",
@@ -82,74 +83,170 @@ def parse_args():
         "the output.  start_num is inclusive, while end_num is exclusive.  Single "
         "integers can also be given to exclude a single frame.",
     )
+
+    # Parameters for find_dropouts
+    parser.add_argument(
+        "--top-n",
+        type=int,
+        default=1,
+        help="find-dropouts: Number of horizontal lines with the highest "
+        "overall average pixel value to use.",
+    )
+    parser.add_argument(
+        "--filter-kernel-size",
+        type=int,
+        # You really want a fairly wide value here, just to focus on only the
+        # strongest - i.e. widest - dropouts.  Shorter widths could be very unrelated.
+        default=15,
+        help="find-dropouts: Each horizontal line is first averaged with "
+        "an averaging filter that has this kernel size.",
+    )
+    parser.add_argument(
+        "--min-dropout-intensity",
+        type=int,
+        default=190,
+        help="find-dropouts: The minimum intensity of pixel that must be found in an "
+        "averaged horizontal line to detect a dropout.  If an image does not have any "
+        "detected dropouts, then it is completely discarded from the results.",
+    )
+    parser.add_argument(
+        "--min-change-intensity",
+        type=int,
+        default=150,
+        help="find-dropouts: The minimum intensity of pixel that must be found in an "
+        "averaged horizontal line to detect some changes that were made, which may or "
+        "may not be a dropout.  If an image has too many changes, then it is "
+        "completely discarded from the results.",
+    )
+    parser.add_argument(
+        "--max-changed-rows",
+        type=int,
+        default=20,
+        help="find-dropouts: The maximum number of changed rows before the frame "
+        "is discarded.",
+    )
     return parser.parse_args()
 
 
-def gather_frame_data(filename, num_frames, top_n, debug_frame):
-    """Read input video file and calculate per-frame stats."""
-    frames = skvideo.io.vreader(filename, num_frames=num_frames)
-    frame_number = 0
-    frame_data = []
-    for frame in frames:
+@dataclass
+class FrameData:
+    """Contains information about an analyzed frame."""
+
+    frame_number: int
+    error: float
+
+
+def find_dropouts(
+    top_n,
+    filter_kernel_size,
+    min_dropout_intensity,
+    min_change_intensity,
+    max_changed_rows,
+    debug_frame,
+):
+    if filter_kernel_size % 2 != 1:
+        raise ValueError("Filter kernel size must be odd.")
+    kernel = np.ones(filter_kernel_size) / filter_kernel_size
+
+    def compute_frame_data(frame_number, frame):
         is_debug = debug_frame == frame_number
 
         # Frame format is (rows, columns, pixel channels)
-        # Start by computing the average for each row.  Assuming the input frame pixels represent
-        # error, then this will represent the average error across the row.
-        averaged = frame.mean(axis=(1, 2))
+
+        # Average the pixel intensities to get (rows, columns)
+        intensities = frame.mean(axis=2)
+
+        # Filter out rows that don't have an adequately bright and long bright cluster of pixels
+        convolved = convolve1d(intensities, kernel, axis=1)
+        dropout_mask = np.any(convolved >= min_dropout_intensity, axis=1)
+        if dropout_mask.sum() == 0:
+            return None
+
+        dropout_rows = intensities[dropout_mask]
+
+        # Find rows that just have a lot of changes, even if it's not a sharp dropout
+        changes_mask = np.any(convolved >= min_change_intensity, axis=1)
+        total_changing_rows = changes_mask.sum()
+        if total_changing_rows > max_changed_rows:
+            # Too much is changing all over this image.  It might be too destructive
+            # to use it if these changes have nothing to do with dropouts.
+            return None
+
+        # Start by computing the average for each row.  Assuming the input frame
+        # pixels represent error, then this will represent the average error across
+        # the row.
+        averaged = dropout_rows.mean(axis=1)
         if is_debug:
-            print("Mean pixel value for each row, in order of appearance:")
+            print("Mean pixel value for each filtered row, in order of appearance:")
             print(averaged)
             print()
 
         # Sort in reverse order
         averaged[::-1].sort()
         if is_debug:
-            print("Mean pixel value for each row, sorted by value:")
+            print("Mean pixel value for each filtered row, sorted by value:")
             print(averaged)
             print()
 
         # Take the top numbers and average them
         averaged.resize((top_n,))
-        frame_mean = averaged.mean()
+        return averaged.mean()
 
-        # Store in output tuple
-        frame_data.append((frame_number, frame_mean))
+    return compute_frame_data
 
+
+def gather_frame_data(filename, num_frames, frame_data_function):
+    """Read input video file and calculate per-frame stats."""
+    frames = skvideo.io.vreader(filename, num_frames=num_frames)
+    frame_number = -1
+    frame_data = []
+    for frame in frames:
         frame_number += 1
 
-        if frame_number % 1000 == 0:
-            print(f"Processed frame {frame_number}", file=sys.stderr)
+        if frame_number % 100 == 0:
+            print(f"Processing frame {frame_number}", file=sys.stderr)
+
+        error = frame_data_function(frame_number, frame)
+        if error is not None:
+            frame_data.append(
+                FrameData(
+                    frame_number=frame_number,
+                    error=error,
+                )
+            )
 
     return frame_data
 
 
 def filter_frames(frame_data, frame_threshold):
     """Keep only frames where the overall frame error exceeded the threshold."""
-    return [frame for frame in frame_data if frame[1] >= frame_threshold]
+    return [frame for frame in frame_data if frame.error >= frame_threshold]
 
 
 def exclude_frames(frame_data, excluded_frames):
     """Remove specific frame numbers from the results."""
+    if excluded_frames is None:
+        excluded_frames = []
     return [
         frame
         for frame in frame_data
         if not any(
-            frame[0] >= bounds[0] and frame[0] < bounds[1] for bounds in excluded_frames
+            frame.frame_number >= bounds[0] and frame.frame_number < bounds[1]
+            for bounds in excluded_frames
         )
     ]
 
 
 def sort_frames(frame_data):
     """Sort frames in descending order by frame error."""
-    return sorted(frame_data, key=lambda frame: frame[1], reverse=True)
+    return sorted(frame_data, key=lambda frame: frame.error, reverse=True)
 
 
 def output_csv(frame_data):
     """Output frame data in CSV format."""
     print("frame_number,error")
     for frame in frame_data:
-        print(f"{frame[0]},{frame[1]}")
+        print(f"{frame.frame_number},{frame.error}")
 
 
 def output_conditional_reader(frame_data):
@@ -159,19 +256,27 @@ def output_conditional_reader(frame_data):
     print("DEFAULT false")
     print()
     for frame in frame_data:
-        print(f"# frame {frame[0]} error: {frame[1]}")
-        print(f"{frame[0]} true")
+        print(f"# frame {frame.frame_number} error: {frame.error}")
+        print(f"{frame.frame_number} true")
         print()
 
 
 def main():
     args = parse_args()
 
+    frame_data_function = find_dropouts(
+        top_n=args.top_n,
+        filter_kernel_size=args.filter_kernel_size,
+        min_dropout_intensity=args.min_dropout_intensity,
+        min_change_intensity=args.min_change_intensity,
+        max_changed_rows=args.max_changed_rows,
+        debug_frame=args.debug_frame,
+    )
+
     frame_data = gather_frame_data(
         filename=args.filename[0],
         num_frames=args.num_frames,
-        top_n=args.top_n,
-        debug_frame=args.debug_frame,
+        frame_data_function=frame_data_function,
     )
     frame_data = filter_frames(frame_data, args.frame_threshold)
     frame_data = exclude_frames(frame_data, args.exclude_frames)

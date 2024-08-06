@@ -49,7 +49,7 @@ The usage of this tool is best illustrated with an example.  Suppose that a vide
 
 ![Image with horizontal artifact line](./docs/artifact.png)
 
-The [SpotLess](https://forum.doom9.org/showthread.php?t=181777) Avisynth filter can work reasonably well to remove this artifact.  However, it will also remove detail from other parts of the frame as well.  This implies that frames with no defects will also be impacted.
+The [SpotLess](https://forum.doom9.org/showthread.php?t=181777) Avisynth filter can work reasonably well to remove this artifact.  However, it will also remove detail from other parts of the frame as well.  This implies that frames with no defects will also be impacted.  For example, fireworks, camera flashes, flying balls, etc. are all negatively impacted by this filter.
 
 We can use this tool in conjunction with Avisynth to only apply the SpotLess filter to frames that actually need it.  Other frames will be passed through unmodified.
 
@@ -87,9 +87,12 @@ The script works as follows for each frame:
 
 1.  The frame is converted to RGB if it is not already.
 2.  All pixel channels are averaged into a single value.
-3.  All pixel values for each horizontal line are averaged.
-4.  At this point, we have a simple one-dimensional list of average pixel error for each line.  This list is sorted in descending order.  (If you'd like to see this intermediate list, look into the `--debug-frame` argument.)
-5.  The top-most erroneous lines are chosen, as specified by `--top-n`.  The error values for each of these lines are then averaged together into a single error value for the entire frame.
+3.  A 1D averaging filter is individually applied to each horizontal line.  A large filter kernel is used to emphasize the fact we're looking for long lines, as seen in a dropout.
+4.  The lines are then filtered to search for very bright line segments, which are considered to be dropouts.  This is done by looking for any averaged pixel in the line that exceeds a threshold.  If none are found in the frame, then the frame is not outputted.
+5.  Each averaged line is also searched for pixels exceeding a lower "change" threshold.  This doesn't necessarily mean there is a dropout.  We're just generally searching for lines that have any sort of significant changes.  If too many lines are found, then the frame is not outputted because it's likely to be a false positive otherwise (e.g. camera flashes, fireworks explosions).
+6.  All averaged pixel values for each remaining horizontal line are in turn averaged again, so that each line is aggregated into a single error value.
+7.  At this point, we have a simple one-dimensional list of average pixel error for each remaining line.  This list is sorted in descending order.  (If you'd like to see this intermediate list, look into the `--debug-frame` argument.)
+8.  The top-most erroneous lines are chosen.  The error values for each of these lines are then averaged together into a single error value for the entire frame.
 
 This results in a simple list of a single error value for each frame.  These are then filtered using the `--frame-threshold` parameter.
 
