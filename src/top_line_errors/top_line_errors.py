@@ -11,6 +11,23 @@ import sys
 import skvideo.io
 
 
+def FrameRangeParser(value):
+    frames = value.split(",")
+    if len(frames) > 2:
+        raise ValueError(
+            "Frame range must be in the form frame_num, or start_num,end_num."
+        )
+    if len(frames) == 2:
+        start = int(frames[0])
+        end = int(frames[1])
+        if start > end:
+            raise ValueError("Start from must be <= end frame.")
+        return (start, end)
+
+    frame = int(frames[0])
+    return (frame, frame + 1)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         prog="top_line_errors",
@@ -56,6 +73,14 @@ def parse_args():
         default=137.0,
         help="Only output frames where the horizontal line error for the top erroneous lines "
         "exceeds this value.  This threshold identifies bad frames.",
+    )
+    parser.add_argument(
+        "--exclude-frames",
+        type=FrameRangeParser,
+        nargs="*",
+        help="Exclude the given frame numbers in the format start_num,end_num from "
+        "the output.  start_num is inclusive, while end_num is exclusive.  Single "
+        "integers can also be given to exclude a single frame.",
     )
     return parser.parse_args()
 
@@ -104,6 +129,17 @@ def filter_frames(frame_data, frame_threshold):
     return [frame for frame in frame_data if frame[1] >= frame_threshold]
 
 
+def exclude_frames(frame_data, excluded_frames):
+    """Remove specific frame numbers from the results."""
+    return [
+        frame
+        for frame in frame_data
+        if not any(
+            frame[0] >= bounds[0] and frame[0] < bounds[1] for bounds in excluded_frames
+        )
+    ]
+
+
 def sort_frames(frame_data):
     """Sort frames in descending order by frame error."""
     return sorted(frame_data, key=lambda frame: frame[1], reverse=True)
@@ -138,6 +174,7 @@ def main():
         debug_frame=args.debug_frame,
     )
     frame_data = filter_frames(frame_data, args.frame_threshold)
+    frame_data = exclude_frames(frame_data, args.exclude_frames)
     frame_data = sort_frames(frame_data)
     if args.debug_frame is None:
         if args.output_format == "csv":
