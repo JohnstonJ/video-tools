@@ -97,6 +97,11 @@ def parse_args():
         type=argparse.FileType("w"),
         help="Output results to a file for use with AviSynth's ConditionalReader.",
     )
+    parser.add_argument(
+        "--output-framesel",
+        type=argparse.FileType("w"),
+        help="Output results to a file for use with AviSynth's FrameSel plugin.",
+    )
 
     # Parameters for find_dropouts
     parser.add_argument(
@@ -287,6 +292,16 @@ def output_avisynth(frame_data, file):
         print(file=file)
 
 
+def output_framesel(frame_data, file):
+    """Output frame data for use with Avisynth FrameSel filter."""
+    print("# Bad frame numbers for use with Avisynth FrameSel", file=file)
+    print(file=file)
+    for frame in frame_data:
+        print(f"# frame {frame.frame_number} error: {frame.error}", file=file)
+        print(frame.frame_number, file=file)
+        print(file=file)
+
+
 def main():
     args = parse_args()
 
@@ -314,6 +329,8 @@ def main():
         output_csv(frame_data, args.output_csv)
     if args.output_avisynth:
         output_avisynth(frame_data, args.output_avisynth)
+    if args.output_framesel:
+        output_framesel(frame_data, args.output_framesel)
 
 
 if __name__ == "__main__":
