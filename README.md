@@ -41,6 +41,10 @@ To use this script:
     - Unexpected video frame data.
     - Audio distortion.
 
+## dv_resample_audio
+
+[dv_resample_audio](src/dv_resample_audio/README.md) resamples DV audio so that it is locked to the video frames that it was interleaved with.  This corrects audio drift that is present from unlocked DV cameras, such as consumer camcorders.
+
 ## top_line_errors
 
 This tool is intended for use with identifying occasional bad frames that have severe errors within a single horizontal line.  For example, this could be a severe VHS dropout that spans several lines.
