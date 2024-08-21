@@ -1,5 +1,4 @@
 import argparse
-import errno
 import csv
 import av
 import io
@@ -7,7 +6,6 @@ import numpy as np
 from av.audio.frame import AudioFrame
 from fractions import Fraction
 from dataclasses import dataclass
-from av.audio.resampler import AudioResampler
 from av.filter import Graph
 
 
