@@ -10,7 +10,7 @@ To use this script:
 4.  Run the `analyze_virtualdub_timing_log.py` script, using this timing log as input.  You will also need to provide the exact frame rate of the AVI file as input.  The following example applies for NTSC 29.970 frame rates:
 
 	```
-	python analyze_virtualdub_timing_log.py --fps-num 30000 --fps-den 1001 MyTimings.csv
+	analyze_virtualdub_timing_log --fps-num 30000 --fps-den 1001 MyTimings.csv
 	```
 
 5.  The script will print out all video and audio frames that have timings that look a little too far off.  Carefully check the video at and around these global time positions for:

@@ -61,8 +61,8 @@ WARNING:  DVRescue can't reliably handle paths with spaces in them.  Always save
         6.  Carefully review the **Summary** table to see the results of merging.  Review documentation to interpret the meaning.
         7.  Open the merged file in the **Analysis** and check the results.  Improvements over the analysis of the individual input files should hopefully be noted.
         8.  Also analyze the merged file in DV Analyzer.  Again, there should be improvements over the individual input file analysis.
-    3.  Merging using my custom ([dv_merge](../../src/dv_merge/README.md)) tool from this repository:
-        1.  Run the `dv_merge` command with all the inputs.  Experiment with both merge algorithms.  Note that all input files must be the same length, and frame numbers must exactly correlate.  See the README for more information.
+    3.  Merging using the ([dv_merge](../tools/dv_merge.md)) tool from this repository:
+        1.  Run the `dv_merge` command with all the inputs.  Experiment with both merge algorithms.  Note that all input files must be the same length, and frame numbers must exactly correlate.  See the tool documentation for more information.
         2.  Open the merged file in DVRescue's **Analysis** and check the results.
         3.  Also analyze the merged file in DV Analyzer.
     4.  Merged results may be worse than the inputs.  Some trial & error is necessary.  Merge issues to watch out for:
@@ -82,7 +82,7 @@ WARNING:  DVRescue can't reliably handle paths with spaces in them.  Always save
     5.  Choose **Package into same folder**.
     6.  Click **Add to Queue** and wait for the files to be processed.
 
-9.  **Resample the audio so that it is precisely synchronized with the video frames.**  This will prevent the audio from drifting away from the video over time.  Run the [dv_resample_audio](../../src/dv_resample_audio/README.md) script:
+9.  **Resample the audio so that it is precisely synchronized with the video frames.**  This will prevent the audio from drifting away from the video over time.  Run the [dv_resample_audio](../tools/dv_resample_audio.md) script:
 
     ```
     # Unwrap the DV data:

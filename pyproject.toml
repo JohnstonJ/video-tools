@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "video-tools"
+version = "0.0.1"
+authors = [
+    { name="James Johnston", email="johnstonj.public@codenest.com" },
+]
+description = "A small collection of utilities for working with video preservation."
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.12"
+dependencies = [
+    "av~=12.3",
+    "numpy~=2.0",
+    "scikit-video~=1.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black~=24.4"
+]
+
+[project.scripts]
+analyze_virtualdub_timing_log = "video_tools.analyze_virtualdub_timing_log:main"
+dv_merge = "video_tools.dv_merge:main"
+dv_resample_audio = "video_tools.dv_resample_audio:main"
+top_line_errors = "video_tools.top_line_errors:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

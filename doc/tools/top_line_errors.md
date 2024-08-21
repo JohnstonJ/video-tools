@@ -4,7 +4,7 @@ This tool is intended for use with identifying occasional bad frames that have s
 
 The usage of this tool is best illustrated with an example.  Suppose that a video contains a single frame with an artifact like this:
 
-![Image with horizontal artifact line](./docs/artifact.png)
+![Image with horizontal artifact line](../images/dropout.png)
 
 The [SpotLess](https://forum.doom9.org/showthread.php?t=181777) Avisynth filter can work reasonably well to remove this artifact.  However, it will also remove detail from other parts of the frame as well.  This implies that frames with no defects will also be impacted.  For example, fireworks, camera flashes, flying balls, etc. are all negatively impacted by this filter.
 
@@ -31,13 +31,13 @@ diff
 
 The rendered output will contain the difference between the input frame and the filtered/denoised frame.  Render this output to a LOSSLESS video file supported by FFmpeg.  For example, FFV1 in an mkv container works well.
 
-![Image with horizontal artifact line calculated as a difference](./docs/artifact_diff.png)
+![Image with horizontal artifact line calculated as a difference](../images/dropout_diff.png)
 
 Next, run the top_line_errors script to analyze each output video that you rendered:
 
 ```
 # NOTE: the script provides default values for many parameters
-python top_line_errors.py diff_even.mkv --frame-error-function find-dropouts --output-avisynth bad_frames_even.txt
+top_line_errors diff_even.mkv --frame-error-function find-dropouts --output-avisynth bad_frames_even.txt
 ```
 
 The script works as follows for each frame if using the `find-dropouts` error function:
