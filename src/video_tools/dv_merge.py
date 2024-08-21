@@ -1,10 +1,12 @@
 import argparse
 import contextlib
-from dataclasses import dataclass
-from pathlib import Path
 import io
 import subprocess
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
+from pathlib import Path
+
+import video_tools.io_util as io_util
 
 
 def parse_args():
@@ -230,27 +232,13 @@ def validate_inputs(inputs, dvanalyzer_results, dvrescue_results):
     return (None, frame_size)
 
 
-def read_file_bytes(file, chunk_size):
-    """Read exactly chunk_size bytes or until EOF"""
-
-    rv = []
-    while len(rv) < chunk_size:
-        remaining = chunk_size - len(rv)
-        next_read = file.read(remaining)
-        if len(next_read) == 0:
-            return rv
-        rv += next_read
-
-    return bytearray(rv)
-
-
 def merge_inputs(inputs, output, dvanalyzer_results, dvrescue_results, frame_size):
     """Merge input files frame by frame, using the analysis to guide."""
     next_frame_num = 0
     while True:
         # read next frame from each input file
         frame_data = {
-            input_name: read_file_bytes(input_stream, frame_size)
+            input_name: io_util.read_file_bytes(input_stream, frame_size)
             for input_name, input_stream in inputs.items()
         }
         if not len(next(iter(frame_data.values()))):

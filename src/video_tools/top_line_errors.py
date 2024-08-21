@@ -6,11 +6,11 @@ np.float = np.float64
 np.int = np.int_
 
 import argparse
-from dataclasses import dataclass
 import sys
+from dataclasses import dataclass
 
-from scipy.ndimage import convolve1d
 import skvideo.io
+from scipy.ndimage import convolve1d
 
 
 def FrameRangeParser(value):

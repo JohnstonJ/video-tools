@@ -13,7 +13,7 @@ Create and activate a Python virtual environment.  For example, on Windows from 
 Next, install the package locally for development:
 
 ```
-pip install --editable .
+pip install --editable .[dev]
 ```
 
 Or build a wheel:

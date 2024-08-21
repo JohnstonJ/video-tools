@@ -1,7 +1,7 @@
 import argparse
 import csv
-from dataclasses import dataclass
 import sys
+from dataclasses import dataclass
 
 
 def parse_args():

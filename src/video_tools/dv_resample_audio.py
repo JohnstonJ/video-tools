@@ -1,12 +1,15 @@
 import argparse
 import csv
-import av
 import io
+from dataclasses import dataclass
+from fractions import Fraction
+
+import av
 import numpy as np
 from av.audio.frame import AudioFrame
-from fractions import Fraction
-from dataclasses import dataclass
 from av.filter import Graph
+
+import video_tools.io_util as io_util
 
 
 def parse_args():
@@ -36,20 +39,6 @@ def parse_args():
         help="Name of output CSV file to write frame-by-frame audio stats/timing to.",
     )
     return parser.parse_args()
-
-
-def read_file_bytes(file, chunk_size):
-    """Read exactly chunk_size bytes or until EOF"""
-
-    rv = []
-    while len(rv) < chunk_size:
-        remaining = chunk_size - len(rv)
-        next_read = file.read(remaining)
-        if len(next_read) == 0:
-            return rv
-        rv += next_read
-
-    return bytearray(rv)
 
 
 @dataclass
@@ -278,7 +267,7 @@ def resync_audio(
     # avoids the possibility of audio clock error accumulating.
     input_file.seek(start_frame_number * input_file_info.video_frame_size)
     bytes_to_read = group_size * input_file_info.video_frame_size
-    group_bytes = read_file_bytes(input_file, bytes_to_read)
+    group_bytes = io_util.read_file_bytes(input_file, bytes_to_read)
     assert len(group_bytes) == bytes_to_read
     with io.BytesIO(group_bytes) as group_file:
         # Make sure the audio format or frame rate didn't unexpectedly change on us.  (Could
