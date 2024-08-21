@@ -1,0 +1,23 @@
+====================================================================
+ORIGINAL TAPE INFORMATION
+
+Physical Label: <name & tape number from intake procedure, e.g. J Smith Tape 3> / <exact hand-written label on the tape>
+Tape Format: Digital8 - DV video recorded on 8 mm tape, NTSC standard definition
+
+====================================================================
+PRESERVATION INFORMATION
+
+Video was transferred and preserved using the procedure documented at:
+
+https://github.com/JohnstonJ/video-tools/blob/<commit hash>/doc/workflows/preservation_dv.md
+
+Preservation Filename: <name of final preservation MKV container>
+Preservation File Format:
+- Matroska (MKV) container
+- Video
+  - Format: DV codec
+  - Modifications: frame data has been merged and repaired according to the above procedure
+- Audio
+  - Format 1: remains muxed with raw unmodified DV data
+  - Format 2: demuxed into lossless FLAC format, and precisely resampled/resynchronized on
+    a frame-by-frame basis according to the above procedure

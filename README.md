@@ -1,5 +1,5 @@
 # video-tools
-Contains tools for scanning video files for information in conjunction with Avisynth and VirtualDub workflows.
+Contains tools and workflows for restoring video files using Avisynth, VirtualDub, and other tools.
 
 ## Initial setup
 
@@ -19,6 +19,10 @@ pip install -r requirements.txt
 Note that you must also ensure that FFmpeg is in your PATH, if it is not already.
 
 You can now run the scripts in this repository.
+
+## Workflows
+
+See the [README](doc/workflows/README.md) for more information on preservation and video restoration procedures.
 
 ## List of tools
 
