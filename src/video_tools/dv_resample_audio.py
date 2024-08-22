@@ -2,13 +2,13 @@ import argparse
 import csv
 import io
 from dataclasses import dataclass
-from fractions import Fraction
 
 import av
 import numpy as np
 from av.audio.frame import AudioFrame
 from av.filter import Graph
 
+import video_tools.dv.file_info as file_info
 import video_tools.io_util as io_util
 
 
@@ -42,44 +42,6 @@ def parse_args():
 
 
 @dataclass
-class DVFileInfo:
-    """Contains top-level DV file information."""
-
-    file_size: int  # bytes
-    video_frame_rate: Fraction  # frames per second
-    video_duration: Fraction  # duration of entire video stream, in seconds
-    video_frame_count: int
-    video_frame_size: int
-    audio_stereo_channel_count: int
-    audio_sample_rate: int  # Hz
-
-    def audio_samples_per_frame(self):
-        # We want to resample the audio that was stored with a video frame to the correct
-        # number of audio samples for that video frame, since there could actually be too
-        # few or too many.  However, there's usually a non-integer ideal number of audio
-        # samples expected in each single video frame.  This function returns the integer
-        # number of video frames required to have an integer ideal number of audio samples.
-        # See https://www.adamwilt.com/DV-FAQ-tech.html#LockedAudio
-        #
-        # For example, NTSC is at 30000/1001 video frame rate, and might have 32 kHz audio.
-        # Every 15 video frames will have 16016 audio samples; we can't have an integer
-        # number of audio samples for any fewer amount of video frames.
-        #
-        # This function returns a Fraction: the numerator is a number of audio samples, and
-        # the denominator is the number of video frames for those audio samples.
-        single_frame_duration = 1 / self.video_frame_rate
-        single_sample_duration = Fraction(1, self.audio_sample_rate)
-        return self.audio_sample_rate / self.video_frame_rate
-
-    def assert_similar(self, other):
-        """Assert that the audio format has not changed."""
-        assert self.video_frame_rate == other.video_frame_rate
-        assert self.video_frame_size == other.video_frame_size
-        assert self.audio_stereo_channel_count == other.audio_stereo_channel_count
-        assert self.audio_sample_rate == other.audio_sample_rate
-
-
-@dataclass
 class AudioStreamStats:
     """Contains information about a group of audio samples in a single audio stream."""
 
@@ -100,54 +62,6 @@ class AudioStats:
     video_start_frame_number: int  # frame index of first frame in group
     video_frame_count: int  # number of video frames in group
     audio_stream_stats: list[AudioStreamStats]
-
-
-def read_dv_file_info(file):
-    # read top-level information
-    with av.open(file, mode="r", format="dv") as input:
-        assert len(input.streams.video) == 1
-        file_size = input.size
-
-        video_frame_rate = input.streams.video[0].base_rate
-        # Make sure we got exact NTSC or PAL/SECAM frame rate
-        assert video_frame_rate == Fraction(
-            30000, 1001
-        ) or video_frame_rate == Fraction(25)
-
-        video_duration = Fraction(input.duration, 1000000)
-
-        # duration was in microseconds, and still lacked precision, so we round it
-        video_frame_count = round(video_frame_rate * video_duration)
-
-        # Every video frame uses the exact same number of bytes in a raw DV file
-        video_frame_size = int(file_size / video_frame_count)
-        assert video_frame_size * video_frame_count == file_size
-
-        # Make sure it's a known audio format
-        audio_stereo_channel_count = len(input.streams.audio)
-        assert audio_stereo_channel_count == 1 or audio_stereo_channel_count == 2
-        audio_sample_rate = input.streams.audio[0].sample_rate
-        assert (
-            audio_sample_rate == 32000
-            or audio_sample_rate == 44100
-            or audio_sample_rate == 48000
-        )
-        for audio_stream in input.streams.audio:
-            assert audio_stream.sample_rate == audio_sample_rate
-            assert audio_stream.format.name == "s16"
-            assert audio_stream.layout.name == "stereo"
-            assert audio_stream.channels == 2
-            assert audio_stream.rate == audio_sample_rate
-
-        return DVFileInfo(
-            file_size=file_size,
-            video_frame_rate=video_frame_rate,
-            video_duration=video_duration,
-            video_frame_count=video_frame_count,
-            video_frame_size=video_frame_size,
-            audio_stereo_channel_count=audio_stereo_channel_count,
-            audio_sample_rate=audio_sample_rate,
-        )
 
 
 def resample_audio_frame(audio_frame, video_frame_count, input_file_info):
@@ -272,7 +186,7 @@ def resync_audio(
     with io.BytesIO(group_bytes) as group_file:
         # Make sure the audio format or frame rate didn't unexpectedly change on us.  (Could
         # happen if there were multiple recordings from different equipment on the same tape.)
-        group_info = read_dv_file_info(group_file)
+        group_info = file_info.read_dv_file_info(group_file)
         input_file_info.assert_similar(group_info)
 
         # Read all audio samples from these few video frames.
@@ -490,7 +404,7 @@ def main():
     stats_filename = args.stats
 
     with open(input_filename, mode="rb") as input_file:
-        file_info = read_dv_file_info(input_file)
+        file_info = file_info.read_dv_file_info(input_file)
 
         all_audio_stats = resync_all_audio(input_file, file_info, output_filename)
 
