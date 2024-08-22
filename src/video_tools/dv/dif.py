@@ -2,6 +2,7 @@
 
 import datetime
 import itertools
+import re
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import IntEnum
@@ -69,6 +70,11 @@ class PolarityCorrection(IntEnum):
     ODD = 0x1
 
 
+smpte_time_pattern = re.compile(
+    r"^(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})(?P<frame_separator>[:;])(?P<frame>\d{2})$"
+)
+
+
 # SMPTE time code
 # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
 # Also see SMPTE 12M
@@ -111,6 +117,40 @@ class SMPTETimeCode:
             if self.drop_frame
             else f"{self.hour:02}:{self.minute:02}:{self.second:02}:{self.frame:02}"
         )
+
+    @classmethod
+    def parse_str(
+        cls,
+        time,
+        color_frame,
+        polarity_correction,
+        binary_group_flags,
+        video_frame_dif_sequence_count,
+    ):
+        if (
+            not time
+            and not color_frame
+            and not polarity_correction
+            and not binary_group_flags
+        ):
+            return None
+        match = smpte_time_pattern.match(time)
+        if not match:
+            raise ValueError("Parsing error while reading SMPTE time code.")
+        val = cls(
+            hour=int(match.group("hour")),
+            minute=int(match.group("minute")),
+            second=int(match.group("second")),
+            frame=int(match.group("frame")),
+            drop_frame=match.group("frame_separator") == ";",
+            color_frame=ColorFrame[color_frame],
+            polarity_correction=PolarityCorrection[polarity_correction],
+            binary_group_flags=int(binary_group_flags, 0),
+            video_frame_dif_sequence_count=video_frame_dif_sequence_count,
+        )
+        if not val.valid():
+            raise ValueError("Parsing error while reading SMPTE time code.")
+        return val
 
     @classmethod
     def parse_ssyb_pack(cls, ssyb_bytes, video_frame_dif_sequence_count):
@@ -192,11 +232,30 @@ class SMPTEBinaryGroup:
     # this will always be 4 bytes
     value: bytes
 
+    def valid(self):
+        return len(self.value) == 4
+
+    @classmethod
+    def parse_str(cls, value):
+        if not value:
+            return None
+        val = cls(
+            value=bytes.fromhex(value.removeprefix("0x")),
+        )
+        if not val.valid():
+            raise ValueError("Parsing error while reading SMPTE binary group.")
+        return val
+
     @classmethod
     def parse_ssyb_pack(cls, ssyb_bytes):
         assert len(ssyb_bytes) == 5
         assert ssyb_bytes[0] == SSYBPackType.SMPTE_BG
         return SMPTEBinaryGroup(value=bytes(ssyb_bytes[1:]))
+
+
+recording_date_pattern = re.compile(
+    r"^(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})$"
+)
 
 
 # Recording date from subcode pack
@@ -228,6 +287,9 @@ class SubcodeRecordingDate:
                 return False
             if self.year >= 2075 or self.year < 1975:
                 return False
+
+        if len(self.reserved) != 4:
+            return False
         return True
 
     def format_date_str(self):
@@ -236,6 +298,23 @@ class SubcodeRecordingDate:
             if self.valid() and self.year is not None
             else ""
         )
+
+    @classmethod
+    def parse_str(cls, date, reserved):
+        if not date and not reserved:
+            return None
+        match = recording_date_pattern.match(date)
+        if not match:
+            raise ValueError("Parsing error while reading recording date.")
+        val = cls(
+            year=int(match.group("year")),
+            month=int(match.group("month")),
+            day=int(match.group("day")),
+            reserved=bytes.fromhex(reserved.removeprefix("0x")),
+        )
+        if not val.valid():
+            raise ValueError("Parsing error while reading recording date.")
+        return val
 
     @classmethod
     def parse_ssyb_pack(cls, ssyb_bytes):
@@ -295,6 +374,11 @@ class SubcodeRecordingDate:
         return pack if pack.valid() else None
 
 
+recording_time_pattern = re.compile(
+    r"^(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})(:(?P<frame>\d{2}))?$"
+)
+
+
 # Recording time from subcode pack
 # I can't find a reference for this definition.
 @dataclass(frozen=True)
@@ -348,6 +432,27 @@ class SubcodeRecordingTime:
         elif self.valid() and self.hour is not None:
             return f"{self.hour:02}:{self.minute:02}:{self.second:02}"
         return ""
+
+    @classmethod
+    def parse_str(cls, time, reserved, video_frame_dif_sequence_count):
+        if not time and not reserved:
+            return None
+        match = recording_time_pattern.match(time)
+        if not match:
+            raise ValueError("Parsing error while reading recording time.")
+        val = cls(
+            hour=int(match.group("hour")),
+            minute=int(match.group("minute")),
+            second=int(match.group("second")),
+            frame=(
+                int(match.group("frame")) if match.group("frame") is not None else None
+            ),
+            reserved=bytes.fromhex(reserved.removeprefix("0x")),
+            video_frame_dif_sequence_count=video_frame_dif_sequence_count,
+        )
+        if not val.valid():
+            raise ValueError("Parsing error while reading recording time.")
+        return val
 
     @classmethod
     def parse_ssyb_pack(cls, ssyb_bytes, video_frame_dif_sequence_count):

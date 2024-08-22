@@ -3,13 +3,24 @@
 import csv
 import itertools
 
+import video_tools.dv.dif as dif
+
 
 def hex_int(int_value, digits, skip_prefix=False):
     return f"0x{int_value:0{digits}X}" if not skip_prefix else f"{int_value:0{digits}X}"
 
 
-def hex_bytes(bytes_value):
-    return f"0x" + "".join([hex_int(b, 2, skip_prefix=True) for b in bytes_value])
+def hex_bytes(bytes_value, allow_optional=False):
+    return f"0x" + "".join(
+        [
+            (
+                hex_int(b, 2, skip_prefix=True)
+                if not allow_optional or b is not None
+                else "__"
+            )
+            for b in bytes_value
+        ]
+    )
 
 
 def write_frame_data_csv(output_file, all_frame_data):
@@ -31,7 +42,7 @@ def write_frame_data_csv(output_file, all_frame_data):
                 ],
                 [
                     # Contents of pack types for each channel & DIF sequence is a 24-digit hex string,
-                    # which is the list of pack types.  Users may replace a digit pair with "xx" to
+                    # which is the list of pack types.  Users may replace a digit pair with "__" to
                     # leave it unchanged when writing back out to an updated DV file.
                     f"sc_pack_types_{channel}_{dif_sequence}"
                     for channel in range(len(all_frame_data[0].subcode_pack_types))
@@ -89,7 +100,7 @@ def write_frame_data_csv(output_file, all_frame_data):
             for dif_sequence in range(len(frame_data.subcode_pack_types[channel])):
                 field_name = f"sc_pack_types_{channel}_{dif_sequence}"
                 pack_types = frame_data.subcode_pack_types[channel][dif_sequence]
-                row_fields[field_name] = hex_bytes(pack_types)
+                row_fields[field_name] = hex_bytes(pack_types, allow_optional=True)
         if frame_data.subcode_smpte_time_code is not None:
             row_fields |= {
                 "sc_smpte_time_code": frame_data.subcode_smpte_time_code.format_time_str(),
@@ -121,3 +132,82 @@ def write_frame_data_csv(output_file, all_frame_data):
             }
 
         writer.writerow(row_fields)
+
+
+def read_frame_data_csv(input_file):
+    reader = csv.DictReader(input_file)
+    all_frame_data = []
+    current_frame = 0
+    for row in reader:
+        assert current_frame == int(row["frame_number"])
+
+        # Derive video dimensions from the subcode type columns
+        video_frame_channel_count = 0
+        while f"sc_pack_types_{video_frame_channel_count}_0" in row:
+            video_frame_channel_count += 1
+        video_frame_dif_sequence_count = 0
+        while f"sc_pack_types_0_{video_frame_dif_sequence_count}" in row:
+            video_frame_dif_sequence_count += 1
+        assert video_frame_channel_count < 2
+        assert (
+            video_frame_dif_sequence_count == 10 or video_frame_dif_sequence_count == 12
+        )
+
+        # Read the subcode pack types
+        subcode_pack_types = [
+            [
+                [None for ssyb in range(12)]
+                for sequence in range(video_frame_dif_sequence_count)
+            ]
+            for channel in range(video_frame_channel_count)
+        ]
+        for channel in range(video_frame_channel_count):
+            for sequence in range(video_frame_dif_sequence_count):
+                type_seq = row[f"sc_pack_types_{channel}_{sequence}"].removeprefix("0x")
+                type_seq_pairs = [
+                    type_seq[i : i + 2] for i in range(0, len(type_seq), 2)
+                ]
+                type_bytes = [
+                    (int(type_seq_str, 16) if type_seq_str != "__" else None)
+                    for type_seq_str in type_seq_pairs
+                ]
+                assert len(type_bytes) == 12
+                for ssyb in range(12):
+                    subcode_pack_types[channel][sequence][ssyb] = type_bytes[ssyb]
+
+        frame_data = dif.FrameData(
+            # From DIF block headers
+            arbitrary_bits=int(row["arbitrary_bits"], 0),
+            # From header DIF block
+            header_track_application_id=int(row["h_track_application_id"], 0),
+            header_audio_application_id=int(row["h_audio_application_id"], 0),
+            header_video_application_id=int(row["h_video_application_id"], 0),
+            header_subcode_application_id=int(row["h_subcode_application_id"], 0),
+            # From subcode DIF block
+            subcode_track_application_id=int(row["sc_track_application_id"], 0),
+            subcode_subcode_application_id=int(row["sc_subcode_application_id"], 0),
+            subcode_pack_types=subcode_pack_types,
+            subcode_smpte_time_code=dif.SMPTETimeCode.parse_str(
+                time=row["sc_smpte_time_code"],
+                color_frame=row["sc_smpte_time_code_color_frame"],
+                polarity_correction=row["sc_smpte_time_code_polarity_correction"],
+                binary_group_flags=row["sc_smpte_time_code_binary_group_flags"],
+                video_frame_dif_sequence_count=video_frame_dif_sequence_count,
+            ),
+            subcode_smpte_binary_group=dif.SMPTEBinaryGroup.parse_str(
+                value=row["sc_smpte_binary_group"],
+            ),
+            subcode_recording_date=dif.SubcodeRecordingDate.parse_str(
+                date=row["sc_recording_date"],
+                reserved=row["sc_recording_date_reserved"],
+            ),
+            subcode_recording_time=dif.SubcodeRecordingTime.parse_str(
+                time=row["sc_recording_time"],
+                reserved=row["sc_recording_time_reserved"],
+                video_frame_dif_sequence_count=video_frame_dif_sequence_count,
+            ),
+        )
+        all_frame_data.append(frame_data)
+
+        current_frame += 1
+    return all_frame_data
