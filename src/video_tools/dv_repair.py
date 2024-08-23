@@ -30,15 +30,14 @@ def parse_args():
     )
     read.set_defaults(subcommand_function=read_command)
     read.add_argument(
-        "input_file",
+        "input_dv_file",
         type=str,
         help="Input raw DV binary file.  It must not be in any kind of container.",
     )
     read.add_argument(
-        "--output-csv",
+        "output_csv_file",
         type=str,
-        help="Name of output CSV file to hold frame data.  By default, it will "
-        "be the name of the input file with a .csv suffix.",
+        help="Name of output CSV file to hold frame data.",
     )
 
     # Subcommand: transform
@@ -71,20 +70,43 @@ def parse_args():
         help="Output CSV file that will hold the transformed output.",
     )
 
+    # Subcommand: write
+    write = subparsers.add_parser(
+        "write",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        help="Write frame data from a CSV file into a DV file.",
+        description="Reads all frames from a DV file and updates them with frame "
+        "data from a CSV file.  Typically the final step in a repair workflow.",
+    )
+    write.set_defaults(subcommand_function=write_command)
+    write.add_argument(
+        "input_dv_file",
+        type=str,
+        help="Input raw DV binary file.  It must not be in any kind of container.",
+    )
+    write.add_argument(
+        "input_csv_file",
+        type=str,
+        help="Name of output CSV file holding frame data.",
+    )
+    write.add_argument(
+        "output_dv_file",
+        type=str,
+        help="Output raw DV binary file that has been updated through the CSV file.",
+    )
+
     return parser.parse_args()
 
 
 def read_command(args):
-    input_filename = args.input_file
-    output_csv_filename = args.output_csv
-    if output_csv_filename is None:
-        output_csv_filename = input_filename + ".csv"
+    input_dv_filename = args.input_dv_file
+    output_csv_filename = args.output_csv_file
 
-    print(f"Reading frame data from {input_filename}...")
-    with open(input_filename, mode="rb") as input_file:
-        info = file_info.read_dv_file_info(input_file)
+    print(f"Reading frame data from {input_dv_filename}...")
+    with open(input_dv_filename, mode="rb") as input_dv_file:
+        info = file_info.read_dv_file_info(input_dv_file)
 
-        frame_data = dif_io.read_all_frame_data(input_file, info)
+        frame_data = dif_io.read_all_frame_data(input_dv_file, info)
 
     print(f"Writing frame data to {output_csv_filename}...")
     with open(output_csv_filename, "wt", newline="") as output_csv_file:
@@ -108,6 +130,23 @@ def transform_command(args):
     print(f"Writing frame data to {output_csv_filename}...")
     with open(output_csv_filename, "wt", newline="") as output_csv_file:
         dif_csv.write_frame_data_csv(output_csv_file, frame_data)
+
+
+def write_command(args):
+    input_dv_filename = args.input_dv_file
+    input_csv_filename = args.input_csv_file
+    output_dv_filename = args.output_dv_file
+
+    print(f"Reading frame data from {input_csv_filename}...")
+    with open(input_csv_filename, "rt", newline="") as input_csv_file:
+        frame_data = dif_csv.read_frame_data_csv(input_csv_file)
+
+    print(f"Opening input DV file {input_dv_filename}...")
+    with open(input_dv_filename, mode="rb") as input_dv_file:
+        info = file_info.read_dv_file_info(input_dv_file)
+        print(f"Opening output DV file {output_dv_filename}...")
+        with open(output_dv_filename, mode="wb") as output_dv_file:
+            dif_io.write_all_frame_data(input_dv_file, info, frame_data, output_dv_file)
 
 
 def main():

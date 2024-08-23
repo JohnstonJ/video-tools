@@ -53,7 +53,7 @@ class SSYBPackType(IntEnum):
     SMPTE_BG = 0x14  # SMPTE 306M-2002 Section 9.2.2 Binary group pack (BG)
     RECORDING_DATE = 0x62  # Recording date (can't find documentation on this)
     RECORDING_TIME = 0x63  # Recording time (can't find documentation on this)
-    RESERVED = 0xFF  # All pack bytes are 0xFF (could also be a dropout)
+    EMPTY = 0xFF  # All pack bytes are 0xFF (probably a dropout)
 
 
 # Color frame
@@ -207,6 +207,8 @@ class SMPTETimecode:
 
     @classmethod
     def parse_ssyb_pack(cls, ssyb_bytes, video_frame_dif_sequence_count):
+        # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
+        # Also see SMPTE 12M
         assert len(ssyb_bytes) == 5
         assert ssyb_bytes[0] == SSYBPackType.SMPTE_TC
         assert (
@@ -275,6 +277,38 @@ class SMPTETimecode:
         )
 
         return pack if pack.valid() else None
+
+    def to_ssyb_pack(self):
+        # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
+        # Also see SMPTE 12M
+        assert self.valid()
+        ssyb_bytes = [
+            SSYBPackType.SMPTE_TC,
+            (int(self.color_frame) << 7)
+            | (0x40 if self.drop_frame else 0x00)
+            | (int(self.frame / 10) << 4)
+            | int(self.frame % 10),
+            (int(self.second / 10) << 4) | int(self.second % 10),
+            (int(self.minute / 10) << 4) | int(self.minute % 10),
+            (int(self.hour / 10) << 4) | int(self.hour % 10),
+        ]
+        pc = int(self.polarity_correction)
+        bgf0 = self.binary_group_flags & 0x01
+        bgf1 = (self.binary_group_flags & 0x02) >> 1
+        bgf2 = (self.binary_group_flags & 0x04) >> 2
+        assert (
+            self.video_frame_dif_sequence_count == 10
+            or self.video_frame_dif_sequence_count == 12
+        )
+        if self.video_frame_dif_sequence_count == 10:  # 525/60 system
+            ssyb_bytes[2] |= pc << 7
+            ssyb_bytes[3] |= bgf0 << 7
+            ssyb_bytes[4] |= (bgf2 << 7) | (bgf1 << 6)
+        elif self.video_frame_dif_sequence_count == 12:  # 625/50 system
+            ssyb_bytes[2] |= bgf0 << 7
+            ssyb_bytes[3] |= bgf2 << 7
+            ssyb_bytes[4] |= (pc << 7) | (bgf1 << 6)
+        return bytes(ssyb_bytes)
 
     def increment_frame(self):
         """Return a copy with frame incremented by 1."""
@@ -351,6 +385,16 @@ class SMPTEBinaryGroup:
         assert len(ssyb_bytes) == 5
         assert ssyb_bytes[0] == SSYBPackType.SMPTE_BG
         return SMPTEBinaryGroup(value=bytes(ssyb_bytes[1:]))
+
+    def to_ssyb_pack(self):
+        assert self.valid()
+        return [
+            SSYBPackType.SMPTE_BG,
+            self.value[0],
+            self.value[1],
+            self.value[2],
+            self.value[3],
+        ]
 
 
 recording_date_pattern = re.compile(
@@ -485,6 +529,34 @@ class SubcodeRecordingDate:
         )
 
         return pack if pack.valid() else None
+
+    def to_ssyb_pack(self):
+        assert self.valid()
+        short_year = self.year % 100
+        ssyb_bytes = [
+            SSYBPackType.RECORDING_DATE,
+            0x00,
+            (
+                (int(self.day / 10) << 4) | int(self.day % 10)
+                if self.day is not None
+                else 0x3F
+            ),
+            (
+                (int(self.month / 10) << 4) | int(self.month % 10)
+                if self.month is not None
+                else 0x1F
+            ),
+            (
+                (int(short_year / 10) << 4) | int(short_year % 10)
+                if self.year is not None
+                else 0xFF
+            ),
+        ]
+        # If the user gave reserved bits that conflict with the date, then mask them out.
+        reserved_mask = bytes(b"\xFF\xC0\xE0\x00")
+        reserved = [b & m for b, m in zip(self.reserved, reserved_mask)]
+        ssyb_bytes[1:5] = [b | r for b, r in zip(ssyb_bytes[1:5], reserved)]
+        return bytes(ssyb_bytes)
 
 
 recording_time_pattern = re.compile(
@@ -649,6 +721,37 @@ class SubcodeRecordingTime:
         )
 
         return pack if pack.valid() else None
+
+    def to_ssyb_pack(self):
+        assert self.valid()
+        ssyb_bytes = [
+            SSYBPackType.RECORDING_TIME,
+            (
+                (int(self.frame / 10) << 4) | int(self.frame % 10)
+                if self.frame is not None
+                else 0x3F
+            ),
+            (
+                (int(self.second / 10) << 4) | int(self.second % 10)
+                if self.second is not None
+                else 0x7F
+            ),
+            (
+                (int(self.minute / 10) << 4) | int(self.minute % 10)
+                if self.minute is not None
+                else 0x7F
+            ),
+            (
+                (int(self.hour / 10) << 4) | int(self.hour % 10)
+                if self.hour is not None
+                else 0x3F
+            ),
+        ]
+        # If the user gave reserved bits that conflict with the time, then mask them out.
+        reserved_mask = bytes(b"\xC0\x80\x80\xC0")
+        reserved = [b & m for b, m in zip(self.reserved, reserved_mask)]
+        ssyb_bytes[1:5] = [b | r for b, r in zip(ssyb_bytes[1:5], reserved)]
+        return bytes(ssyb_bytes)
 
 
 @dataclass(frozen=True)

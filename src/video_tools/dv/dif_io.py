@@ -56,7 +56,14 @@ def read_frame_data(frame_bytes, file_info):
                 assert dif_block_number == dif.DIF_BLOCK_NUMBER[block]
 
                 # Track the arbitrary bits
-                arbitrary_bits_hist[arbitrary_bits] += 1
+                # Note that the bits for the header and subcode blocks are always
+                # 0xF, and other values will make DVRescue malfunction.  There
+                # must be some poorly-documented reason for this.
+                if (
+                    section_type != dif.DIFBlockType.HEADER
+                    and section_type != dif.DIFBlockType.SUBCODE
+                ):
+                    arbitrary_bits_hist[arbitrary_bits] += 1
 
                 if section_type == dif.DIFBlockType.HEADER:
                     # Read header DIF block
@@ -88,7 +95,6 @@ def read_frame_data(frame_bytes, file_info):
                     header_audio_application_id_hist[ap1] += 1
                     header_video_application_id_hist[ap2] += 1
                     header_subcode_application_id_hist[ap3] += 1
-                    pass
                 elif section_type == dif.DIFBlockType.SUBCODE:
                     # Save the subcode blocks for later
                     # SMPTE 306M-2002 Section 11.2.2.2 Subcode section
@@ -98,7 +104,6 @@ def read_frame_data(frame_bytes, file_info):
                         ssyb_bytes.append(
                             frame_bytes[ssyb_start : ssyb_start + ssyb_len]
                         )
-                    pass
 
                 b_start += dif.DIF_BLOCK_SIZE
 
@@ -224,3 +229,162 @@ def read_all_frame_data(input_file, input_file_info):
         frame_data = read_frame_data(frame_bytes, input_file_info)
         all_frame_data.append(frame_data)
     return all_frame_data
+
+
+def write_frame_data(frame_bytes, file_info, frame_data):
+    """Write frame_data into frame_bytes and return updated frame."""
+
+    # Test reading the frame data first, to make sure no assertions fail and
+    # that things aren't horribly wrong.  This especially allows us to safely
+    # make assumptions about the correct ordering of the DIF block types.
+    read_frame_data(frame_bytes, file_info)
+
+    # In general, our approach is to leave unknown/reserved bits
+    # as they are, and only change the things we really want to.
+
+    b_start = 0  # current block starting position
+    for channel in range(file_info.video_frame_channel_count):
+        for sequence in range(file_info.video_frame_dif_sequence_count):
+            ssyb_bytes = []  # subcode pack bytes seen in sequence
+            ssyb_locations = []  # byte offset for their locations
+            ssyb_len = 8
+            for block in range(len(dif.DIF_SEQUENCE_TRANSMISSION_ORDER)):
+                # read_frame_data already checked for correct transmission order,
+                # so we don't need to read the section type from the file.
+                section_type = dif.DIF_SEQUENCE_TRANSMISSION_ORDER[block]
+
+                # Write arbitrary bits into the DIF block header for all DIF blocks
+                # SMPTE 306M-2002 Section 11.2.1 ID
+                #
+                # Note that the bits for the header and subcode blocks are always
+                # 0xF, and other values will make DVRescue malfunction.  There
+                # must be some poorly-documented reason for this.  We'll leave
+                # those bits untouched because I don't know what they mean.
+                if (
+                    section_type != dif.DIFBlockType.HEADER
+                    and section_type != dif.DIFBlockType.SUBCODE
+                ):
+                    frame_bytes[b_start] = (frame_bytes[b_start] & 0xF0) | (
+                        frame_data.arbitrary_bits & 0x0F
+                    )
+
+                if section_type == dif.DIFBlockType.HEADER:
+                    # Write application IDs to the header DIF block
+                    # SMPTE 306M-2002 Section 11.2.2.1 Header section
+                    # APT: SMPTE 306M-2002 Section 6.2.4 Track information area (TIA)
+                    # AP1: SMPTE 306M-2002 Section 6.3.3.2 (Audio sync block) ID
+                    # AP2: SMPTE 306M-2002 Section 6.4.3.2 (Video sync block) ID
+                    # AP3: SMPTE 306M-2002 Section 6.5.3.2 (Subcode sync block) ID
+                    frame_bytes[b_start + 4] = (frame_bytes[b_start + 4] & 0xF8) | (
+                        frame_data.header_track_application_id & 0x07
+                    )
+                    frame_bytes[b_start + 5] = (frame_bytes[b_start + 5] & 0xF8) | (
+                        frame_data.header_audio_application_id & 0x07
+                    )
+                    frame_bytes[b_start + 6] = (frame_bytes[b_start + 6] & 0xF8) | (
+                        frame_data.header_video_application_id & 0x07
+                    )
+                    frame_bytes[b_start + 7] = (frame_bytes[b_start + 7] & 0xF8) | (
+                        frame_data.header_subcode_application_id & 0x07
+                    )
+                elif section_type == dif.DIFBlockType.SUBCODE:
+                    # Save the subcode blocks for later
+                    # SMPTE 306M-2002 Section 11.2.2.2 Subcode section
+                    for ssyb_index in range(6):
+                        ssyb_start = b_start + 3 + ssyb_len * ssyb_index
+                        ssyb_bytes.append(
+                            frame_bytes[ssyb_start : ssyb_start + ssyb_len]
+                        )
+                        ssyb_locations.append(ssyb_start)
+
+                b_start += dif.DIF_BLOCK_SIZE
+
+            # It's quite possible - and common - for every last subcode byte
+            # to drop out, so we need to be quite thorough about writing data
+            # back out unless otherwise requested.
+            assert len(ssyb_bytes) == 12
+            for ssyb_num in range(12):
+                ssyb_start = ssyb_locations[ssyb_num]
+                # Write the ID data.  Note that application IDs are
+                # written after the loop.
+                # FR bit: set if in first half of the channel
+                frame_bytes[ssyb_start] = (frame_bytes[ssyb_start] & 0x7F) | (
+                    0x80
+                    if sequence < file_info.video_frame_dif_sequence_count / 2
+                    else 0x00
+                )
+                # Syb bits: sync block number
+                frame_bytes[ssyb_start + 1] = (
+                    frame_bytes[ssyb_start + 1] & 0xF0
+                ) | ssyb_num
+                # IDP parity bit: in practice this is 0xFF on a couple test
+                # captures I did.  Also, libdv writes 0xFF for this as well.
+                frame_bytes[ssyb_start + 2] = 0xFF
+
+                # Write the subcode pack itself
+                pack_start = ssyb_start + 3
+                pack_len = 5
+                desired_pack_type = frame_data.subcode_pack_types[channel][sequence][
+                    ssyb_num
+                ]
+                if desired_pack_type is None:
+                    # User doesn't want to further modify the subcode pack.
+                    continue
+                elif desired_pack_type == dif.SSYBPackType.EMPTY:
+                    new_pack = [0xFF] * pack_len
+                elif desired_pack_type == dif.SSYBPackType.SMPTE_TC:
+                    assert frame_data.subcode_smpte_timecode is not None
+                    new_pack = frame_data.subcode_smpte_timecode.to_ssyb_pack()
+                elif desired_pack_type == dif.SSYBPackType.SMPTE_BG:
+                    assert frame_data.subcode_smpte_binary_group is not None
+                    new_pack = frame_data.subcode_smpte_binary_group.to_ssyb_pack()
+                elif desired_pack_type == dif.SSYBPackType.RECORDING_DATE:
+                    assert frame_data.subcode_recording_date is not None
+                    new_pack = frame_data.subcode_recording_date.to_ssyb_pack()
+                elif desired_pack_type == dif.SSYBPackType.RECORDING_TIME:
+                    assert frame_data.subcode_recording_time is not None
+                    new_pack = frame_data.subcode_recording_time.to_ssyb_pack()
+                else:
+                    raise ValueError(
+                        "Unsupported subcode pack type.  Use "
+                        "underscores if you don't want to change it."
+                    )
+                assert len(new_pack) == pack_len
+                frame_bytes[pack_start : pack_start + pack_len] = new_pack
+
+            # Always write out the application IDs
+            # SMPTE 306M-2002 Section 6.5.3.2 (Subcode sync block) ID
+            # Especially see Table 32 - ID data in subcode sector
+            frame_bytes[ssyb_locations[0]] = (frame_bytes[ssyb_locations[0]] & 0x8F) | (
+                (frame_data.subcode_subcode_application_id & 0x07) << 4
+            )
+            frame_bytes[ssyb_locations[6]] = (frame_bytes[ssyb_locations[6]] & 0x8F) | (
+                (frame_data.subcode_subcode_application_id & 0x07) << 4
+            )
+            frame_bytes[ssyb_locations[11]] = (
+                frame_bytes[ssyb_locations[11]] & 0x8F
+            ) | ((frame_data.subcode_track_application_id & 0x07) << 4)
+
+    return frame_bytes
+
+
+def write_all_frame_data(input_file, input_file_info, all_frame_data, output_file):
+    assert input_file_info.video_frame_count == len(all_frame_data)
+    for frame_number in range(input_file_info.video_frame_count):
+        if frame_number % 100 == 0:
+            print(
+                f"Writing frame {frame_number} of {input_file_info.video_frame_count}..."
+            )
+
+        # Read the bytes for this frame into memory
+        input_file.seek(frame_number * input_file_info.video_frame_size)
+        frame_bytes = io_util.read_file_bytes(
+            input_file, input_file_info.video_frame_size
+        )
+        assert len(frame_bytes) == input_file_info.video_frame_size
+
+        # Update the frame data in this memory buffer
+        write_frame_data(frame_bytes, input_file_info, all_frame_data[frame_number])
+
+        # Write the bytes for this frame to the output
+        output_file.write(frame_bytes)
