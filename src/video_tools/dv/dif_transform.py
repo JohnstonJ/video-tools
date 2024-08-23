@@ -1,6 +1,5 @@
 """Contains functions for running user-provided commands to repair DV frame data."""
 
-import copy
 import re
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -291,11 +290,19 @@ class WriteConstantCommand(Command):
             case "sc_subcode_application_id":
                 return replace(frame_data, subcode_subcode_application_id=value)
             case _ if (match := subcode_column_exact_pattern.match(self.column)):
-                types = copy.deepcopy(frame_data.subcode_pack_types)
-                types[int(match.group("channel"))][int(match.group("dif_sequence"))][
-                    int(match.group("pack"))
-                ] = value
-                return replace(frame_data, subcode_pack_types=types)
+                # Making a deep copy of frame_data.subcode_pack_types would be
+                # the simple and naive way of doing this, but it's very slow.
+                # Instead, we'll only copy the lists that we're actually changing.
+                channel = int(match.group("channel"))
+                dif_sequence = int(match.group("dif_sequence"))
+                pack = int(match.group("pack"))
+                new_channels = frame_data.subcode_pack_types[:] # shallow copy
+                new_dif_sequences = new_channels[channel][:]
+                new_packs = new_dif_sequences[dif_sequence][:]
+                new_packs[pack] = value
+                new_dif_sequences[dif_sequence] = new_packs
+                new_channels[channel] = new_dif_sequences
+                return replace(frame_data, subcode_pack_types=new_channels)
             case (
                 "sc_smpte_timecode_color_frame"
                 | "sc_smpte_timecode_polarity_correction"
