@@ -276,7 +276,7 @@ def merge_inputs(inputs, output, dvanalyzer_results, dvrescue_results, frame_siz
                 clean_dvrescue_inputs.add(input_name)
                 continue
 
-            # Exclude frames that had repeated time codes.  These most often
+            # Exclude frames that had repeated timecodes.  These most often
             # seem to be wrong.
             if this_analysis[this_frame_num].timecode_repeated:
                 continue

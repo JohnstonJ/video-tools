@@ -169,13 +169,13 @@ class WriteConstantCommand(Command):
             case _ if subcode_column_full_pattern.match(column):
                 # We used full pattern match because this is called before command expansion
                 return int(value_str, 0)
-            case "sc_smpte_time_code_color_frame":
+            case "sc_smpte_timecode_color_frame":
                 return dif.ColorFrame[value_str] if value_str is not None else None
-            case "sc_smpte_time_code_polarity_correction":
+            case "sc_smpte_timecode_polarity_correction":
                 return (
                     dif.PolarityCorrection[value_str] if value_str is not None else None
                 )
-            case "sc_smpte_time_code_binary_group_flags":
+            case "sc_smpte_timecode_binary_group_flags":
                 return int(value_str, 0) if value_str is not None else None
             case "sc_recording_date_reserved" | "sc_recording_time_reserved":
                 b = (
@@ -205,11 +205,11 @@ class WriteConstantCommand(Command):
             case _ if subcode_column_exact_pattern.match(self.column):
                 return dif_csv.hex_int(value, 2)
             case (
-                "sc_smpte_time_code_color_frame"
-                | "sc_smpte_time_code_polarity_correction"
+                "sc_smpte_timecode_color_frame"
+                | "sc_smpte_timecode_polarity_correction"
             ):
                 return value.name if value is not None else None
-            case "sc_smpte_time_code_binary_group_flags":
+            case "sc_smpte_timecode_binary_group_flags":
                 return dif_csv.hex_int(value, 1) if value is not None else None
             case "sc_recording_date_reserved" | "sc_recording_time_reserved":
                 return dif_csv.hex_bytes(value) if value is not None else None
@@ -237,22 +237,22 @@ class WriteConstantCommand(Command):
                 return frame_data.subcode_pack_types[int(match.group("channel"))][
                     int(match.group("dif_sequence"))
                 ][int(match.group("pack"))]
-            case "sc_smpte_time_code_color_frame":
+            case "sc_smpte_timecode_color_frame":
                 return (
-                    frame_data.subcode_smpte_time_code.color_frame
-                    if frame_data.subcode_smpte_time_code
+                    frame_data.subcode_smpte_timecode.color_frame
+                    if frame_data.subcode_smpte_timecode
                     else None
                 )
-            case "sc_smpte_time_code_polarity_correction":
+            case "sc_smpte_timecode_polarity_correction":
                 return (
-                    frame_data.subcode_smpte_time_code.polarity_correction
-                    if frame_data.subcode_smpte_time_code
+                    frame_data.subcode_smpte_timecode.polarity_correction
+                    if frame_data.subcode_smpte_timecode
                     else None
                 )
-            case "sc_smpte_time_code_binary_group_flags":
+            case "sc_smpte_timecode_binary_group_flags":
                 return (
-                    frame_data.subcode_smpte_time_code.binary_group_flags
-                    if frame_data.subcode_smpte_time_code
+                    frame_data.subcode_smpte_timecode.binary_group_flags
+                    if frame_data.subcode_smpte_timecode
                     else None
                 )
             case "sc_recording_date_reserved":
@@ -296,14 +296,14 @@ class WriteConstantCommand(Command):
                 ] = value
                 return replace(frame_data, subcode_pack_types=types)
             case (
-                "sc_smpte_time_code_color_frame"
-                | "sc_smpte_time_code_polarity_correction"
-                | "sc_smpte_time_code_binary_group_flags"
+                "sc_smpte_timecode_color_frame"
+                | "sc_smpte_timecode_polarity_correction"
+                | "sc_smpte_timecode_binary_group_flags"
             ):
-                existing_time_code = (
-                    frame_data.subcode_smpte_time_code
-                    if frame_data.subcode_smpte_time_code is not None
-                    else dif.SMPTETimeCode(
+                existing_timecode = (
+                    frame_data.subcode_smpte_timecode
+                    if frame_data.subcode_smpte_timecode is not None
+                    else dif.SMPTETimecode(
                         hour=None,
                         minute=None,
                         second=None,
@@ -317,18 +317,14 @@ class WriteConstantCommand(Command):
                         ),
                     )
                 )
-                if self.column == "sc_smpte_time_code_color_frame":
-                    new_time_code = replace(existing_time_code, color_frame=value)
-                elif self.column == "sc_smpte_time_code_polarity_correction":
-                    new_time_code = replace(
-                        existing_time_code, polarity_correction=value
-                    )
-                elif self.column == "sc_smpte_time_code_binary_group_flags":
-                    new_time_code = replace(
-                        existing_time_code, binary_group_flags=value
-                    )
-                new_time_code = new_time_code if not new_time_code.is_empty() else None
-                return replace(frame_data, subcode_smpte_time_code=new_time_code)
+                if self.column == "sc_smpte_timecode_color_frame":
+                    new_timecode = replace(existing_timecode, color_frame=value)
+                elif self.column == "sc_smpte_timecode_polarity_correction":
+                    new_timecode = replace(existing_timecode, polarity_correction=value)
+                elif self.column == "sc_smpte_timecode_binary_group_flags":
+                    new_timecode = replace(existing_timecode, binary_group_flags=value)
+                new_timecode = new_timecode if not new_timecode.is_empty() else None
+                return replace(frame_data, subcode_smpte_timecode=new_timecode)
             case "sc_recording_date_reserved":
                 existing_recording_date = (
                     frame_data.subcode_recording_date
@@ -505,7 +501,7 @@ class RenumberArbitraryBits(Command):
 
 @dataclass
 class RenumberSMPTETimecodes(Command):
-    """Renumbers the SMPTE time codes.
+    """Renumbers the SMPTE timecodes.
 
     The initial value will be taken from the first frame if not specified.
     """
@@ -522,7 +518,7 @@ class RenumberSMPTETimecodes(Command):
     def run(self, all_frame_data, thresholds):
         # Determine starting value
         next_value = (
-            dif.SMPTETimeCode.parse_all(
+            dif.SMPTETimecode.parse_all(
                 time=self.initial_value,
                 color_frame=None,
                 polarity_correction=None,
@@ -532,17 +528,17 @@ class RenumberSMPTETimecodes(Command):
                 ),
             )
             if self.initial_value is not None
-            else all_frame_data[self.start_frame].subcode_smpte_time_code
+            else all_frame_data[self.start_frame].subcode_smpte_timecode
         )
         print(f"Using starting value {next_value.format_time_str()}...")
         # Update frames with new value
         tracker = FrameChangeTracker()
         for frame in self.frame_range(all_frame_data):
-            # Update time code in frame, but ONLY the actual time fields
+            # Update timecode in frame, but ONLY the actual time fields
             frame_data = all_frame_data[frame]
 
-            if frame_data.subcode_smpte_time_code is None:
-                new_tc = dif.SMPTETimeCode(
+            if frame_data.subcode_smpte_timecode is None:
+                new_tc = dif.SMPTETimecode(
                     hour=next_value.hour,
                     minute=next_value.minute,
                     second=next_value.second,
@@ -555,7 +551,7 @@ class RenumberSMPTETimecodes(Command):
                 )
             else:
                 new_tc = replace(
-                    frame_data.subcode_smpte_time_code,
+                    frame_data.subcode_smpte_timecode,
                     hour=next_value.hour,
                     minute=next_value.minute,
                     second=next_value.second,
@@ -563,7 +559,7 @@ class RenumberSMPTETimecodes(Command):
                     drop_frame=next_value.drop_frame,
                     video_frame_dif_sequence_count=next_value.video_frame_dif_sequence_count,
                 )
-            new_frame_data = replace(frame_data, subcode_smpte_time_code=new_tc)
+            new_frame_data = replace(frame_data, subcode_smpte_timecode=new_tc)
 
             all_frame_data[frame] = new_frame_data
             self.track_changed_frame(

@@ -28,7 +28,7 @@ def read_frame_data(frame_bytes, file_info):
         ]
         for channel in range(file_info.video_frame_channel_count)
     ]
-    subcode_smpte_time_code_hist = defaultdict(int)
+    subcode_smpte_timecode_hist = defaultdict(int)
     subcode_smpte_binary_group_hist = defaultdict(int)
     subcode_recording_date_hist = defaultdict(int)
     subcode_recording_time_hist = defaultdict(int)
@@ -128,12 +128,12 @@ def read_frame_data(frame_bytes, file_info):
                 subcode_pack_type = ssyb_bytes[ssyb_num][3]
                 subcode_pack_types[channel][sequence][ssyb_num] = subcode_pack_type
                 if subcode_pack_type == dif.SSYBPackType.SMPTE_TC:
-                    subcode_smpte_time_code = dif.SMPTETimeCode.parse_ssyb_pack(
+                    subcode_smpte_timecode = dif.SMPTETimecode.parse_ssyb_pack(
                         ssyb_bytes[ssyb_num][3:],
                         file_info.video_frame_dif_sequence_count,
                     )
-                    if subcode_smpte_time_code is not None:
-                        subcode_smpte_time_code_hist[subcode_smpte_time_code] += 1
+                    if subcode_smpte_timecode is not None:
+                        subcode_smpte_timecode_hist[subcode_smpte_timecode] += 1
                 elif subcode_pack_type == dif.SSYBPackType.SMPTE_BG:
                     subcode_smpte_binary_group = dif.SMPTEBinaryGroup.parse_ssyb_pack(
                         ssyb_bytes[ssyb_num][3:]
@@ -180,9 +180,9 @@ def read_frame_data(frame_bytes, file_info):
             key=subcode_subcode_application_id_hist.get,
         ),
         subcode_pack_types=subcode_pack_types,
-        subcode_smpte_time_code=(
-            max(subcode_smpte_time_code_hist, key=subcode_smpte_time_code_hist.get)
-            if subcode_smpte_time_code_hist
+        subcode_smpte_timecode=(
+            max(subcode_smpte_timecode_hist, key=subcode_smpte_timecode_hist.get)
+            if subcode_smpte_timecode_hist
             else None
         ),
         subcode_smpte_binary_group=(

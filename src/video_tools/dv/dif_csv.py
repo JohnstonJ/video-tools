@@ -51,11 +51,11 @@ def write_frame_data_csv(output_file, all_frame_data):
                     )
                 ],
                 [
-                    # Subcode SMPTE time code
-                    "sc_smpte_time_code",
-                    "sc_smpte_time_code_color_frame",
-                    "sc_smpte_time_code_polarity_correction",
-                    "sc_smpte_time_code_binary_group_flags",
+                    # Subcode SMPTE timecode
+                    "sc_smpte_timecode",
+                    "sc_smpte_timecode_color_frame",
+                    "sc_smpte_timecode_polarity_correction",
+                    "sc_smpte_timecode_binary_group_flags",
                     # Subcode SMPTE binary group
                     "sc_smpte_binary_group",  # 8 hex digits
                     # Subcode recording date/time
@@ -101,23 +101,22 @@ def write_frame_data_csv(output_file, all_frame_data):
                 field_name = f"sc_pack_types_{channel}_{dif_sequence}"
                 pack_types = frame_data.subcode_pack_types[channel][dif_sequence]
                 row_fields[field_name] = hex_bytes(pack_types, allow_optional=True)
-        if frame_data.subcode_smpte_time_code is not None:
+        if frame_data.subcode_smpte_timecode is not None:
             row_fields |= {
-                "sc_smpte_time_code": frame_data.subcode_smpte_time_code.format_time_str(),
-                "sc_smpte_time_code_color_frame": (
-                    frame_data.subcode_smpte_time_code.color_frame.name
-                    if frame_data.subcode_smpte_time_code.color_frame is not None
+                "sc_smpte_timecode": frame_data.subcode_smpte_timecode.format_time_str(),
+                "sc_smpte_timecode_color_frame": (
+                    frame_data.subcode_smpte_timecode.color_frame.name
+                    if frame_data.subcode_smpte_timecode.color_frame is not None
                     else ""
                 ),
-                "sc_smpte_time_code_polarity_correction": (
-                    frame_data.subcode_smpte_time_code.polarity_correction.name
-                    if frame_data.subcode_smpte_time_code.polarity_correction
-                    is not None
+                "sc_smpte_timecode_polarity_correction": (
+                    frame_data.subcode_smpte_timecode.polarity_correction.name
+                    if frame_data.subcode_smpte_timecode.polarity_correction is not None
                     else ""
                 ),
-                "sc_smpte_time_code_binary_group_flags": (
-                    hex_int(frame_data.subcode_smpte_time_code.binary_group_flags, 1)
-                    if frame_data.subcode_smpte_time_code.binary_group_flags is not None
+                "sc_smpte_timecode_binary_group_flags": (
+                    hex_int(frame_data.subcode_smpte_timecode.binary_group_flags, 1)
+                    if frame_data.subcode_smpte_timecode.binary_group_flags is not None
                     else ""
                 ),
             }
@@ -202,11 +201,11 @@ def read_frame_data_csv(input_file):
             subcode_track_application_id=int(row["sc_track_application_id"], 0),
             subcode_subcode_application_id=int(row["sc_subcode_application_id"], 0),
             subcode_pack_types=subcode_pack_types,
-            subcode_smpte_time_code=dif.SMPTETimeCode.parse_all(
-                time=row["sc_smpte_time_code"],
-                color_frame=row["sc_smpte_time_code_color_frame"],
-                polarity_correction=row["sc_smpte_time_code_polarity_correction"],
-                binary_group_flags=row["sc_smpte_time_code_binary_group_flags"],
+            subcode_smpte_timecode=dif.SMPTETimecode.parse_all(
+                time=row["sc_smpte_timecode"],
+                color_frame=row["sc_smpte_timecode_color_frame"],
+                polarity_correction=row["sc_smpte_timecode_polarity_correction"],
+                binary_group_flags=row["sc_smpte_timecode_binary_group_flags"],
                 video_frame_dif_sequence_count=video_frame_dif_sequence_count,
             ),
             subcode_smpte_binary_group=dif.SMPTEBinaryGroup.parse_all(

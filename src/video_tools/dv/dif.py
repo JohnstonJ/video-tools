@@ -75,11 +75,11 @@ smpte_time_pattern = re.compile(
 )
 
 
-# SMPTE time code
+# SMPTE timecode
 # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
 # Also see SMPTE 12M
 @dataclass(frozen=True)
-class SMPTETimeCode:
+class SMPTETimecode:
     # The fields are ultimately all required to be valid, but we allow them
     # to be missing during intermediate transformations.
     hour: int | None
@@ -185,7 +185,7 @@ class SMPTETimeCode:
         if time:
             match = smpte_time_pattern.match(time)
             if not match:
-                raise ValueError("Parsing error while reading SMPTE time code.")
+                raise ValueError("Parsing error while reading SMPTE timecode.")
         val = cls(
             hour=int(match.group("hour")) if match else None,
             minute=int(match.group("minute")) if match else None,
@@ -671,7 +671,7 @@ class FrameData:
     # value is always the pack header (subcode pack type) when reading a DV file.
     # it may be None when writing if we want to leave the pack unmodified.
     subcode_pack_types: list[list[list[int | None]]]
-    subcode_smpte_time_code: SMPTETimeCode | None
+    subcode_smpte_timecode: SMPTETimecode | None
     subcode_smpte_binary_group: SMPTEBinaryGroup | None
     subcode_recording_date: SubcodeRecordingDate | None
     subcode_recording_time: SubcodeRecordingTime | None
