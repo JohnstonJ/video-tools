@@ -42,6 +42,7 @@ class Command(ABC):
     type: str
     start_frame: int
     end_frame: int | None
+    thresholds: Thresholds
 
     def frame_range(self, all_frame_data):
         """Return iterable of frame numbers that this command is supposed to operate on."""
@@ -51,7 +52,7 @@ class Command(ABC):
         )
 
     def track_changed_frame(
-        self, old_frame_data, new_frame_data, frame_number, tracker, thresholds
+        self, old_frame_data, new_frame_data, frame_number, tracker
     ):
         """Track a changed frame in the FrameChangeTracker."""
         changed = old_frame_data != new_frame_data
@@ -63,26 +64,26 @@ class Command(ABC):
         tracker.total_frames += 1
 
         if (
-            thresholds.max_consecutive_modifications is not None
+            self.thresholds.max_consecutive_modifications is not None
             and tracker.last_consecutive_changed_frames
-            >= thresholds.max_consecutive_modifications
+            >= self.thresholds.max_consecutive_modifications
         ):
             raise ValueError(
                 f"ERROR:  Changed too many frames in a row at frame {frame_number}."
             )
 
-    def track_final_proportion(self, tracker, thresholds):
+    def track_final_proportion(self, tracker):
         """Check the final proportion of changed frames against threshold."""
         proportion = float(tracker.changed_frames) / float(tracker.total_frames)
         print(
             f"Changed {proportion * 100:.2f}%, or {tracker.changed_frames}"
             f" of {tracker.total_frames} frames."
         )
-        if proportion > thresholds.max_changed_proportion:
+        if proportion > self.thresholds.max_changed_proportion:
             raise ValueError(f"ERROR:  Changed too high a percentage of frames.")
 
     @abstractmethod
-    def run(self, all_frame_data, thresholds):
+    def run(self, all_frame_data):
         """Run the command to modify all frames."""
         pass
 
@@ -363,7 +364,7 @@ class WriteConstantCommand(Command):
                     f"Unsupported column {self.column} for write_constant command."
                 )
 
-    def run(self, all_frame_data, thresholds):
+    def run(self, all_frame_data):
         # Look for most frequently occurring values and show them to the user.
         histogram = defaultdict(int)
         for frame in self.frame_range(all_frame_data):
@@ -387,9 +388,9 @@ class WriteConstantCommand(Command):
             )
             all_frame_data[frame] = new_frame_data
             self.track_changed_frame(
-                frame_data, new_frame_data, frame, tracker, thresholds
+                frame_data, new_frame_data, frame, tracker
             )
-        self.track_final_proportion(tracker, thresholds)
+        self.track_final_proportion(tracker)
 
         return all_frame_data
 
@@ -467,7 +468,7 @@ class RenumberArbitraryBits(Command):
             f"upper_bound={self.upper_bound}, step={self.step}"
         )
 
-    def run(self, all_frame_data, thresholds):
+    def run(self, all_frame_data):
         # Determine starting value
         next_value = (
             self.initial_value
@@ -486,7 +487,7 @@ class RenumberArbitraryBits(Command):
             new_frame_data = replace(frame_data, arbitrary_bits=next_value)
             all_frame_data[frame] = new_frame_data
             self.track_changed_frame(
-                frame_data, new_frame_data, frame, tracker, thresholds
+                frame_data, new_frame_data, frame, tracker
             )
 
             # Calculate next value
@@ -494,7 +495,7 @@ class RenumberArbitraryBits(Command):
             if next_value > self.upper_bound:
                 next_value -= self.upper_bound - self.lower_bound + 1
 
-        self.track_final_proportion(tracker, thresholds)
+        self.track_final_proportion(tracker)
 
         return all_frame_data
 
@@ -515,7 +516,7 @@ class RenumberSMPTETimecodes(Command):
             f"with initial_value={self.initial_value}"
         )
 
-    def run(self, all_frame_data, thresholds):
+    def run(self, all_frame_data):
         # Determine starting value
         next_value = (
             dif.SMPTETimecode.parse_all(
@@ -563,20 +564,19 @@ class RenumberSMPTETimecodes(Command):
 
             all_frame_data[frame] = new_frame_data
             self.track_changed_frame(
-                frame_data, new_frame_data, frame, tracker, thresholds
+                frame_data, new_frame_data, frame, tracker
             )
 
             # Calculate next value
             next_value = next_value.increment_frame()
 
-        self.track_final_proportion(tracker, thresholds)
+        self.track_final_proportion(tracker)
 
         return all_frame_data
 
 
 @dataclass
 class Transformations:
-    thresholds: Thresholds
     commands: list[Command]
 
     def run(self, frame_data):
@@ -584,7 +584,7 @@ class Transformations:
             for expanded_command in command.command_expansion(frame_data):
                 print("===================================================")
                 print(f"Running command {expanded_command}...")
-                frame_data = expanded_command.run(frame_data, self.thresholds)
+                frame_data = expanded_command.run(frame_data)
         print("===================================================")
         return frame_data
 
@@ -599,7 +599,7 @@ def load_transformations(transformations_file):
     max_consecutive_modifications_str = transformations_yaml.get("thresholds", {}).get(
         "max_consecutive_modifications", str(DEFAULT_MAX_CONSECUTIVE_MODIFICATIONS)
     )
-    thresholds = Thresholds(
+    global_thresholds = Thresholds(
         max_changed_proportion=float(max_changed_proportion_str),
         max_consecutive_modifications=(
             int(max_consecutive_modifications_str)
@@ -611,6 +611,23 @@ def load_transformations(transformations_file):
     # Read commands
     commands = []
     for command_dict in transformations_yaml.get("commands", []) or []:
+        # Look for per-command threshold overrides
+        max_changed_proportion_str = command_dict.get("thresholds", {}).get(
+            "max_changed_proportion", str(global_thresholds.max_changed_proportion)
+        )
+        max_consecutive_modifications_str = command_dict.get("thresholds", {}).get(
+            "max_consecutive_modifications", str(global_thresholds.max_consecutive_modifications)
+        )
+        local_thresholds = Thresholds(
+            max_changed_proportion=float(max_changed_proportion_str),
+            max_consecutive_modifications=(
+                int(max_consecutive_modifications_str)
+                if max_consecutive_modifications_str is not None
+                else None
+            ),
+        )
+        
+        # Parse the command itself
         if command_dict["type"] == "write_constant":
             commands.append(
                 WriteConstantCommand(
@@ -621,6 +638,7 @@ def load_transformations(transformations_file):
                     ),
                     start_frame=command_dict.get("start_frame", 0),
                     end_frame=command_dict.get("end_frame", None),
+                    thresholds=local_thresholds,
                 )
             )
         elif command_dict["type"] == "renumber_arbitrary_bits":
@@ -638,6 +656,7 @@ def load_transformations(transformations_file):
                     step=int(command_dict.get("step", "0x1"), 0),
                     start_frame=command_dict.get("start_frame", 0),
                     end_frame=command_dict.get("end_frame", None),
+                    thresholds=local_thresholds,
                 )
             )
         elif command_dict["type"] == "renumber_smpte_timecodes":
@@ -647,12 +666,12 @@ def load_transformations(transformations_file):
                     initial_value=command_dict.get("initial_value", None),
                     start_frame=command_dict.get("start_frame", 0),
                     end_frame=command_dict.get("end_frame", None),
+                    thresholds=local_thresholds,
                 )
             )
         else:
             raise ValueError(f"Unrecognized command {command_dict['type']}.")
 
     return Transformations(
-        thresholds=thresholds,
         commands=commands,
     )
