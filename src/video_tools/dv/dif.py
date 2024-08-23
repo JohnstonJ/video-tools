@@ -4,7 +4,7 @@ import datetime
 import itertools
 import re
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import IntEnum
 
 
@@ -80,46 +80,93 @@ smpte_time_pattern = re.compile(
 # Also see SMPTE 12M
 @dataclass(frozen=True)
 class SMPTETimeCode:
-    hour: int
-    minute: int
-    second: int
-    frame: int
-    drop_frame: bool
-    color_frame: ColorFrame
-    polarity_correction: PolarityCorrection
-    binary_group_flags: int
+    # The fields are ultimately all required to be valid, but we allow them
+    # to be missing during intermediate transformations.
+    hour: int | None
+    minute: int | None
+    second: int | None
+    frame: int | None
+    drop_frame: bool | None
+    color_frame: ColorFrame | None
+    polarity_correction: PolarityCorrection | None
+    binary_group_flags: int | None
 
     # used for validation; not stored directly in the subcode:
     video_frame_dif_sequence_count: int
 
-    def valid(self):
+    def valid(self, allow_incomplete=False):
+        if (
+            self.hour is None
+            or self.minute is None
+            or self.second is None
+            or self.frame is None
+            or self.drop_frame is None
+            or self.color_frame is None
+            or self.polarity_correction is None
+            or self.binary_group_flags is None
+        ) and not allow_incomplete:
+            return False
+
         assert (
             self.video_frame_dif_sequence_count == 10
             or self.video_frame_dif_sequence_count == 12
         )
-        if self.hour >= 24 or self.minute >= 60 or self.second >= 60:
-            return False
-        if self.video_frame_dif_sequence_count == 10 and self.frame >= 30:
-            return False
-        if self.video_frame_dif_sequence_count == 12 and self.frame >= 25:
-            return False
-        if self.drop_frame and self.video_frame_dif_sequence_count == 12:
-            # drop_frame only applies to NTSC
-            return False
-        if self.drop_frame and self.minute % 10 > 0 and self.frame < 2:
-            # should have dropped the frame
-            return False
+        if self.hour is not None:
+            # The timecode itself must be all present or all absent
+            assert (
+                self.hour is not None
+                and self.minute is not None
+                and self.second is not None
+                and self.frame is not None
+                and self.drop_frame is not None
+            )
+            if self.hour >= 24 or self.minute >= 60 or self.second >= 60:
+                return False
+            if self.video_frame_dif_sequence_count == 10 and self.frame >= 30:
+                return False
+            if self.video_frame_dif_sequence_count == 12 and self.frame >= 25:
+                return False
+            if self.drop_frame and self.video_frame_dif_sequence_count == 12:
+                # drop_frame only applies to NTSC
+                return False
+            if self.drop_frame and self.minute % 10 > 0 and self.frame < 2:
+                # should have dropped the frame
+                return False
+        else:
+            assert (
+                self.hour is None
+                and self.minute is None
+                and self.second is None
+                and self.frame is None
+                and self.drop_frame is None
+            )
         return True
+
+    def is_empty(self):
+        return (
+            self.hour is None
+            and self.minute is None
+            and self.second is None
+            and self.frame is None
+            and self.drop_frame is None
+            and self.color_frame is None
+            and self.polarity_correction is None
+            and self.binary_group_flags is None
+        )
 
     def format_time_str(self):
         return (
-            f"{self.hour:02}:{self.minute:02}:{self.second:02};{self.frame:02}"
-            if self.drop_frame
-            else f"{self.hour:02}:{self.minute:02}:{self.second:02}:{self.frame:02}"
+            (
+                f"{self.hour:02}:{self.minute:02}:{self.second:02};{self.frame:02}"
+                if self.drop_frame
+                else f"{self.hour:02}:{self.minute:02}:{self.second:02}:{self.frame:02}"
+            )
+            if self.hour is not None
+            else ""
         )
 
     @classmethod
-    def parse_str(
+    def parse_all(
         cls,
         time,
         color_frame,
@@ -134,22 +181,28 @@ class SMPTETimeCode:
             and not binary_group_flags
         ):
             return None
-        match = smpte_time_pattern.match(time)
-        if not match:
-            raise ValueError("Parsing error while reading SMPTE time code.")
+        match = None
+        if time:
+            match = smpte_time_pattern.match(time)
+            if not match:
+                raise ValueError("Parsing error while reading SMPTE time code.")
         val = cls(
-            hour=int(match.group("hour")),
-            minute=int(match.group("minute")),
-            second=int(match.group("second")),
-            frame=int(match.group("frame")),
-            drop_frame=match.group("frame_separator") == ";",
-            color_frame=ColorFrame[color_frame],
-            polarity_correction=PolarityCorrection[polarity_correction],
-            binary_group_flags=int(binary_group_flags, 0),
+            hour=int(match.group("hour")) if match else None,
+            minute=int(match.group("minute")) if match else None,
+            second=int(match.group("second")) if match else None,
+            frame=int(match.group("frame")) if match else None,
+            drop_frame=(match.group("frame_separator") == ";") if match else None,
+            color_frame=ColorFrame[color_frame] if color_frame else None,
+            polarity_correction=(
+                PolarityCorrection[polarity_correction] if polarity_correction else None
+            ),
+            binary_group_flags=(
+                int(binary_group_flags, 0) if binary_group_flags else None
+            ),
             video_frame_dif_sequence_count=video_frame_dif_sequence_count,
         )
-        if not val.valid():
-            raise ValueError("Parsing error while reading SMPTE time code.")
+        if not val.valid(allow_incomplete=True):
+            raise ValueError("Parsing error while reading recording date.")
         return val
 
     @classmethod
@@ -223,6 +276,53 @@ class SMPTETimeCode:
 
         return pack if pack.valid() else None
 
+    def increment_frame(self):
+        """Return a copy with frame incremented by 1."""
+        # Read current values and make sure they were present.  (Other field
+        # values are allowed to be empty.)
+        h = self.hour
+        m = self.minute
+        s = self.second
+        f = self.frame
+        assert (
+            h is not None
+            and m is not None
+            and s is not None
+            and f is not None
+            and self.drop_frame is not None
+        )
+        assert (
+            self.video_frame_dif_sequence_count == 10
+            or self.video_frame_dif_sequence_count == 12
+        )
+        assert not self.drop_frame or self.video_frame_dif_sequence_count == 10
+
+        # Increment values as appropriate
+        f += 1
+        if self.video_frame_dif_sequence_count == 10 and f == 30:
+            s += 1
+            f = 0
+        elif self.video_frame_dif_sequence_count == 12 and f == 25:
+            s += 1
+            f = 0
+        if s == 60:
+            m += 1
+            s = 0
+        if m == 60:
+            h += 1
+            m = 0
+        if h == 24:
+            h = 0
+            m = 0
+            s = 0
+            f = 0
+
+        # Process drop frames
+        if self.drop_frame and f <= 1 and s == 0 and m % 10 > 0:
+            f = 2
+
+        return replace(self, hour=h, minute=m, second=s, frame=f)
+
 
 # SMPTE binary group
 # SMPTE 306M-2002 Section 9.2.2 Binary group pack (BG)
@@ -236,7 +336,7 @@ class SMPTEBinaryGroup:
         return len(self.value) == 4
 
     @classmethod
-    def parse_str(cls, value):
+    def parse_all(cls, value):
         if not value:
             return None
         val = cls(
@@ -269,9 +369,10 @@ class SubcodeRecordingDate:
     month: int | None
     day: int | None
     # this will always be 4 bytes; the bits that the date came from are masked out.
-    reserved: bytes
+    # it's required for this class to be valid, but we allow its absence for intermediate processing.
+    reserved: bytes | None
 
-    def valid(self):
+    def valid(self, allow_incomplete=False):
         # Date must be fully present or fully absent
         date_present = (
             self.year is not None and self.month is not None and self.day is not None
@@ -288,31 +389,43 @@ class SubcodeRecordingDate:
             if self.year >= 2075 or self.year < 1975:
                 return False
 
-        if len(self.reserved) != 4:
+        if not allow_incomplete and self.reserved is None:
+            return False
+        if self.reserved is not None and len(self.reserved) != 4:
             return False
         return True
+
+    def is_empty(self):
+        return (
+            self.year is None
+            and self.month is None
+            and self.day is None
+            and self.reserved is None
+        )
 
     def format_date_str(self):
         return (
             f"{self.year:02}-{self.month:02}-{self.day:02}"
-            if self.valid() and self.year is not None
+            if self.year is not None
             else ""
         )
 
     @classmethod
-    def parse_str(cls, date, reserved):
+    def parse_all(cls, date, reserved):
         if not date and not reserved:
             return None
-        match = recording_date_pattern.match(date)
-        if not match:
-            raise ValueError("Parsing error while reading recording date.")
+        match = None
+        if date:
+            match = recording_date_pattern.match(date)
+            if not match:
+                raise ValueError("Parsing error while reading recording date.")
         val = cls(
-            year=int(match.group("year")),
-            month=int(match.group("month")),
-            day=int(match.group("day")),
-            reserved=bytes.fromhex(reserved.removeprefix("0x")),
+            year=int(match.group("year")) if match else None,
+            month=int(match.group("month")) if match else None,
+            day=int(match.group("day")) if match else None,
+            reserved=bytes.fromhex(reserved.removeprefix("0x")) if reserved else None,
         )
-        if not val.valid():
+        if not val.valid(allow_incomplete=True):
             raise ValueError("Parsing error while reading recording date.")
         return val
 
@@ -388,12 +501,13 @@ class SubcodeRecordingTime:
     second: int | None
     frame: int | None
     # this will always be 4 bytes; the bits that the time came from are masked out.
-    reserved: bytes
+    # it's required for this class to be valid, but we allow its absence for intermediate processing.
+    reserved: bytes | None
 
     # used for validation; not stored directly in the subcode:
     video_frame_dif_sequence_count: int
 
-    def valid(self):
+    def valid(self, allow_incomplete=False):
         # Main time part must be fully present or fully absent
         time_present = (
             self.hour is not None
@@ -424,33 +538,50 @@ class SubcodeRecordingTime:
             if self.video_frame_dif_sequence_count == 12 and self.frame >= 25:
                 return False
 
+        if not allow_incomplete and self.reserved is None:
+            return False
+        if self.reserved is not None and len(self.reserved) != 4:
+            return False
         return True
 
+    def is_empty(self):
+        return (
+            self.hour is None
+            and self.minute is None
+            and self.second is None
+            and self.frame is None
+            and self.reserved is None
+        )
+
     def format_time_str(self):
-        if self.valid() and self.hour is not None and self.frame is not None:
+        if self.hour is not None and self.frame is not None:
             return f"{self.hour:02}:{self.minute:02}:{self.second:02}:{self.frame:02}"
-        elif self.valid() and self.hour is not None:
+        elif self.hour is not None:
             return f"{self.hour:02}:{self.minute:02}:{self.second:02}"
         return ""
 
     @classmethod
-    def parse_str(cls, time, reserved, video_frame_dif_sequence_count):
+    def parse_all(cls, time, reserved, video_frame_dif_sequence_count):
         if not time and not reserved:
             return None
-        match = recording_time_pattern.match(time)
-        if not match:
-            raise ValueError("Parsing error while reading recording time.")
+        match = None
+        if time:
+            match = recording_time_pattern.match(time)
+            if not match:
+                raise ValueError("Parsing error while reading recording time.")
         val = cls(
-            hour=int(match.group("hour")),
-            minute=int(match.group("minute")),
-            second=int(match.group("second")),
+            hour=int(match.group("hour")) if match else None,
+            minute=int(match.group("minute")) if match else None,
+            second=int(match.group("second")) if match else None,
             frame=(
-                int(match.group("frame")) if match.group("frame") is not None else None
+                int(match.group("frame"))
+                if match and match.group("frame") is not None
+                else None
             ),
-            reserved=bytes.fromhex(reserved.removeprefix("0x")),
+            reserved=bytes.fromhex(reserved.removeprefix("0x")) if reserved else None,
             video_frame_dif_sequence_count=video_frame_dif_sequence_count,
         )
-        if not val.valid():
+        if not val.valid(allow_incomplete=True):
             raise ValueError("Parsing error while reading recording time.")
         return val
 
@@ -520,7 +651,7 @@ class SubcodeRecordingTime:
         return pack if pack.valid() else None
 
 
-@dataclass
+@dataclass(frozen=True)
 class FrameData:
     """Top-level class containing DV frame metadata."""
 

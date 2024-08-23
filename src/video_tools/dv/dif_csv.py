@@ -104,10 +104,21 @@ def write_frame_data_csv(output_file, all_frame_data):
         if frame_data.subcode_smpte_time_code is not None:
             row_fields |= {
                 "sc_smpte_time_code": frame_data.subcode_smpte_time_code.format_time_str(),
-                "sc_smpte_time_code_color_frame": frame_data.subcode_smpte_time_code.color_frame.name,
-                "sc_smpte_time_code_polarity_correction": frame_data.subcode_smpte_time_code.polarity_correction.name,
-                "sc_smpte_time_code_binary_group_flags": hex_int(
-                    frame_data.subcode_smpte_time_code.binary_group_flags, 1
+                "sc_smpte_time_code_color_frame": (
+                    frame_data.subcode_smpte_time_code.color_frame.name
+                    if frame_data.subcode_smpte_time_code.color_frame is not None
+                    else ""
+                ),
+                "sc_smpte_time_code_polarity_correction": (
+                    frame_data.subcode_smpte_time_code.polarity_correction.name
+                    if frame_data.subcode_smpte_time_code.polarity_correction
+                    is not None
+                    else ""
+                ),
+                "sc_smpte_time_code_binary_group_flags": (
+                    hex_int(frame_data.subcode_smpte_time_code.binary_group_flags, 1)
+                    if frame_data.subcode_smpte_time_code.binary_group_flags is not None
+                    else ""
                 ),
             }
         if frame_data.subcode_smpte_binary_group is not None:
@@ -119,15 +130,19 @@ def write_frame_data_csv(output_file, all_frame_data):
         if frame_data.subcode_recording_date is not None:
             row_fields |= {
                 "sc_recording_date": frame_data.subcode_recording_date.format_date_str(),
-                "sc_recording_date_reserved": hex_bytes(
-                    frame_data.subcode_recording_date.reserved
+                "sc_recording_date_reserved": (
+                    hex_bytes(frame_data.subcode_recording_date.reserved)
+                    if frame_data.subcode_recording_date.reserved is not None
+                    else ""
                 ),
             }
         if frame_data.subcode_recording_time is not None:
             row_fields |= {
                 "sc_recording_time": frame_data.subcode_recording_time.format_time_str(),
-                "sc_recording_time_reserved": hex_bytes(
-                    frame_data.subcode_recording_time.reserved
+                "sc_recording_time_reserved": (
+                    hex_bytes(frame_data.subcode_recording_time.reserved)
+                    if frame_data.subcode_recording_time.reserved is not None
+                    else ""
                 ),
             }
 
@@ -187,21 +202,21 @@ def read_frame_data_csv(input_file):
             subcode_track_application_id=int(row["sc_track_application_id"], 0),
             subcode_subcode_application_id=int(row["sc_subcode_application_id"], 0),
             subcode_pack_types=subcode_pack_types,
-            subcode_smpte_time_code=dif.SMPTETimeCode.parse_str(
+            subcode_smpte_time_code=dif.SMPTETimeCode.parse_all(
                 time=row["sc_smpte_time_code"],
                 color_frame=row["sc_smpte_time_code_color_frame"],
                 polarity_correction=row["sc_smpte_time_code_polarity_correction"],
                 binary_group_flags=row["sc_smpte_time_code_binary_group_flags"],
                 video_frame_dif_sequence_count=video_frame_dif_sequence_count,
             ),
-            subcode_smpte_binary_group=dif.SMPTEBinaryGroup.parse_str(
+            subcode_smpte_binary_group=dif.SMPTEBinaryGroup.parse_all(
                 value=row["sc_smpte_binary_group"],
             ),
-            subcode_recording_date=dif.SubcodeRecordingDate.parse_str(
+            subcode_recording_date=dif.SubcodeRecordingDate.parse_all(
                 date=row["sc_recording_date"],
                 reserved=row["sc_recording_date_reserved"],
             ),
-            subcode_recording_time=dif.SubcodeRecordingTime.parse_str(
+            subcode_recording_time=dif.SubcodeRecordingTime.parse_all(
                 time=row["sc_recording_time"],
                 reserved=row["sc_recording_time_reserved"],
                 video_frame_dif_sequence_count=video_frame_dif_sequence_count,
