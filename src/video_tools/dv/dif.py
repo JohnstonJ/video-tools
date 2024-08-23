@@ -129,7 +129,7 @@ class SMPTETimecode:
             if self.drop_frame and self.video_frame_dif_sequence_count == 12:
                 # drop_frame only applies to NTSC
                 return False
-            if self.drop_frame and self.minute % 10 > 0 and self.frame < 2:
+            if self.drop_frame and self.minute % 10 > 0 and self.second == 0 and self.frame < 2:
                 # should have dropped the frame
                 return False
         else:
@@ -185,7 +185,7 @@ class SMPTETimecode:
         if time:
             match = smpte_time_pattern.match(time)
             if not match:
-                raise ValueError("Parsing error while reading SMPTE timecode.")
+                raise ValueError(f"Parsing error while reading SMPTE timecode {time}.")
         val = cls(
             hour=int(match.group("hour")) if match else None,
             minute=int(match.group("minute")) if match else None,
@@ -202,7 +202,7 @@ class SMPTETimecode:
             video_frame_dif_sequence_count=video_frame_dif_sequence_count,
         )
         if not val.valid(allow_incomplete=True):
-            raise ValueError("Parsing error while reading recording date.")
+            raise ValueError(f"Parsing error while reading SMPTE timecode {time}.")
         return val
 
     @classmethod
@@ -462,7 +462,7 @@ class SubcodeRecordingDate:
         if date:
             match = recording_date_pattern.match(date)
             if not match:
-                raise ValueError("Parsing error while reading recording date.")
+                raise ValueError(f"Parsing error while reading recording date {date}.")
         val = cls(
             year=int(match.group("year")) if match else None,
             month=int(match.group("month")) if match else None,
@@ -470,7 +470,7 @@ class SubcodeRecordingDate:
             reserved=bytes.fromhex(reserved.removeprefix("0x")) if reserved else None,
         )
         if not val.valid(allow_incomplete=True):
-            raise ValueError("Parsing error while reading recording date.")
+            raise ValueError(f"Parsing error while reading recording date {date}.")
         return val
 
     @classmethod
@@ -640,7 +640,7 @@ class SubcodeRecordingTime:
         if time:
             match = recording_time_pattern.match(time)
             if not match:
-                raise ValueError("Parsing error while reading recording time.")
+                raise ValueError(f"Parsing error while reading recording time {time}.")
         val = cls(
             hour=int(match.group("hour")) if match else None,
             minute=int(match.group("minute")) if match else None,
@@ -654,7 +654,7 @@ class SubcodeRecordingTime:
             video_frame_dif_sequence_count=video_frame_dif_sequence_count,
         )
         if not val.valid(allow_incomplete=True):
-            raise ValueError("Parsing error while reading recording time.")
+            raise ValueError(f"Parsing error while reading recording time {time}.")
         return val
 
     @classmethod
