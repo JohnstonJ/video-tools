@@ -129,7 +129,12 @@ class SMPTETimecode:
             if self.drop_frame and self.video_frame_dif_sequence_count == 12:
                 # drop_frame only applies to NTSC
                 return False
-            if self.drop_frame and self.minute % 10 > 0 and self.second == 0 and self.frame < 2:
+            if (
+                self.drop_frame
+                and self.minute % 10 > 0
+                and self.second == 0
+                and self.frame < 2
+            ):
                 # should have dropped the frame
                 return False
         else:

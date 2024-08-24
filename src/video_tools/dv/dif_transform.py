@@ -296,7 +296,7 @@ class WriteConstantCommand(Command):
                 channel = int(match.group("channel"))
                 dif_sequence = int(match.group("dif_sequence"))
                 pack = int(match.group("pack"))
-                new_channels = frame_data.subcode_pack_types[:] # shallow copy
+                new_channels = frame_data.subcode_pack_types[:]  # shallow copy
                 new_dif_sequences = new_channels[channel][:]
                 new_packs = new_dif_sequences[dif_sequence][:]
                 new_packs[pack] = value
@@ -394,9 +394,7 @@ class WriteConstantCommand(Command):
                 frame_data, chosen_value
             )
             all_frame_data[frame] = new_frame_data
-            self.track_changed_frame(
-                frame_data, new_frame_data, frame, tracker
-            )
+            self.track_changed_frame(frame_data, new_frame_data, frame, tracker)
         self.track_final_proportion(tracker)
 
         return all_frame_data
@@ -493,9 +491,7 @@ class RenumberArbitraryBits(Command):
             frame_data = all_frame_data[frame]
             new_frame_data = replace(frame_data, arbitrary_bits=next_value)
             all_frame_data[frame] = new_frame_data
-            self.track_changed_frame(
-                frame_data, new_frame_data, frame, tracker
-            )
+            self.track_changed_frame(frame_data, new_frame_data, frame, tracker)
 
             # Calculate next value
             next_value += self.step
@@ -570,9 +566,7 @@ class RenumberSMPTETimecodes(Command):
             new_frame_data = replace(frame_data, subcode_smpte_timecode=new_tc)
 
             all_frame_data[frame] = new_frame_data
-            self.track_changed_frame(
-                frame_data, new_frame_data, frame, tracker
-            )
+            self.track_changed_frame(frame_data, new_frame_data, frame, tracker)
 
             # Calculate next value
             next_value = next_value.increment_frame()
@@ -623,7 +617,8 @@ def load_transformations(transformations_file):
             "max_changed_proportion", str(global_thresholds.max_changed_proportion)
         )
         max_consecutive_modifications_str = command_dict.get("thresholds", {}).get(
-            "max_consecutive_modifications", str(global_thresholds.max_consecutive_modifications)
+            "max_consecutive_modifications",
+            str(global_thresholds.max_consecutive_modifications),
         )
         local_thresholds = Thresholds(
             max_changed_proportion=float(max_changed_proportion_str),
@@ -633,7 +628,7 @@ def load_transformations(transformations_file):
                 else None
             ),
         )
-        
+
         # Parse the command itself
         if command_dict["type"] == "write_constant":
             commands.append(
