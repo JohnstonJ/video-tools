@@ -1,9 +1,12 @@
 """High-level utility functions for gathering DV file information."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from fractions import Fraction
+from typing import BinaryIO
 
-import av
+import av.container
 
 
 @dataclass
@@ -25,7 +28,7 @@ class DVFileInfo:
     audio_stereo_channel_count: int
     audio_sample_rate: int  # Hz
 
-    def audio_samples_per_frame(self):
+    def audio_samples_per_frame(self) -> Fraction:
         # We want to resample the audio that was stored with a video frame to the correct
         # number of audio samples for that video frame, since there could actually be too
         # few or too many.  However, there's usually a non-integer ideal number of audio
@@ -41,7 +44,7 @@ class DVFileInfo:
         # the denominator is the number of video frames for those audio samples.
         return self.audio_sample_rate / self.video_frame_rate
 
-    def assert_similar(self, other):
+    def assert_similar(self, other: DVFileInfo) -> None:
         """Assert that the audio format has not changed."""
         assert self.video_frame_rate == other.video_frame_rate
         assert self.video_frame_size == other.video_frame_size
@@ -49,9 +52,9 @@ class DVFileInfo:
         assert self.audio_sample_rate == other.audio_sample_rate
 
 
-def read_dv_file_info(file):
+def read_dv_file_info(file: BinaryIO) -> DVFileInfo:  # type: ignore[return]
     # read top-level information
-    with av.open(file, mode="r", format="dv") as input:
+    with av.container.open(file, mode="r", format="dv") as input:
         assert len(input.streams.video) == 1
         file_size = input.size
 
@@ -59,6 +62,7 @@ def read_dv_file_info(file):
         # Make sure we got exact NTSC or PAL/SECAM frame rate
         assert video_frame_rate == Fraction(30000, 1001) or video_frame_rate == Fraction(25)
 
+        assert input.duration is not None
         video_duration = Fraction(input.duration, 1000000)
 
         # duration was in microseconds, and still lacked precision, so we round it

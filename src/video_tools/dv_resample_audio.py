@@ -2,17 +2,27 @@ import argparse
 import csv
 import io
 from dataclasses import dataclass
+from typing import Any, BinaryIO, TextIO, cast
 
-import av
+import av.container
 import numpy as np
+import numpy.typing as npt
 from av.audio.frame import AudioFrame
+from av.container import OutputContainer
 from av.filter import Graph
 
 import video_tools.dv.file_info as dv_file_info
 import video_tools.io_util as io_util
+from video_tools.dv.file_info import DVFileInfo
 
 
-def parse_args():
+class DVResampleAudioArgs(argparse.Namespace):
+    input_file: str
+    output: str
+    stats: str | None
+
+
+def parse_args() -> DVResampleAudioArgs:
     parser = argparse.ArgumentParser(
         prog="dv_resample_audio",
         description="Resample unlocked DV audio to lock it to individual frames "
@@ -38,7 +48,7 @@ def parse_args():
         type=str,
         help="Name of output CSV file to write frame-by-frame audio stats/timing to.",
     )
-    return parser.parse_args()
+    return parser.parse_args(namespace=DVResampleAudioArgs())
 
 
 @dataclass
@@ -50,7 +60,7 @@ class AudioStreamStats:
 
     diff_sample_count: int  # actual - expected sample count
     accumulated_diff_sample_count: int  # diff_sample_count summed up to this point
-    accumulated_diff_seconds: int  # accumulated sync error in seconds
+    accumulated_diff_seconds: float  # accumulated sync error in seconds
 
     missing_frames: list[int]  # video frame numbers completely missing audio data
 
@@ -64,7 +74,9 @@ class AudioStats:
     audio_stream_stats: list[AudioStreamStats]
 
 
-def resample_audio_frame(audio_frame, video_frame_count, input_file_info):
+def resample_audio_frame(
+    audio_frame: AudioFrame, video_frame_count: int, input_file_info: DVFileInfo
+) -> AudioFrame:
     """Resample/resync an audio frame that spans several video frames.
 
     This will return a perfectly exact number of audio samples that matches what would
@@ -150,13 +162,13 @@ def resample_audio_frame(audio_frame, video_frame_count, input_file_info):
 
 
 def resync_audio(
-    input_file,
-    input_file_info,
-    output,
-    start_frame_number,
-    max_frames_in_group,
-    last_audio_stats,
-):
+    input_file: BinaryIO,
+    input_file_info: DVFileInfo,
+    output: OutputContainer,
+    start_frame_number: int,
+    max_frames_in_group: int,
+    last_audio_stats: AudioStats | None,
+) -> AudioStats:
     assert start_frame_number < input_file_info.video_frame_count
     # This is the number of video frames we'll read and resample
     group_size = min(max_frames_in_group, input_file_info.video_frame_count - start_frame_number)
@@ -180,7 +192,7 @@ def resync_audio(
         # Read all audio samples from these few video frames.
         group_file.seek(0)
         audio_stats = []
-        with av.open(group_file, mode="r", format="dv") as group_container:
+        with av.container.open(group_file, mode="r", format="dv") as group_container:
             for audio_stream_number in range(len(group_container.streams.audio)):
                 # When decoding a DV container, we expect to see a stream of packets and frames:
                 #
@@ -207,7 +219,7 @@ def resync_audio(
 
                 # Build a map of relative video frame number in this frame group, to the actual
                 # audio frame data:
-                audio_frame_map = {}
+                audio_frame_map: dict[int, AudioFrame] = {}
                 audio_stream = group_container.streams.audio[audio_stream_number]
                 total_samples = 0
                 for packet in group_container.demux(audio_stream):
@@ -220,7 +232,9 @@ def resync_audio(
 
                     for frame in packet.decode():
                         assert relative_frame_number not in audio_frame_map
-                        audio_frame_map[relative_frame_number] = frame
+                        cast_frame = cast(AudioFrame, frame)  # buggy type hint on Packet
+                        assert isinstance(cast_frame, AudioFrame)
+                        audio_frame_map[relative_frame_number] = cast_frame
 
                 # Now, gather the frame data into a list of numpy arrays.  If there are any
                 # missing frames, then backfill the frame data with silence.
@@ -242,7 +256,7 @@ def resync_audio(
                     else:
                         this_frame = audio_frame_map[relative_frame_number]
                         total_samples += this_frame.samples
-                        all_frame_data.append(this_frame.to_ndarray())
+                        all_frame_data.append(cast(npt.NDArray[np.int16], this_frame.to_ndarray()))
 
                 # Append all the frame data together into one gigantic AudioFrame.
                 appended_frame_data = np.concatenate(
@@ -299,8 +313,10 @@ def resync_audio(
         )
 
 
-def resync_all_audio(input_file, input_file_info, output_filename):
-    with av.open(output_filename, "w") as output:
+def resync_all_audio(  # type: ignore[return]
+    input_file: BinaryIO, input_file_info: DVFileInfo, output_filename: str
+) -> list[AudioStats]:
+    with av.container.open(output_filename, "w") as output:
         for s in range(input_file_info.audio_stereo_channel_count):
             output.add_stream("pcm_s16le", rate=input_file_info.audio_sample_rate)
 
@@ -326,7 +342,7 @@ def resync_all_audio(input_file, input_file_info, output_filename):
         return all_audio_stats
 
 
-def write_audio_stats(file, file_info, all_stats):
+def write_audio_stats(file: TextIO, file_info: DVFileInfo, all_stats: list[AudioStats]) -> None:
     fieldnames = [
         "video_start_frame_number",
         "video_frame_count",
@@ -342,7 +358,7 @@ def write_audio_stats(file, file_info, all_stats):
     writer = csv.DictWriter(file, fieldnames=fieldnames)
     writer.writeheader()
     for stats in all_stats:
-        row_fields = {
+        row_fields: dict[str, Any] = {
             "video_start_frame_number": stats.video_start_frame_number,
             "video_frame_count": stats.video_frame_count,
         }
@@ -369,7 +385,7 @@ def write_audio_stats(file, file_info, all_stats):
         writer.writerow(row_fields)
 
 
-def main():
+def main() -> None:
     args = parse_args()
 
     input_filename = args.input_file

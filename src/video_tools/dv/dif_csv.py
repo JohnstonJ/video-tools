@@ -2,24 +2,29 @@
 
 import csv
 import itertools
+from typing import Iterator, TextIO, cast
 
 import video_tools.dv.dif as dif
 
 
-def hex_int(int_value, digits, skip_prefix=False):
+def hex_int(int_value: int, digits: int, skip_prefix: bool = False) -> str:
     return f"0x{int_value:0{digits}X}" if not skip_prefix else f"{int_value:0{digits}X}"
 
 
-def hex_bytes(bytes_value, allow_optional=False):
+def hex_bytes(bytes_value: bytes | list[int | None], allow_optional: bool = False) -> str:
     return "0x" + "".join(
         [
-            (hex_int(b, 2, skip_prefix=True) if not allow_optional or b is not None else "__")
+            (
+                hex_int(cast(int, b), 2, skip_prefix=True)
+                if not allow_optional or b is not None
+                else "__"
+            )
             for b in bytes_value
         ]
     )
 
 
-def write_frame_data_csv(output_file, all_frame_data):
+def write_frame_data_csv(output_file: TextIO, all_frame_data: list[dif.FrameData]) -> None:
     fieldnames = list(
         itertools.chain.from_iterable(
             [
@@ -134,7 +139,7 @@ def write_frame_data_csv(output_file, all_frame_data):
         writer.writerow(row_fields)
 
 
-def read_frame_data_csv(input_file):
+def read_frame_data_csv(input_file: Iterator[str]) -> list[dif.FrameData]:
     reader = csv.DictReader(input_file)
     all_frame_data = []
     current_frame = 0
@@ -152,7 +157,7 @@ def read_frame_data_csv(input_file):
         assert video_frame_dif_sequence_count == 10 or video_frame_dif_sequence_count == 12
 
         # Read the subcode pack types
-        subcode_pack_types = [
+        subcode_pack_types: list[list[list[int | None]]] = [
             [[None for ssyb in range(12)] for sequence in range(video_frame_dif_sequence_count)]
             for channel in range(video_frame_channel_count)
         ]

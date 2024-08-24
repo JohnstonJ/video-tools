@@ -1,5 +1,7 @@
 """Model classes for working with raw DIF data."""
 
+from __future__ import annotations
+
 import datetime
 import itertools
 import re
@@ -34,8 +36,8 @@ DIF_SEQUENCE_TRANSMISSION_ORDER = list(
 )
 
 
-def calculate_dif_block_numbers():
-    block_count = defaultdict(int)
+def calculate_dif_block_numbers() -> list[int]:
+    block_count: dict[DIFBlockType, int] = defaultdict(int)
     block_numbers = []
     for block_index in range(len(DIF_SEQUENCE_TRANSMISSION_ORDER)):
         block_numbers.append(block_count[DIF_SEQUENCE_TRANSMISSION_ORDER[block_index]])
@@ -119,7 +121,7 @@ class SMPTETimecode:
     # used for validation; not stored directly in the subcode:
     video_frame_dif_sequence_count: int
 
-    def valid(self, allow_incomplete=False):
+    def valid(self, allow_incomplete: bool = False) -> bool:
         if (
             self.hour is None
             or self.minute is None
@@ -144,10 +146,9 @@ class SMPTETimecode:
             return False
 
         if self.hour is not None:
-            # The timecode itself must be all present or all absent
+            # The rest of the timecode itself must be all present or all absent
             assert (
-                self.hour is not None
-                and self.minute is not None
+                self.minute is not None
                 and self.second is not None
                 and self.frame is not None
                 and self.drop_frame is not None
@@ -166,15 +167,14 @@ class SMPTETimecode:
                 return False
         else:
             assert (
-                self.hour is None
-                and self.minute is None
+                self.minute is None
                 and self.second is None
                 and self.frame is None
                 and self.drop_frame is None
             )
         return True
 
-    def is_empty(self):
+    def is_empty(self) -> bool:
         return (
             self.hour is None
             and self.minute is None
@@ -187,7 +187,7 @@ class SMPTETimecode:
             and self.blank_flag is None
         )
 
-    def format_time_str(self):
+    def format_time_str(self) -> str:
         return (
             (
                 f"{self.hour:02}:{self.minute:02}:{self.second:02};{self.frame:02}"
@@ -201,13 +201,13 @@ class SMPTETimecode:
     @classmethod
     def parse_all(
         cls,
-        time,
-        color_frame,
-        polarity_correction,
-        binary_group_flags,
-        blank_flag,
-        video_frame_dif_sequence_count,
-    ):
+        time: str,
+        color_frame: str,
+        polarity_correction: str,
+        binary_group_flags: str,
+        blank_flag: str,
+        video_frame_dif_sequence_count: int,
+    ) -> SMPTETimecode | None:
         if not time and not color_frame and not polarity_correction and not binary_group_flags:
             return None
         match = None
@@ -234,7 +234,9 @@ class SMPTETimecode:
         return val
 
     @classmethod
-    def parse_ssyb_pack(cls, ssyb_bytes, video_frame_dif_sequence_count):
+    def parse_ssyb_pack(
+        cls, ssyb_bytes: bytes, video_frame_dif_sequence_count: int
+    ) -> SMPTETimecode | None:
         # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
         # IEC 61834-4:1998 4.4 Time Code
         # Also see SMPTE 12M
@@ -305,11 +307,22 @@ class SMPTETimecode:
 
         return pack if pack.valid() else None
 
-    def to_ssyb_pack(self):
+    def to_ssyb_pack(self) -> bytes:
         # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
         # IEC 61834-4:1998 4.4 Time Code
         # Also see SMPTE 12M
         assert self.valid()
+        assert (  # assertion repeated from valid() to keep mypy happy
+            self.hour is not None
+            and self.minute is not None
+            and self.second is not None
+            and self.frame is not None
+            and self.drop_frame is not None
+            and self.color_frame is not None
+            and self.polarity_correction is not None
+            and self.binary_group_flags is not None
+            and self.blank_flag is not None
+        )
         ssyb_bytes = [
             SSYBPackType.SMPTE_TC,
             # NOTE: self.valid() asserts that color_frame == blank_flag, which
@@ -339,7 +352,7 @@ class SMPTETimecode:
             ssyb_bytes[4] |= (pc << 7) | (bgf1 << 6)
         return bytes(ssyb_bytes)
 
-    def increment_frame(self):
+    def increment_frame(self) -> SMPTETimecode:
         """Return a copy with frame incremented by 1."""
         # Read current values and make sure they were present.  (Other field
         # values are allowed to be empty.)
@@ -395,11 +408,11 @@ class SMPTEBinaryGroup:
     # this will always be 4 bytes
     value: bytes
 
-    def valid(self):
+    def valid(self) -> bool:
         return len(self.value) == 4
 
     @classmethod
-    def parse_all(cls, value):
+    def parse_all(cls, value: str) -> SMPTEBinaryGroup | None:
         if not value:
             return None
         val = cls(
@@ -410,20 +423,22 @@ class SMPTEBinaryGroup:
         return val
 
     @classmethod
-    def parse_ssyb_pack(cls, ssyb_bytes):
+    def parse_ssyb_pack(cls, ssyb_bytes: bytes) -> SMPTEBinaryGroup | None:
         assert len(ssyb_bytes) == 5
         assert ssyb_bytes[0] == SSYBPackType.SMPTE_BG
         return SMPTEBinaryGroup(value=bytes(ssyb_bytes[1:]))
 
-    def to_ssyb_pack(self):
+    def to_ssyb_pack(self) -> bytes:
         assert self.valid()
-        return [
-            SSYBPackType.SMPTE_BG,
-            self.value[0],
-            self.value[1],
-            self.value[2],
-            self.value[3],
-        ]
+        return bytes(
+            [
+                SSYBPackType.SMPTE_BG,
+                self.value[0],
+                self.value[1],
+                self.value[2],
+                self.value[3],
+            ]
+        )
 
 
 recording_date_pattern = re.compile(r"^(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})$")
@@ -443,7 +458,7 @@ class SubcodeRecordingDate:
     # it's required for this class to be valid, but we allow absence for intermediate processing.
     reserved: bytes | None
 
-    def valid(self, allow_incomplete=False):
+    def valid(self, allow_incomplete: bool = False) -> bool:
         # Date must be fully present or fully absent
         date_present = self.year is not None and self.month is not None and self.day is not None
         date_absent = self.year is None and self.month is None and self.day is None
@@ -451,6 +466,8 @@ class SubcodeRecordingDate:
             return False
 
         if date_present:
+            # Assertion is to keep mypy happy at this point
+            assert self.year is not None and self.month is not None and self.day is not None
             try:
                 datetime.date(year=self.year, month=self.month, day=self.day)
             except ValueError:
@@ -464,16 +481,16 @@ class SubcodeRecordingDate:
             return False
         return True
 
-    def is_empty(self):
+    def is_empty(self) -> bool:
         return (
             self.year is None and self.month is None and self.day is None and self.reserved is None
         )
 
-    def format_date_str(self):
+    def format_date_str(self) -> str:
         return f"{self.year:02}-{self.month:02}-{self.day:02}" if self.year is not None else ""
 
     @classmethod
-    def parse_all(cls, date, reserved):
+    def parse_all(cls, date: str, reserved: str) -> SubcodeRecordingDate | None:
         if not date and not reserved:
             return None
         match = None
@@ -492,7 +509,7 @@ class SubcodeRecordingDate:
         return val
 
     @classmethod
-    def parse_ssyb_pack(cls, ssyb_bytes):
+    def parse_ssyb_pack(cls, ssyb_bytes: bytes) -> SubcodeRecordingDate | None:
         assert len(ssyb_bytes) == 5
         assert ssyb_bytes[0] == SSYBPackType.RECORDING_DATE
 
@@ -537,18 +554,29 @@ class SubcodeRecordingDate:
 
         pack = cls(
             year=(
-                year_prefix * 100 + year_tens * 10 + year_units if year_tens is not None else None
+                year_prefix * 100 + year_tens * 10 + year_units
+                if year_prefix is not None and year_tens is not None and year_units
+                else None
             ),
-            month=month_tens * 10 + month_units if month_tens is not None else None,
-            day=day_tens * 10 + day_units if day_tens is not None else None,
+            month=(
+                month_tens * 10 + month_units
+                if month_tens is not None and month_units is not None
+                else None
+            ),
+            day=(
+                day_tens * 10 + day_units
+                if day_tens is not None and day_units is not None
+                else None
+            ),
             reserved=reserved,
         )
 
         return pack if pack.valid() else None
 
-    def to_ssyb_pack(self):
+    def to_ssyb_pack(self) -> bytes:
         assert self.valid()
-        short_year = self.year % 100
+        assert self.reserved is not None  # assertion repeated from valid() to keep mypy happy
+        short_year = self.year % 100 if self.year is not None else None
         ssyb_bytes = [
             SSYBPackType.RECORDING_DATE,
             0x00,
@@ -558,7 +586,11 @@ class SubcodeRecordingDate:
                 if self.month is not None
                 else 0x1F
             ),
-            ((int(short_year / 10) << 4) | int(short_year % 10) if self.year is not None else 0xFF),
+            (
+                (int(short_year / 10) << 4) | int(short_year % 10)
+                if short_year is not None
+                else 0xFF
+            ),
         ]
         # If the user gave reserved bits that conflict with the date, then mask them out.
         reserved_mask = bytes(b"\xff\xc0\xe0\x00")
@@ -587,7 +619,7 @@ class SubcodeRecordingTime:
     # used for validation; not stored directly in the subcode:
     video_frame_dif_sequence_count: int
 
-    def valid(self, allow_incomplete=False):
+    def valid(self, allow_incomplete: bool = False) -> bool:
         # Main time part must be fully present or fully absent
         time_present = self.hour is not None and self.minute is not None and self.second is not None
         time_absent = self.hour is None and self.minute is None and self.second is None
@@ -600,6 +632,8 @@ class SubcodeRecordingTime:
 
         if time_present:
             try:
+                # Assertion is to keep mypy happy at this point
+                assert self.hour is not None and self.minute is not None and self.second is not None
                 datetime.time(hour=self.hour, minute=self.minute, second=self.second)
             except ValueError:
                 return False
@@ -619,7 +653,7 @@ class SubcodeRecordingTime:
             return False
         return True
 
-    def is_empty(self):
+    def is_empty(self) -> bool:
         return (
             self.hour is None
             and self.minute is None
@@ -628,7 +662,7 @@ class SubcodeRecordingTime:
             and self.reserved is None
         )
 
-    def format_time_str(self):
+    def format_time_str(self) -> str:
         if self.hour is not None and self.frame is not None:
             return f"{self.hour:02}:{self.minute:02}:{self.second:02}:{self.frame:02}"
         elif self.hour is not None:
@@ -636,7 +670,9 @@ class SubcodeRecordingTime:
         return ""
 
     @classmethod
-    def parse_all(cls, time, reserved, video_frame_dif_sequence_count):
+    def parse_all(
+        cls, time: str, reserved: str, video_frame_dif_sequence_count: int
+    ) -> SubcodeRecordingTime | None:
         if not time and not reserved:
             return None
         match = None
@@ -659,7 +695,9 @@ class SubcodeRecordingTime:
         return val
 
     @classmethod
-    def parse_ssyb_pack(cls, ssyb_bytes, video_frame_dif_sequence_count):
+    def parse_ssyb_pack(
+        cls, ssyb_bytes: bytes, video_frame_dif_sequence_count: int
+    ) -> SubcodeRecordingTime | None:
         assert len(ssyb_bytes) == 5
         assert ssyb_bytes[0] == SSYBPackType.RECORDING_TIME
 
@@ -713,18 +751,35 @@ class SubcodeRecordingTime:
         reserved = bytes([b & m for b, m in zip(ssyb_bytes[1:], reserved_mask)])
 
         pack = cls(
-            hour=hour_tens * 10 + hour_units if hour_tens is not None else None,
-            minute=minute_tens * 10 + minute_units if minute_tens is not None else None,
-            second=second_tens * 10 + second_units if second_tens is not None else None,
-            frame=frame_tens * 10 + frame_units if frame_tens is not None else None,
+            hour=(
+                hour_tens * 10 + hour_units
+                if hour_tens is not None and hour_units is not None
+                else None
+            ),
+            minute=(
+                minute_tens * 10 + minute_units
+                if minute_tens is not None and minute_units is not None
+                else None
+            ),
+            second=(
+                second_tens * 10 + second_units
+                if second_tens is not None and second_units is not None
+                else None
+            ),
+            frame=(
+                frame_tens * 10 + frame_units
+                if frame_tens is not None and frame_units is not None
+                else None
+            ),
             reserved=reserved,
             video_frame_dif_sequence_count=video_frame_dif_sequence_count,
         )
 
         return pack if pack.valid() else None
 
-    def to_ssyb_pack(self):
+    def to_ssyb_pack(self) -> bytes:
         assert self.valid()
+        assert self.reserved is not None  # assertion repeated from valid() to keep mypy happy
         ssyb_bytes = [
             SSYBPackType.RECORDING_TIME,
             (

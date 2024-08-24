@@ -1,20 +1,22 @@
 import numpy as np
+import numpy.typing as npt
 
 # Temporary workaround due to https://github.com/scikit-video/scikit-video/issues/154
 # Must run this code before importing any skvideo packages.
-np.float = np.float64
-np.int = np.int_
+np.float = np.float64  # type: ignore[attr-defined]
+np.int = np.int_  # type: ignore[attr-defined]
 
 # ruff: noqa: E402
 import argparse
 import sys
 from dataclasses import dataclass
+from typing import Callable, TextIO
 
-import skvideo.io
-from scipy.ndimage import convolve1d
+import skvideo.io  # type: ignore[import-untyped]
+from scipy.ndimage import convolve1d  # type: ignore[import-untyped]
 
 
-def FrameRangeParser(value):
+def FrameRangeParser(value: str) -> tuple[int, int]:
     frames = value.split(",")
     if len(frames) > 2:
         raise ValueError("Frame range must be in the form frame_num, or start_num,end_num.")
@@ -29,7 +31,28 @@ def FrameRangeParser(value):
     return (frame, frame + 1)
 
 
-def parse_args():
+class TopLineErrorsArgs(argparse.Namespace):
+    filename: list[str]
+    num_frames: int
+
+    frame_error_function: str
+    debug_frame: int | None
+    frame_threshold: float
+    exclude_frames: list[tuple[int, int]] | None
+
+    output_csv: TextIO | None
+    output_avisynth: TextIO | None
+    output_framesel: TextIO | None
+
+    # Parameters for find_dropouts
+    top_n: int
+    filter_kernel_size: int
+    min_dropout_intensity: int
+    min_change_intensity: int
+    max_changed_rows: int
+
+
+def parse_args() -> TopLineErrorsArgs:
     # NOTE: The default values here assume that we are processing a standard
     # definition video, with (converted) RGB values at (130, 130, 130) signifying
     # no changes.  No smaller values are expected, and larger values signify
@@ -142,7 +165,7 @@ def parse_args():
         default=20,
         help="find-dropouts: The maximum number of changed rows before the frame is discarded.",
     )
-    return parser.parse_args()
+    return parser.parse_args(namespace=TopLineErrorsArgs())
 
 
 @dataclass
@@ -153,31 +176,36 @@ class FrameData:
     error: float
 
 
-def mean(debug_frame):
-    def compute_frame_data(frame_number, frame):
+ImageArray = npt.NDArray[np.uint8]
+FrameDataCallable = Callable[[int, ImageArray], float | None]
+
+
+def mean(debug_frame: int | None) -> FrameDataCallable:
+    def compute_frame_data(frame_number: int, frame: ImageArray) -> float | None:
         is_debug = debug_frame == frame_number
 
         mean = frame.mean()
         if is_debug:
             print(f"Mean value for frame: {mean}")
+        assert isinstance(mean, float)
         return mean
 
     return compute_frame_data
 
 
 def find_dropouts(
-    top_n,
-    filter_kernel_size,
-    min_dropout_intensity,
-    min_change_intensity,
-    max_changed_rows,
-    debug_frame,
-):
+    top_n: int,
+    filter_kernel_size: int,
+    min_dropout_intensity: int,
+    min_change_intensity: int,
+    max_changed_rows: int,
+    debug_frame: int | None,
+) -> FrameDataCallable:
     if filter_kernel_size % 2 != 1:
         raise ValueError("Filter kernel size must be odd.")
     kernel = np.ones(filter_kernel_size) / filter_kernel_size
 
-    def compute_frame_data(frame_number, frame):
+    def compute_frame_data(frame_number: int, frame: ImageArray) -> float | None:
         is_debug = debug_frame == frame_number
 
         # Frame format is (rows, columns, pixel channels)
@@ -219,12 +247,18 @@ def find_dropouts(
 
         # Take the top numbers and average them
         averaged.resize((top_n,))
-        return averaged.mean()
+        avg = averaged.mean()
+        assert isinstance(avg, float)
+        return avg
 
     return compute_frame_data
 
 
-def gather_frame_data(filename, num_frames, frame_error_function):
+def gather_frame_data(
+    filename: str,
+    num_frames: int,
+    frame_error_function: FrameDataCallable,
+) -> list[FrameData]:
     """Read input video file and calculate per-frame stats."""
     frames = skvideo.io.vreader(filename, num_frames=num_frames)
     frame_number = -1
@@ -247,12 +281,14 @@ def gather_frame_data(filename, num_frames, frame_error_function):
     return frame_data
 
 
-def filter_frames(frame_data, frame_threshold):
+def filter_frames(frame_data: list[FrameData], frame_threshold: float) -> list[FrameData]:
     """Keep only frames where the overall frame error exceeded the threshold."""
     return [frame for frame in frame_data if frame.error >= frame_threshold]
 
 
-def exclude_frames(frame_data, excluded_frames):
+def exclude_frames(
+    frame_data: list[FrameData], excluded_frames: list[tuple[int, int]] | None
+) -> list[FrameData]:
     """Remove specific frame numbers from the results."""
     if excluded_frames is None:
         excluded_frames = []
@@ -266,19 +302,19 @@ def exclude_frames(frame_data, excluded_frames):
     ]
 
 
-def sort_frames(frame_data):
+def sort_frames(frame_data: list[FrameData]) -> list[FrameData]:
     """Sort frames in descending order by frame error."""
     return sorted(frame_data, key=lambda frame: frame.error, reverse=True)
 
 
-def output_csv(frame_data, file):
+def output_csv(frame_data: list[FrameData], file: TextIO) -> None:
     """Output frame data in CSV format."""
     print("frame_number,error", file=file)
     for frame in frame_data:
         print(f"{frame.frame_number},{frame.error}", file=file)
 
 
-def output_avisynth(frame_data, file):
+def output_avisynth(frame_data: list[FrameData], file: TextIO) -> None:
     """Output frame data for use with Avisynth ConditionalReader filter."""
     print("# Bad frame numbers for use with Avisynth ConditionalReader", file=file)
     print("TYPE bool", file=file)
@@ -290,7 +326,7 @@ def output_avisynth(frame_data, file):
         print(file=file)
 
 
-def output_framesel(frame_data, file):
+def output_framesel(frame_data: list[FrameData], file: TextIO) -> None:
     """Output frame data for use with Avisynth FrameSel filter."""
     print("# Bad frame numbers for use with Avisynth FrameSel", file=file)
     print(file=file)
@@ -300,7 +336,7 @@ def output_framesel(frame_data, file):
         print(file=file)
 
 
-def main():
+def main() -> None:
     args = parse_args()
 
     if args.frame_error_function == "find-dropouts":

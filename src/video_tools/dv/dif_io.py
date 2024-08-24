@@ -1,37 +1,39 @@
 """Contains high-level functions for reading and modifying DIF blocks in a DV file."""
 
 from collections import defaultdict
+from typing import BinaryIO
 
 import video_tools.dv.dif as dif
 import video_tools.io_util as io_util
+from video_tools.dv.file_info import DVFileInfo
 
 
-def read_frame_data(frame_bytes, file_info):
+def read_frame_data(frame_bytes: bytearray, file_info: DVFileInfo) -> dif.FrameData:
     b_start = 0  # current block starting position
 
     # DIF block header
-    arbitrary_bits_hist = defaultdict(int)
+    arbitrary_bits_hist: dict[int, int] = defaultdict(int)
 
     # Header DIF block info
-    header_track_application_id_hist = defaultdict(int)
-    header_audio_application_id_hist = defaultdict(int)
-    header_video_application_id_hist = defaultdict(int)
-    header_subcode_application_id_hist = defaultdict(int)
+    header_track_application_id_hist: dict[int, int] = defaultdict(int)
+    header_audio_application_id_hist: dict[int, int] = defaultdict(int)
+    header_video_application_id_hist: dict[int, int] = defaultdict(int)
+    header_subcode_application_id_hist: dict[int, int] = defaultdict(int)
 
     # Subcode DIF block info
-    subcode_track_application_id_hist = defaultdict(int)
-    subcode_subcode_application_id_hist = defaultdict(int)
-    subcode_pack_types = [
+    subcode_track_application_id_hist: dict[int, int] = defaultdict(int)
+    subcode_subcode_application_id_hist: dict[int, int] = defaultdict(int)
+    subcode_pack_types: list[list[list[int | None]]] = [
         [
             [None for ssyb in range(12)]
             for sequence in range(file_info.video_frame_dif_sequence_count)
         ]
         for channel in range(file_info.video_frame_channel_count)
     ]
-    subcode_smpte_timecode_hist = defaultdict(int)
-    subcode_smpte_binary_group_hist = defaultdict(int)
-    subcode_recording_date_hist = defaultdict(int)
-    subcode_recording_time_hist = defaultdict(int)
+    subcode_smpte_timecode_hist: dict[dif.SMPTETimecode, int] = defaultdict(int)
+    subcode_smpte_binary_group_hist: dict[dif.SMPTEBinaryGroup, int] = defaultdict(int)
+    subcode_recording_date_hist: dict[dif.SubcodeRecordingDate, int] = defaultdict(int)
+    subcode_recording_time_hist: dict[dif.SubcodeRecordingTime, int] = defaultdict(int)
 
     for channel in range(file_info.video_frame_channel_count):
         for sequence in range(file_info.video_frame_dif_sequence_count):
@@ -159,54 +161,54 @@ def read_frame_data(frame_bytes, file_info):
 
     return dif.FrameData(
         # DIF block header
-        arbitrary_bits=max(arbitrary_bits_hist, key=arbitrary_bits_hist.get),
+        arbitrary_bits=max(arbitrary_bits_hist, key=arbitrary_bits_hist.__getitem__),
         # Header DIF block
         header_track_application_id=max(
-            header_track_application_id_hist, key=header_track_application_id_hist.get
+            header_track_application_id_hist, key=header_track_application_id_hist.__getitem__
         ),
         header_audio_application_id=max(
-            header_audio_application_id_hist, key=header_audio_application_id_hist.get
+            header_audio_application_id_hist, key=header_audio_application_id_hist.__getitem__
         ),
         header_video_application_id=max(
-            header_video_application_id_hist, key=header_video_application_id_hist.get
+            header_video_application_id_hist, key=header_video_application_id_hist.__getitem__
         ),
         header_subcode_application_id=max(
             header_subcode_application_id_hist,
-            key=header_subcode_application_id_hist.get,
+            key=header_subcode_application_id_hist.__getitem__,
         ),
         # Subcode DIF block
         subcode_track_application_id=max(
-            subcode_track_application_id_hist, key=subcode_track_application_id_hist.get
+            subcode_track_application_id_hist, key=subcode_track_application_id_hist.__getitem__
         ),
         subcode_subcode_application_id=max(
             subcode_subcode_application_id_hist,
-            key=subcode_subcode_application_id_hist.get,
+            key=subcode_subcode_application_id_hist.__getitem__,
         ),
         subcode_pack_types=subcode_pack_types,
         subcode_smpte_timecode=(
-            max(subcode_smpte_timecode_hist, key=subcode_smpte_timecode_hist.get)
+            max(subcode_smpte_timecode_hist, key=subcode_smpte_timecode_hist.__getitem__)
             if subcode_smpte_timecode_hist
             else None
         ),
         subcode_smpte_binary_group=(
-            max(subcode_smpte_binary_group_hist, key=subcode_smpte_binary_group_hist.get)
+            max(subcode_smpte_binary_group_hist, key=subcode_smpte_binary_group_hist.__getitem__)
             if subcode_smpte_binary_group_hist
             else None
         ),
         subcode_recording_date=(
-            max(subcode_recording_date_hist, key=subcode_recording_date_hist.get)
+            max(subcode_recording_date_hist, key=subcode_recording_date_hist.__getitem__)
             if subcode_recording_date_hist
             else None
         ),
         subcode_recording_time=(
-            max(subcode_recording_time_hist, key=subcode_recording_time_hist.get)
+            max(subcode_recording_time_hist, key=subcode_recording_time_hist.__getitem__)
             if subcode_recording_time_hist
             else None
         ),
     )
 
 
-def read_all_frame_data(input_file, input_file_info):
+def read_all_frame_data(input_file: BinaryIO, input_file_info: DVFileInfo) -> list[dif.FrameData]:
     all_frame_data = []
     for frame_number in range(input_file_info.video_frame_count):
         if frame_number % 100 == 0:
@@ -223,7 +225,9 @@ def read_all_frame_data(input_file, input_file_info):
     return all_frame_data
 
 
-def write_frame_data(frame_bytes, file_info, frame_data):
+def write_frame_data(
+    frame_bytes: bytearray, file_info: DVFileInfo, frame_data: dif.FrameData
+) -> bytearray:
     """Write frame_data into frame_bytes and return updated frame."""
 
     # Test reading the frame data first, to make sure no assertions fail and
@@ -315,7 +319,7 @@ def write_frame_data(frame_bytes, file_info, frame_data):
                     # User doesn't want to further modify the subcode pack.
                     continue
                 elif desired_pack_type == dif.SSYBPackType.EMPTY:
-                    new_pack = [0xFF] * pack_len
+                    new_pack = bytes([0xFF] * pack_len)
                 elif desired_pack_type == dif.SSYBPackType.SMPTE_TC:
                     assert frame_data.subcode_smpte_timecode is not None
                     new_pack = frame_data.subcode_smpte_timecode.to_ssyb_pack()
@@ -352,7 +356,12 @@ def write_frame_data(frame_bytes, file_info, frame_data):
     return frame_bytes
 
 
-def write_all_frame_data(input_file, input_file_info, all_frame_data, output_file):
+def write_all_frame_data(
+    input_file: BinaryIO,
+    input_file_info: DVFileInfo,
+    all_frame_data: list[dif.FrameData],
+    output_file: BinaryIO,
+) -> None:
     assert input_file_info.video_frame_count == len(all_frame_data)
     for frame_number in range(input_file_info.video_frame_count):
         if frame_number % 100 == 0:
@@ -364,7 +373,7 @@ def write_all_frame_data(input_file, input_file_info, all_frame_data, output_fil
         assert len(frame_bytes) == input_file_info.video_frame_size
 
         # Update the frame data in this memory buffer
-        write_frame_data(frame_bytes, input_file_info, all_frame_data[frame_number])
+        frame_bytes = write_frame_data(frame_bytes, input_file_info, all_frame_data[frame_number])
 
         # Write the bytes for this frame to the output
         output_file.write(frame_bytes)

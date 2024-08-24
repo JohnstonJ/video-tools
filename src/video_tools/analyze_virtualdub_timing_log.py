@@ -2,9 +2,19 @@ import argparse
 import csv
 import sys
 from dataclasses import dataclass
+from typing import Iterator, TextIO
 
 
-def parse_args():
+class AnalyzeVirtualDubTimingLogArgs(argparse.Namespace):
+    timing_log: list[TextIO]
+    fps_num: int
+    fps_den: int
+    fps_tolerance: float
+    max_capture_global_difference: float
+    max_time_between_audio_frames: float
+
+
+def parse_args() -> AnalyzeVirtualDubTimingLogArgs:
     parser = argparse.ArgumentParser(
         prog="analyze_virtualdub_timing_log",
         description="Analyze a VirtualDub capture timing log.",
@@ -48,7 +58,7 @@ def parse_args():
         default=15.0,
         help="Maximum number of milliseconds between audio frames.",
     )
-    return parser.parse_args()
+    return parser.parse_args(namespace=AnalyzeVirtualDubTimingLogArgs())
 
 
 # all times are in milliseconds...
@@ -75,7 +85,7 @@ class AudioFrameLog:
     size: int
 
 
-def parse_timing_log(log_file):
+def parse_timing_log(log_file: Iterator[str]) -> tuple[list[VideoFrameLog], list[AudioFrameLog]]:
     reader = csv.DictReader(log_file, dialect="excel")
     video_frame_log = []
     audio_frame_log = []
@@ -118,13 +128,18 @@ class VideoFrameAnalysis:
     capture_global_difference_abnormal: bool
 
 
-def analyze_video_log(video_frame_log, expected_fps, fps_tolerance, max_capture_global_difference):
+def analyze_video_log(
+    video_frame_log: list[VideoFrameLog],
+    expected_fps: float,
+    fps_tolerance: float,
+    max_capture_global_difference: float,
+) -> list[VideoFrameAnalysis]:
     expected_frame_time = 1.0 / expected_fps * 1000.0
     max_frame_time = (1.0 + fps_tolerance / 100.0) * expected_frame_time
     min_frame_time = (1.0 - fps_tolerance / 100.0) * expected_frame_time
 
-    last_capture_time = None
-    last_global_time = None
+    last_capture_time: float | None = None
+    last_global_time: float | None = None
     log_analysis = []
     for frame in video_frame_log:
         # Check for discontinuities in the individual timestamp columns
@@ -172,8 +187,10 @@ class AudioFrameAnalysis:
     global_time_gap_abnormal: bool
 
 
-def analyze_audio_log(audio_frame_log, max_time_between_audio_frames):
-    last_global_time = None
+def analyze_audio_log(
+    audio_frame_log: list[AudioFrameLog], max_time_between_audio_frames: float
+) -> list[AudioFrameAnalysis]:
+    last_global_time: float | None = None
     log_analysis = []
     for frame in audio_frame_log:
         # Check for discontinuities in the global timestamps
@@ -195,7 +212,7 @@ def analyze_audio_log(audio_frame_log, max_time_between_audio_frames):
     return log_analysis
 
 
-def print_video_analysis(output_file, video_analysis):
+def print_video_analysis(output_file: TextIO, video_analysis: list[VideoFrameAnalysis]) -> None:
     writer = csv.DictWriter(
         output_file,
         fieldnames=[
@@ -249,7 +266,7 @@ def print_video_analysis(output_file, video_analysis):
             )
 
 
-def print_audio_analysis(output_file, audio_analysis):
+def print_audio_analysis(output_file: TextIO, audio_analysis: list[AudioFrameAnalysis]) -> None:
     writer = csv.DictWriter(
         output_file,
         fieldnames=[
@@ -273,13 +290,13 @@ def print_audio_analysis(output_file, audio_analysis):
                         else ""
                     ),
                     "AGlobalTimeGapAbnormal": (
-                        "TRUE" if frame.global_time_gap_abnormal else "FALSE"
+                        "TRUE"  # implied: if frame.global_time_gap_abnormal else "FALSE"
                     ),
                 }
             )
 
 
-def main():
+def main() -> None:
     args = parse_args()
 
     video_frame_log, audio_frame_log = parse_timing_log(args.timing_log[0])

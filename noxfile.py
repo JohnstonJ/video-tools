@@ -5,6 +5,7 @@ nox.needs_version = ">= 2024.4.15"
 LINT_PYTHON_VERSION = "3.12"
 BUILD_PYTHON_VERSIONS = ["3.12"]
 
+MYPY_VERSION = "~=1.11"
 RUFF_VERSION = "~=0.6.2"
 
 BUILD_VERSION = "~=1.2"
@@ -26,6 +27,7 @@ def lint(session: nox.Session) -> None:
     # This is just a meta-session with no virtual environment.
     # We don't install anything here.
     session.notify("ruff")
+    session.notify("mypy")
 
 
 @nox.session(python=LINT_PYTHON_VERSION)
@@ -34,6 +36,14 @@ def ruff(session: nox.Session) -> None:
     session.install(f"ruff{RUFF_VERSION}")
     session.run("ruff", "check")
     session.run("ruff", "format", "--check")
+
+
+@nox.session(python=LINT_PYTHON_VERSION)
+def mypy(session: nox.Session) -> None:
+    """Run the mypy type checker."""
+    session.install(f"mypy{MYPY_VERSION}")
+    session.install("--editable", ".[dev]")
+    session.run("mypy")
 
 
 @nox.session(python=BUILD_PYTHON_VERSIONS)

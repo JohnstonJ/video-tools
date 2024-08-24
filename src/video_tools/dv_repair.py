@@ -6,7 +6,15 @@ import video_tools.dv.dif_transform as dif_transform
 import video_tools.dv.file_info as file_info
 
 
-def parse_args():
+class DVRepairArgs(argparse.Namespace):
+    input_dv_file: str | None
+    input_csv_file: str | None
+    output_dv_file: str | None
+    output_csv_file: str | None
+    transformations_file: str | None
+
+
+def parse_args() -> DVRepairArgs:
     parser = argparse.ArgumentParser(
         prog="dv_repair",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -94,12 +102,14 @@ def parse_args():
         help="Output raw DV binary file that has been updated through the CSV file.",
     )
 
-    return parser.parse_args()
+    return parser.parse_args(namespace=DVRepairArgs())
 
 
-def read_command(args):
+def read_command(args: DVRepairArgs) -> None:
     input_dv_filename = args.input_dv_file
+    assert input_dv_filename is not None
     output_csv_filename = args.output_csv_file
+    assert output_csv_filename is not None
 
     print(f"Reading frame data from {input_dv_filename}...")
     with open(input_dv_filename, mode="rb") as input_dv_file:
@@ -112,10 +122,13 @@ def read_command(args):
         dif_csv.write_frame_data_csv(output_csv_file, frame_data)
 
 
-def transform_command(args):
+def transform_command(args: DVRepairArgs) -> None:
     input_csv_filename = args.input_csv_file
+    assert input_csv_filename is not None
     transformations_filename = args.transformations_file
+    assert transformations_filename is not None
     output_csv_filename = args.output_csv_file
+    assert output_csv_filename is not None
 
     print(f"Reading frame data from {input_csv_filename}...")
     with open(input_csv_filename, "rt", newline="") as input_csv_file:
@@ -131,10 +144,13 @@ def transform_command(args):
         dif_csv.write_frame_data_csv(output_csv_file, frame_data)
 
 
-def write_command(args):
+def write_command(args: DVRepairArgs) -> None:
     input_dv_filename = args.input_dv_file
+    assert input_dv_filename is not None
     input_csv_filename = args.input_csv_file
+    assert input_csv_filename is not None
     output_dv_filename = args.output_dv_file
+    assert output_dv_filename is not None
 
     print(f"Reading frame data from {input_csv_filename}...")
     with open(input_csv_filename, "rt", newline="") as input_csv_file:
@@ -148,7 +164,7 @@ def write_command(args):
             dif_io.write_all_frame_data(input_dv_file, info, frame_data, output_dv_file)
 
 
-def main():
+def main() -> None:
     args = parse_args()
     args.subcommand_function(args)
 

@@ -1,9 +1,12 @@
 """Contains functions for running user-provided commands to repair DV frame data."""
 
+from __future__ import annotations
+
 import re
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, replace
+from typing import BinaryIO, Iterable
 
 import yaml
 
@@ -43,14 +46,20 @@ class Command(ABC):
     end_frame: int | None
     thresholds: Thresholds
 
-    def frame_range(self, all_frame_data):
+    def frame_range(self, all_frame_data: list[dif.FrameData]) -> Iterable[int]:
         """Return iterable of frame numbers that this command is supposed to operate on."""
         return range(
             self.start_frame,
             self.end_frame + 1 if self.end_frame is not None else len(all_frame_data),
         )
 
-    def track_changed_frame(self, old_frame_data, new_frame_data, frame_number, tracker):
+    def track_changed_frame(
+        self,
+        old_frame_data: dif.FrameData,
+        new_frame_data: dif.FrameData,
+        frame_number: int,
+        tracker: FrameChangeTracker,
+    ) -> None:
         """Track a changed frame in the FrameChangeTracker."""
         changed = old_frame_data != new_frame_data
         if changed:
@@ -67,7 +76,7 @@ class Command(ABC):
         ):
             raise ValueError(f"ERROR:  Changed too many frames in a row at frame {frame_number}.")
 
-    def track_final_proportion(self, tracker):
+    def track_final_proportion(self, tracker: FrameChangeTracker) -> None:
         """Check the final proportion of changed frames against threshold."""
         proportion = float(tracker.changed_frames) / float(tracker.total_frames)
         print(
@@ -78,16 +87,16 @@ class Command(ABC):
             raise ValueError("ERROR:  Changed too high a percentage of frames.")
 
     @abstractmethod
-    def run(self, all_frame_data):
+    def run(self, all_frame_data: list[dif.FrameData]) -> list[dif.FrameData]:
         """Run the command to modify all frames."""
         pass
 
-    def command_expansion(self, all_frame_data):
+    def command_expansion(self, all_frame_data: list[dif.FrameData]) -> list[Command]:
         """Split the command into multiple, more granular commands."""
         return [self]
 
 
-def number_subpattern(field_name):
+def number_subpattern(field_name: str) -> str:
     return (
         r"((?P<"
         + field_name
@@ -116,6 +125,10 @@ subcode_column_exact_pattern = re.compile(
     r"^sc_pack_types_(?P<channel>\d+)_(?P<dif_sequence>\d+)_(?P<pack>\d+)$"
 )
 
+ConstantValueType = (
+    int | dif.ColorFrame | dif.PolarityCorrection | dif.BlankFlag | bytes | str | None
+)
+
 
 @dataclass
 class WriteConstantCommand(Command):
@@ -134,9 +147,9 @@ class WriteConstantCommand(Command):
     """
 
     column: str
-    value: int | dif.ColorFrame | dif.PolarityCorrection | dif.BlankFlag | bytes | str | None
+    value: ConstantValueType
 
-    def __str__(self):
+    def __str__(self) -> str:
         value_str = (
             "most common value"
             if self.value == MOST_COMMON
@@ -148,7 +161,7 @@ class WriteConstantCommand(Command):
         )
 
     @staticmethod
-    def parse_value_str(column, value_str):
+    def parse_value_str(column: str, value_str: str | None) -> ConstantValueType:
         """Parse the configured value into the native data type used by FrameData."""
         if value_str == MOST_COMMON:
             return value_str
@@ -161,9 +174,11 @@ class WriteConstantCommand(Command):
                 | "sc_track_application_id"
                 | "sc_subcode_application_id"
             ):
+                assert value_str is not None
                 return int(value_str, 0)
             case _ if subcode_column_full_pattern.match(column):
                 # We used full pattern match because this is called before command expansion
+                assert value_str is not None
                 return int(value_str, 0)
             case "sc_smpte_timecode_color_frame":
                 return dif.ColorFrame[value_str] if value_str is not None else None
@@ -180,7 +195,7 @@ class WriteConstantCommand(Command):
             case _:
                 raise ValueError(f"Unsupported column {column} for write_constant command.")
 
-    def value_str(self, value):
+    def value_str(self, value: ConstantValueType) -> str | None:
         """Convert the native data type used by FrameData into a configuration string."""
         match self.column:
             case (
@@ -191,23 +206,33 @@ class WriteConstantCommand(Command):
                 | "sc_track_application_id"
                 | "sc_subcode_application_id"
             ):
+                assert isinstance(value, int)
                 return dif_csv.hex_int(value, 1)
             case _ if subcode_column_exact_pattern.match(self.column):
+                assert isinstance(value, int)
                 return dif_csv.hex_int(value, 2)
             case (
                 "sc_smpte_timecode_color_frame"
                 | "sc_smpte_timecode_polarity_correction"
                 | "sc_smpte_timecode_blank_flag"
             ):
+                assert (
+                    value is None
+                    or isinstance(value, dif.ColorFrame)
+                    or isinstance(value, dif.PolarityCorrection)
+                    or isinstance(value, dif.BlankFlag)
+                )
                 return value.name if value is not None else None
             case "sc_smpte_timecode_binary_group_flags":
+                assert value is None or isinstance(value, int)
                 return dif_csv.hex_int(value, 1) if value is not None else None
             case "sc_recording_date_reserved" | "sc_recording_time_reserved":
+                assert value is None or isinstance(value, bytes)
                 return dif_csv.hex_bytes(value) if value is not None else None
             case _:
                 raise ValueError(f"Unsupported column {self.column} for write_constant command.")
 
-    def get_value_from_frame_data(self, frame_data):
+    def get_value_from_frame_data(self, frame_data: dif.FrameData) -> ConstantValueType:
         """Retrieve the value from FrameData using the configured column."""
         match self.column:
             case "h_track_application_id":
@@ -265,27 +290,36 @@ class WriteConstantCommand(Command):
             case _:
                 raise ValueError(f"Unsupported column {self.column} for write_constant command.")
 
-    def set_frame_data_to_parsed_value(self, frame_data, value):
+    def set_frame_data_to_parsed_value(
+        self, frame_data: dif.FrameData, value: ConstantValueType
+    ) -> dif.FrameData:
         """Change the value in FrameData to the given value.
 
         The value needs to have already been parsed."""
         match self.column:
             case "h_track_application_id":
+                assert isinstance(value, int)
                 return replace(frame_data, header_track_application_id=value)
             case "h_audio_application_id":
+                assert isinstance(value, int)
                 return replace(frame_data, header_audio_application_id=value)
             case "h_video_application_id":
+                assert isinstance(value, int)
                 return replace(frame_data, header_video_application_id=value)
             case "h_subcode_application_id":
+                assert isinstance(value, int)
                 return replace(frame_data, header_subcode_application_id=value)
             case "sc_track_application_id":
+                assert isinstance(value, int)
                 return replace(frame_data, subcode_track_application_id=value)
             case "sc_subcode_application_id":
+                assert isinstance(value, int)
                 return replace(frame_data, subcode_subcode_application_id=value)
             case _ if (match := subcode_column_exact_pattern.match(self.column)):
                 # Making a deep copy of frame_data.subcode_pack_types would be
                 # the simple and naive way of doing this, but it's very slow.
                 # Instead, we'll only copy the lists that we're actually changing.
+                assert isinstance(value, int) or value is None
                 channel = int(match.group("channel"))
                 dif_sequence = int(match.group("dif_sequence"))
                 pack = int(match.group("pack"))
@@ -320,36 +354,42 @@ class WriteConstantCommand(Command):
                 )
                 if self.column == "sc_smpte_timecode_color_frame":
                     # physically overlaps with blank_flag on tape
+                    assert isinstance(value, dif.ColorFrame) or value is None
                     blank_flag = dif.BlankFlag(value) if value is not None else None
                     new_timecode = replace(
                         existing_timecode, color_frame=value, blank_flag=blank_flag
                     )
                 elif self.column == "sc_smpte_timecode_polarity_correction":
+                    assert isinstance(value, dif.PolarityCorrection) or value is None
                     new_timecode = replace(existing_timecode, polarity_correction=value)
                 elif self.column == "sc_smpte_timecode_binary_group_flags":
+                    assert isinstance(value, int) or value is None
                     new_timecode = replace(existing_timecode, binary_group_flags=value)
                 elif self.column == "sc_smpte_timecode_blank_flag":
                     # physically overlaps with color_frame on tape
+                    assert isinstance(value, dif.BlankFlag) or value is None
                     color_frame = dif.ColorFrame(value) if value is not None else None
                     new_timecode = replace(
                         existing_timecode, color_frame=color_frame, blank_flag=value
                     )
                 else:
                     assert False
-                new_timecode = new_timecode if not new_timecode.is_empty() else None
-                return replace(frame_data, subcode_smpte_timecode=new_timecode)
+                new_timecode_optional = new_timecode if not new_timecode.is_empty() else None
+                return replace(frame_data, subcode_smpte_timecode=new_timecode_optional)
             case "sc_recording_date_reserved":
+                assert isinstance(value, bytes) or value is None
                 existing_recording_date = (
                     frame_data.subcode_recording_date
                     if frame_data.subcode_recording_date is not None
                     else dif.SubcodeRecordingDate(year=None, month=None, day=None, reserved=None)
                 )
                 new_recording_date = replace(existing_recording_date, reserved=value)
-                new_recording_date = (
+                new_recording_date_optional = (
                     new_recording_date if not new_recording_date.is_empty() else None
                 )
-                return replace(frame_data, subcode_recording_date=new_recording_date)
+                return replace(frame_data, subcode_recording_date=new_recording_date_optional)
             case "sc_recording_time_reserved":
+                assert isinstance(value, bytes) or value is None
                 existing_recording_time = (
                     frame_data.subcode_recording_time
                     if frame_data.subcode_recording_time is not None
@@ -363,23 +403,23 @@ class WriteConstantCommand(Command):
                     )
                 )
                 new_recording_time = replace(existing_recording_time, reserved=value)
-                new_recording_time = (
+                new_recording_time_optional = (
                     new_recording_time if not new_recording_time.is_empty() else None
                 )
-                return replace(frame_data, subcode_recording_time=new_recording_time)
+                return replace(frame_data, subcode_recording_time=new_recording_time_optional)
             case _:
                 raise ValueError(f"Unsupported column {self.column} for write_constant command.")
 
-    def run(self, all_frame_data):
+    def run(self, all_frame_data: list[dif.FrameData]) -> list[dif.FrameData]:
         # Look for most frequently occurring values and show them to the user.
-        histogram = defaultdict(int)
+        histogram: dict[ConstantValueType, int] = defaultdict(int)
         for frame in self.frame_range(all_frame_data):
             frame_data = all_frame_data[frame]
             histogram[self.get_value_from_frame_data(frame_data)] += 1
         sorted_keys = sorted(histogram, key=lambda k: histogram[k], reverse=True)
         print("Most common values for this field:")
         for key in sorted_keys:
-            print(f" - {key}: {histogram[key]} frames")
+            print(f" - {key!r}: {histogram[key]} frames")
 
         # Pick the value to write
         chosen_value = sorted_keys[0] if self.value == MOST_COMMON else self.value
@@ -396,11 +436,11 @@ class WriteConstantCommand(Command):
 
         return all_frame_data
 
-    def command_expansion(self, all_frame_data):
+    def command_expansion(self, all_frame_data: list[dif.FrameData]) -> list[Command]:
         """If the column is subcode, then expand into multiple commands."""
         match = subcode_column_full_pattern.match(self.column)
         if match:
-            expanded = []
+            expanded: list[Command] = []
             channel_count = len(all_frame_data[0].subcode_pack_types)
             dif_sequence_count = len(all_frame_data[0].subcode_pack_types[0])
             pack_count = len(all_frame_data[0].subcode_pack_types[0][0])
@@ -461,14 +501,14 @@ class RenumberArbitraryBits(Command):
     upper_bound: int
     step: int
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f"renumber_arbitrary_bits in frames [{self.start_frame}, {self.end_frame}] "
             f"with initial_value={self.initial_value}, lower_bound={self.lower_bound}, "
             f"upper_bound={self.upper_bound}, step={self.step}"
         )
 
-    def run(self, all_frame_data):
+    def run(self, all_frame_data: list[dif.FrameData]) -> list[dif.FrameData]:
         # Determine starting value
         next_value = (
             self.initial_value
@@ -507,27 +547,28 @@ class RenumberSMPTETimecodes(Command):
 
     initial_value: str | None
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f"renumber_smpte_timecodes in frames "
             f"[{self.start_frame}, {self.end_frame}] "
             f"with initial_value={self.initial_value}"
         )
 
-    def run(self, all_frame_data):
+    def run(self, all_frame_data: list[dif.FrameData]) -> list[dif.FrameData]:
         # Determine starting value
         next_value = (
             dif.SMPTETimecode.parse_all(
                 time=self.initial_value,
-                color_frame=None,
-                polarity_correction=None,
-                binary_group_flags=None,
-                blank_flag=None,
+                color_frame="",
+                polarity_correction="",
+                binary_group_flags="",
+                blank_flag="",
                 video_frame_dif_sequence_count=len(all_frame_data[0].subcode_pack_types[0]),
             )
             if self.initial_value is not None
             else all_frame_data[self.start_frame].subcode_smpte_timecode
         )
+        assert next_value is not None
         print(f"Using starting value {next_value.format_time_str()}...")
         # Update frames with new value
         tracker = FrameChangeTracker()
@@ -575,7 +616,7 @@ class RenumberSMPTETimecodes(Command):
 class Transformations:
     commands: list[Command]
 
-    def run(self, frame_data):
+    def run(self, frame_data: list[dif.FrameData]) -> list[dif.FrameData]:
         for command in self.commands:
             for expanded_command in command.command_expansion(frame_data):
                 print("===================================================")
@@ -585,7 +626,7 @@ class Transformations:
         return frame_data
 
 
-def load_transformations(transformations_file):
+def load_transformations(transformations_file: BinaryIO) -> Transformations:
     transformations_yaml = yaml.safe_load(transformations_file)
 
     # Read thresholds
@@ -605,7 +646,7 @@ def load_transformations(transformations_file):
     )
 
     # Read commands
-    commands = []
+    commands: list[Command] = []
     for command_dict in transformations_yaml.get("commands", []) or []:
         # Look for per-command threshold overrides
         max_changed_proportion = command_dict.get("thresholds", {}).get(

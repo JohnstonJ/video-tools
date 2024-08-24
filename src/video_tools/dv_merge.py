@@ -5,11 +5,18 @@ import subprocess
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
+from typing import BinaryIO
 
 import video_tools.io_util as io_util
 
 
-def parse_args():
+class DVMergeArgs(argparse.Namespace):
+    input_files: list[str]
+    output: str
+    merge_algorithm: str
+
+
+def parse_args() -> DVMergeArgs:
     parser = argparse.ArgumentParser(
         prog="dv_merge",
         description="N-way merge of equal-length raw DV files.",
@@ -24,6 +31,7 @@ def parse_args():
     parser.add_argument(
         "--output",
         type=str,
+        required=True,
         help="Name of output file.",
     )
     parser.add_argument(
@@ -34,7 +42,7 @@ def parse_args():
         "not have errors by DV Analyzer and DVRescue.  binary will do a very simple "
         "byte-by-byte binary merge (only useful for 3 or more inputs).",
     )
-    return parser.parse_args()
+    return parser.parse_args(namespace=DVMergeArgs())
 
 
 @dataclass
@@ -53,7 +61,7 @@ class DVAnalyzerFileAnalysis:
     frame_analysis: dict[int, DVAnalyzerFrameAnalysis]  # keyed by frame number
 
 
-def parse_dvanalyzer(analysis_bytes):
+def parse_dvanalyzer(analysis_bytes: bytes) -> dict[str, DVAnalyzerFileAnalysis]:
     """Parse analysis XML from DV Analyzer.  Only error/special frames are returned."""
 
     analyzed_files = {}  # return value is keyed by filepath, then by frame number
@@ -62,24 +70,34 @@ def parse_dvanalyzer(analysis_bytes):
     file_elements = root.findall("./file")
     for file_element in file_elements:
         # then, build a DVAnalyzerFrameAnalysis for each frame in the file
-        filepath = file_element.find("./filepath").text
+        filepath_element = file_element.find("./filepath")
+        assert filepath_element is not None
+        filepath = filepath_element.text
+        assert filepath is not None
+
         frame_objects = {}  # keyed by frame number
         for frame in file_element.findall("./frames/frame"):
+            frame_type = frame.get("type")
+            frame_element = frame.find("./frame")
+            assert frame_type is not None
+            assert frame_element is not None and frame_element.text is not None
             frame_analysis = DVAnalyzerFrameAnalysis(
-                frame_type=frame.get("type"),
-                frame_number=int(frame.find("./frame").text),
+                frame_type=frame_type,
+                frame_number=int(frame_element.text),
             )
             frame_objects[frame_analysis.frame_number] = frame_analysis
 
+        frames_count_element = file_element.find("./frames_count")
+        assert frames_count_element is not None and frames_count_element.text is not None
         analyzed_files[filepath] = DVAnalyzerFileAnalysis(
-            frame_count=int(file_element.find("./frames_count").text),
+            frame_count=int(frames_count_element.text),
             frame_analysis=frame_objects,
         )
 
     return analyzed_files
 
 
-def run_dvanalyzer(input_filenames):
+def run_dvanalyzer(input_filenames: list[str]) -> dict[str, DVAnalyzerFileAnalysis]:
     """Analyze files using DV Analyzer CLI.  Assumes that the tool is in the path."""
 
     print("Analyzing input files using DV Analyze...")
@@ -110,7 +128,7 @@ class DVRescueFileAnalysis:
     frame_analysis: dict[int, DVRescueFrameAnalysis]  # keyed by frame number
 
 
-def parse_dvrescue_analyzer(analysis_xml_path):
+def parse_dvrescue_analyzer(analysis_xml_path: str) -> DVRescueFileAnalysis:
     """Parse analysis XML from DV Analyzer.
 
     Only special frames of interest are returned."""
@@ -122,20 +140,26 @@ def parse_dvrescue_analyzer(analysis_xml_path):
     # then, build a DVRescueFrameAnalysis for each frame in the file
     frame_objects = {}  # keyed by frame number
     for frame in root.findall("./dvrescue:media/dvrescue:frames/dvrescue:frame", dvrescue_ns):
+        frame_number = frame.get("n")
+        assert frame_number is not None
         frame_analysis = DVRescueFrameAnalysis(
-            frame_number=int(frame.get("n")),
+            frame_number=int(frame_number),
             timecode_repeated=frame.get("tc_r") is not None,
             timecode_nonconsecutive=frame.get("tc_nc") is not None,
         )
         frame_objects[frame_analysis.frame_number] = frame_analysis
 
+    frames_element = root.find("./dvrescue:media/dvrescue:frames", dvrescue_ns)
+    assert frames_element is not None
+    frame_count = frames_element.get("count")
+    assert frame_count is not None
     return DVRescueFileAnalysis(
-        frame_count=int(root.find("./dvrescue:media/dvrescue:frames", dvrescue_ns).get("count")),
+        frame_count=int(frame_count),
         frame_analysis=frame_objects,
     )
 
 
-def run_dvrescue_analyzer(input_filenames):
+def run_dvrescue_analyzer(input_filenames: list[str]) -> dict[str, DVRescueFileAnalysis]:
     """Analyze files using DVRescue CLI.  Assumes that the tool is in the path."""
 
     analyzed_files = {}
@@ -159,13 +183,17 @@ def run_dvrescue_analyzer(input_filenames):
     return analyzed_files
 
 
-def validate_inputs(inputs, dvanalyzer_results, dvrescue_results):
+def validate_inputs(
+    inputs: dict[str, BinaryIO],
+    dvanalyzer_results: dict[str, DVAnalyzerFileAnalysis] | None,
+    dvrescue_results: dict[str, DVRescueFileAnalysis] | None,
+) -> tuple[str | None, int | None]:
     """Validate input data, returning an error string if it fails.
 
     The frame byte size is returned if there is no error."""
 
     # Check that the file sizes are all the same
-    sz = None
+    sz: int | None = None
     for path, file in inputs.items():
         file.seek(0, io.SEEK_END)
         this_sz = file.tell()
@@ -175,13 +203,15 @@ def validate_inputs(inputs, dvanalyzer_results, dvrescue_results):
             sz = this_sz
         elif this_sz != sz:
             return (f"File {path} has a different file size.", None)
+    assert sz is not None
 
     # Exit early if we don't have an analysis
     if dvanalyzer_results is None and dvrescue_results is None:
         return (None, None)
+    assert dvanalyzer_results is not None and dvrescue_results is not None
 
     # Validate analysis
-    frame_count = None
+    frame_count: int | None = None
     for path in inputs.keys():
         # Check that every file has an analysis
         if path not in dvanalyzer_results:
@@ -215,6 +245,7 @@ def validate_inputs(inputs, dvanalyzer_results, dvrescue_results):
                 f"File {path} has a different frame count than the other files.",
                 None,
             )
+    assert frame_count is not None
 
     # Check that the file size is evenly divisible by the frame count
     if sz % frame_count:
@@ -227,7 +258,13 @@ def validate_inputs(inputs, dvanalyzer_results, dvrescue_results):
     return (None, frame_size)
 
 
-def merge_inputs(inputs, output, dvanalyzer_results, dvrescue_results, frame_size):
+def merge_inputs(
+    inputs: dict[str, BinaryIO],
+    output: BinaryIO,
+    dvanalyzer_results: dict[str, DVAnalyzerFileAnalysis],
+    dvrescue_results: dict[str, DVRescueFileAnalysis],
+    frame_size: int,
+) -> None:
     """Merge input files frame by frame, using the analysis to guide."""
     next_frame_num = 0
     while True:
@@ -248,14 +285,14 @@ def merge_inputs(inputs, output, dvanalyzer_results, dvrescue_results, frame_siz
         # look for a frame analysis from DV Analyzer that has no error
         clean_dvanalyzer_inputs = set()
         for input_name in inputs.keys():
-            this_analysis = dvanalyzer_results[input_name].frame_analysis
+            this_dva_analysis = dvanalyzer_results[input_name].frame_analysis
             # If DV Analyzer didn't output the frame at all, then it's fine
-            if this_frame_num not in this_analysis:
+            if this_frame_num not in this_dva_analysis:
                 clean_dvanalyzer_inputs.add(input_name)
                 continue
 
             # Exclude frames marked as error.
-            if this_analysis[this_frame_num].frame_type == "error":
+            if this_dva_analysis[this_frame_num].frame_type == "error":
                 continue
 
             clean_dvanalyzer_inputs.add(input_name)
@@ -265,15 +302,15 @@ def merge_inputs(inputs, output, dvanalyzer_results, dvrescue_results, frame_siz
         # coherency issues that DV Analyzer does not, and vice versa).
         clean_dvrescue_inputs = set()
         for input_name in inputs.keys():
-            this_analysis = dvrescue_results[input_name].frame_analysis
+            this_dvr_analysis = dvrescue_results[input_name].frame_analysis
             # If DVRescue didn't output the frame at all, then it's fine
-            if this_frame_num not in this_analysis:
+            if this_frame_num not in this_dvr_analysis:
                 clean_dvrescue_inputs.add(input_name)
                 continue
 
             # Exclude frames that had repeated timecodes.  These most often
             # seem to be wrong.
-            if this_analysis[this_frame_num].timecode_repeated:
+            if this_dvr_analysis[this_frame_num].timecode_repeated:
                 continue
 
             clean_dvrescue_inputs.add(input_name)
@@ -323,7 +360,7 @@ def merge_inputs(inputs, output, dvanalyzer_results, dvrescue_results, frame_siz
         output.write(next(iter(frame_data.values())))
 
 
-def merge_binary(inputs, output):
+def merge_binary(inputs: dict[str, BinaryIO], output: BinaryIO) -> None:
     chunk_size = 1048576
     chunk_num = 0
     while True:
@@ -363,7 +400,7 @@ def merge_binary(inputs, output):
         output.write(output_chunk)
 
 
-def main():
+def main() -> None:
     args = parse_args()
 
     input_filenames = args.input_files
@@ -371,7 +408,7 @@ def main():
 
     # open files
     with contextlib.ExitStack() as stack:
-        inputs = {
+        inputs: dict[str, BinaryIO] = {
             input_filename: stack.enter_context(open(input_filename, "rb"))
             for input_filename in input_filenames
         }
@@ -392,6 +429,7 @@ def main():
             if validation_failure is not None:
                 print(validation_failure)
                 exit(1)
+            assert frame_size is not None
             print(f"Frame size is {frame_size} bytes.")
 
             # merge them

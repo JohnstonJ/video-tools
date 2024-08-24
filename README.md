@@ -23,7 +23,7 @@ When running some tools, note that you must also ensure that FFmpeg is in your `
 To develop this Python project, first start with the activated virtual environment you previously created.
 
 ```
-pip install --editable .
+pip install --editable .[dev]
 ```
 
 To run verifications, first install Nox:
@@ -52,7 +52,7 @@ nox -s format
 
 Don't forget you can add the `-R` parameter to nox if you want to reuse existing virtual environments.
 
-To integrate the linter, ruff, with VS Code:
+To integrate the linting tools with VS Code:
 
 1.  Install the Ruff extension for VS Code.  Note it will use its own bundled copy of Ruff.
 2.  Go to `.vscode/settings.json` for the project and add:
@@ -67,6 +67,7 @@ To integrate the linter, ruff, with VS Code:
       }
     }
     ```
+3.  Install the Mypy Type Checker for VS Code.  Again, note it will use its own bundled copy of mypy.
 
 ## Workflows
 
