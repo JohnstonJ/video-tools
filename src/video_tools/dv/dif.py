@@ -59,7 +59,8 @@ class SSYBPackType(IntEnum):
     # IEC 61834-4:1998 4.5 Binary Group
     SMPTE_BG = 0x14
 
-    RECORDING_DATE = 0x62  # Recording date (can't find documentation on this)
+    # IEC 61834-4:1998 9.3 Rec Date (Recording date)
+    RECORDING_DATE = 0x62
 
     RECORDING_TIME = 0x63  # Recording time (can't find documentation on this)
 
@@ -327,10 +328,12 @@ class SMPTETimecode:
             SSYBPackType.SMPTE_TC,
             # NOTE: self.valid() asserts that color_frame == blank_flag, which
             # both overlap with the MSB here.
-            (int(self.color_frame) << 7)
-            | (0x40 if self.drop_frame else 0x00)
-            | (int(self.frame / 10) << 4)
-            | int(self.frame % 10),
+            (
+                (int(self.color_frame) << 7)
+                | (0x40 if self.drop_frame else 0x00)
+                | (int(self.frame / 10) << 4)
+                | int(self.frame % 10)
+            ),
             (int(self.second / 10) << 4) | int(self.second % 10),
             (int(self.minute / 10) << 4) | int(self.minute % 10),
             (int(self.hour / 10) << 4) | int(self.hour % 10),
@@ -442,10 +445,26 @@ class SMPTEBinaryGroup:
 
 
 recording_date_pattern = re.compile(r"^(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})$")
+time_zone_pattern = re.compile(r"^(?P<hour>\d{2}):(?P<minute>\d{2})$")
+
+
+class Week(IntEnum):
+    SUNDAY = 0x0
+    MONDAY = 0x1
+    TUESDAY = 0x2
+    WEDNESDAY = 0x03
+    THURSDAY = 0x4
+    FRIDAY = 0x5
+    SATURDAY = 0x6
+
+
+class DaylightSavingTime(IntEnum):
+    DST = 0x0
+    NORMAL = 0x1
 
 
 # Recording date from subcode pack
-# I can't find a reference for this definition.
+# IEC 61834-4:1998 9.3 Rec Date (Recording date)
 @dataclass(frozen=True)
 class SubcodeRecordingDate:
     # The year field is a regular 4-digit field for ease of use.
@@ -454,15 +473,24 @@ class SubcodeRecordingDate:
     year: int | None
     month: int | None
     day: int | None
-    # this will always be 4 bytes; the bits that the date came from are masked out.
-    # it's required for this class to be valid, but we allow absence for intermediate processing.
-    reserved: bytes | None
+    week: Week | None
 
-    def valid(self, allow_incomplete: bool = False) -> bool:
+    # Time zone information
+    time_zone_hours: int | None
+    time_zone_30_minutes: bool | None
+    daylight_saving_time: DaylightSavingTime | None
+
+    # Reserved bits (normally 0x3)
+    reserved: int | None
+
+    def valid(self) -> bool:
         # Date must be fully present or fully absent
         date_present = self.year is not None and self.month is not None and self.day is not None
         date_absent = self.year is None and self.month is None and self.day is None
         if (date_present and date_absent) or (not date_present and not date_absent):
+            return False
+        # No week if the date is absent
+        if date_absent and self.week is not None:
             return False
 
         if date_present:
@@ -475,55 +503,99 @@ class SubcodeRecordingDate:
             if self.year >= 2075 or self.year < 1975:
                 return False
 
-        if not allow_incomplete and self.reserved is None:
+        # Time zone offset parts must be fully present or fully absent.
+        tz_present = (
+            self.time_zone_hours is not None
+            and self.time_zone_30_minutes is not None
+            and self.daylight_saving_time is not None
+        )
+        tz_absent = (
+            self.time_zone_hours is None
+            and self.time_zone_30_minutes is None
+            and self.daylight_saving_time is None
+        )
+        if (tz_present and tz_absent) or (not tz_present and not tz_absent):
             return False
-        if self.reserved is not None and len(self.reserved) != 4:
+
+        if self.time_zone_hours is not None and self.time_zone_hours >= 24:
             return False
+
+        if self.reserved is None:
+            return False
+
         return True
 
     def is_empty(self) -> bool:
-        return (
-            self.year is None and self.month is None and self.day is None and self.reserved is None
-        )
+        return self.reserved is None
 
     def format_date_str(self) -> str:
         return f"{self.year:02}-{self.month:02}-{self.day:02}" if self.year is not None else ""
 
+    def format_time_zone_str(self) -> str:
+        return f"{self.time_zone_hours:02}:{00 if not self.time_zone_30_minutes else 30}"
+
     @classmethod
-    def parse_all(cls, date: str, reserved: str) -> SubcodeRecordingDate | None:
-        if not date and not reserved:
-            return None
-        match = None
+    def parse_all(
+        cls, date: str, week: str, time_zone: str, daylight_saving_time: str, reserved: str
+    ) -> SubcodeRecordingDate:
+        date_match = None
         if date:
-            match = recording_date_pattern.match(date)
-            if not match:
+            date_match = recording_date_pattern.match(date)
+            if not date_match:
                 raise ValueError(f"Parsing error while reading recording date {date}.")
-        val = cls(
-            year=int(match.group("year")) if match else None,
-            month=int(match.group("month")) if match else None,
-            day=int(match.group("day")) if match else None,
-            reserved=bytes.fromhex(reserved.removeprefix("0x")) if reserved else None,
+
+        tz_match = None
+        tz_hours = None
+        tz_30_minutes = None
+        if time_zone:
+            tz_match = time_zone_pattern.match(time_zone)
+            if not tz_match:
+                raise ValueError(f"Parsing error while reading time zone {time_zone}.")
+            if tz_match.group("minutes") != "30" and tz_match.group("minutes") != 00:
+                raise ValueError("Minutes portion of time zone must be 30 or 00.")
+            tz_hours = int(tz_match.group("hour"))
+            tz_30_minutes = tz_match.group("minute") == "30"
+
+        return cls(
+            year=int(date_match.group("year")) if date_match else None,
+            month=int(date_match.group("month")) if date_match else None,
+            day=int(date_match.group("day")) if date_match else None,
+            week=Week[week] if week else None,
+            time_zone_hours=tz_hours,
+            time_zone_30_minutes=tz_30_minutes,
+            daylight_saving_time=(
+                DaylightSavingTime[daylight_saving_time] if daylight_saving_time else None
+            ),
+            reserved=(int(reserved, 0) if reserved else None),
         )
-        if not val.valid(allow_incomplete=True):
-            raise ValueError(f"Parsing error while reading recording date {date}.")
-        return val
 
     @classmethod
     def parse_ssyb_pack(cls, ssyb_bytes: bytes) -> SubcodeRecordingDate | None:
         assert len(ssyb_bytes) == 5
         assert ssyb_bytes[0] == SSYBPackType.RECORDING_DATE
 
-        # The pack can be present, but all date fields absent.
-        day_tens = None
-        day_units = None
-        month_tens = None
-        month_units = None
-        year_tens = None
-        year_units = None
-        year_prefix = None
+        # The pack can be present, but all fields absent when the recording date is unknown.
 
         # Unpack fields from bytes and validate them.  Validation failures are
         # common due to tape dropouts.
+        ds = None
+        tm = None
+        tz_tens = None
+        tz_units = None
+        # Time zone fields are all present or all absent
+        if ssyb_bytes[1] & 0x3F != 0x3F:
+            ds = (ssyb_bytes[1] & 0x80) >> 7
+            tm = (ssyb_bytes[1] & 0x40) >> 7
+            tz_tens = (ssyb_bytes[1] & 0x30) >> 4
+            if tz_tens > 2:
+                return None
+            tz_units = ssyb_bytes[1] & 0x0F
+            if tz_units > 9:
+                return None
+
+        reserved = (ssyb_bytes[2] & 0xC0) >> 6
+        day_tens = None
+        day_units = None
         if ssyb_bytes[2] & 0x3F != 0x3F:
             day_tens = (ssyb_bytes[2] & 0x30) >> 4
             if day_tens > 3:
@@ -532,14 +604,18 @@ class SubcodeRecordingDate:
             if day_units > 9:
                 return None
 
+        week = (ssyb_bytes[3] & 0xE0) >> 5 if ssyb_bytes[3] & 0xE0 != 0xE0 else None
+        month_tens = None
+        month_units = None
         if ssyb_bytes[3] & 0x1F != 0x1F:
             month_tens = (ssyb_bytes[3] & 0x10) >> 4
-            if month_tens > 1:
-                return None
             month_units = ssyb_bytes[3] & 0x0F
             if month_units > 9:
                 return None
 
+        year_tens = None
+        year_units = None
+        year_prefix = None
         if ssyb_bytes[4] & 0xFF != 0xFF:
             year_tens = (ssyb_bytes[4] & 0xF0) >> 4
             if year_tens > 9:
@@ -549,13 +625,10 @@ class SubcodeRecordingDate:
                 return None
             year_prefix = 20 if year_tens < 75 else 19
 
-        reserved_mask = bytes(b"\xff\xc0\xe0\x00")
-        reserved = bytes([b & m for b, m in zip(ssyb_bytes[1:], reserved_mask)])
-
         pack = cls(
             year=(
                 year_prefix * 100 + year_tens * 10 + year_units
-                if year_prefix is not None and year_tens is not None and year_units
+                if year_prefix is not None and year_tens is not None and year_units is not None
                 else None
             ),
             month=(
@@ -568,6 +641,12 @@ class SubcodeRecordingDate:
                 if day_tens is not None and day_units is not None
                 else None
             ),
+            week=Week(week) if week is not None else None,
+            time_zone_hours=(
+                tz_tens * 10 + tz_units if tz_tens is not None and tz_units is not None else None
+            ),
+            time_zone_30_minutes=True if tm == 0 else False,
+            daylight_saving_time=DaylightSavingTime.DST if ds == 0 else DaylightSavingTime.NORMAL,
             reserved=reserved,
         )
 
@@ -579,12 +658,26 @@ class SubcodeRecordingDate:
         short_year = self.year % 100 if self.year is not None else None
         ssyb_bytes = [
             SSYBPackType.RECORDING_DATE,
-            0x00,
-            ((int(self.day / 10) << 4) | int(self.day % 10) if self.day is not None else 0x3F),
             (
-                (int(self.month / 10) << 4) | int(self.month % 10)
-                if self.month is not None
-                else 0x1F
+                (0x01 << 7 if self.daylight_saving_time != DaylightSavingTime.DST else 0x00)
+                | (0x01 << 6 if not self.time_zone_30_minutes else 0x00)
+                | (
+                    (int(self.time_zone_hours / 10) << 4) | int(self.time_zone_hours % 10)
+                    if self.time_zone_hours is not None
+                    else 0x3F
+                )
+            ),
+            (
+                (self.reserved << 6)
+                | ((int(self.day / 10) << 4) | int(self.day % 10) if self.day is not None else 0x3F)
+            ),
+            (
+                (int(self.week) << 5 if self.week is not None else 0xE0)
+                | (
+                    (int(self.month / 10) << 4) | int(self.month % 10)
+                    if self.month is not None
+                    else 0x1F
+                )
             ),
             (
                 (int(short_year / 10) << 4) | int(short_year % 10)
@@ -592,10 +685,6 @@ class SubcodeRecordingDate:
                 else 0xFF
             ),
         ]
-        # If the user gave reserved bits that conflict with the date, then mask them out.
-        reserved_mask = bytes(b"\xff\xc0\xe0\x00")
-        reserved = [b & m for b, m in zip(self.reserved, reserved_mask)]
-        ssyb_bytes[1:5] = [b | r for b, r in zip(ssyb_bytes[1:5], reserved)]
         return bytes(ssyb_bytes)
 
 

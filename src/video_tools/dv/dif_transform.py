@@ -165,6 +165,7 @@ class WriteConstantCommand(Command):
         """Parse the configured value into the native data type used by FrameData."""
         if value_str == MOST_COMMON:
             return value_str
+        value_str = value_str if value_str is not None else ""
         match column:
             case (
                 "h_track_application_id"
@@ -174,22 +175,24 @@ class WriteConstantCommand(Command):
                 | "sc_track_application_id"
                 | "sc_subcode_application_id"
             ):
-                assert value_str is not None
+                assert value_str != ""
                 return int(value_str, 0)
             case _ if subcode_column_full_pattern.match(column):
                 # We used full pattern match because this is called before command expansion
-                assert value_str is not None
+                assert value_str != ""
                 return int(value_str, 0)
             case "sc_smpte_timecode_color_frame":
-                return dif.ColorFrame[value_str] if value_str is not None else None
+                return dif.ColorFrame[value_str] if value_str != "" else None
             case "sc_smpte_timecode_polarity_correction":
-                return dif.PolarityCorrection[value_str] if value_str is not None else None
+                return dif.PolarityCorrection[value_str] if value_str != "" else None
             case "sc_smpte_timecode_binary_group_flags":
-                return int(value_str, 0) if value_str is not None else None
+                return int(value_str, 0) if value_str != "" else None
             case "sc_smpte_timecode_blank_flag":
-                return dif.BlankFlag[value_str] if value_str is not None else None
-            case "sc_recording_date_reserved" | "sc_recording_time_reserved":
-                b = bytes.fromhex(value_str.removeprefix("0x")) if value_str is not None else None
+                return dif.BlankFlag[value_str] if value_str != "" else None
+            case "sc_rec_date_reserved":
+                return int(value_str, 0) if value_str != "" else None
+            case "sc_recording_time_reserved":
+                b = bytes.fromhex(value_str.removeprefix("0x")) if value_str != "" else None
                 assert b is None or len(b) == 4
                 return b
             case _:
@@ -226,7 +229,10 @@ class WriteConstantCommand(Command):
             case "sc_smpte_timecode_binary_group_flags":
                 assert value is None or isinstance(value, int)
                 return dif_csv.hex_int(value, 1) if value is not None else None
-            case "sc_recording_date_reserved" | "sc_recording_time_reserved":
+            case "sc_rec_date_reserved":
+                assert value is None or isinstance(value, int)
+                return dif_csv.hex_int(value, 1) if value is not None else None
+            case "sc_recording_time_reserved":
                 assert value is None or isinstance(value, bytes)
                 return dif_csv.hex_bytes(value) if value is not None else None
             case _:
@@ -275,7 +281,7 @@ class WriteConstantCommand(Command):
                     if frame_data.subcode_smpte_timecode
                     else None
                 )
-            case "sc_recording_date_reserved":
+            case "sc_rec_date_reserved":
                 return (
                     frame_data.subcode_recording_date.reserved
                     if frame_data.subcode_recording_date
@@ -376,12 +382,21 @@ class WriteConstantCommand(Command):
                     assert False
                 new_timecode_optional = new_timecode if not new_timecode.is_empty() else None
                 return replace(frame_data, subcode_smpte_timecode=new_timecode_optional)
-            case "sc_recording_date_reserved":
-                assert isinstance(value, bytes) or value is None
+            case "sc_rec_date_reserved":
+                assert isinstance(value, int) or value is None
                 existing_recording_date = (
                     frame_data.subcode_recording_date
                     if frame_data.subcode_recording_date is not None
-                    else dif.SubcodeRecordingDate(year=None, month=None, day=None, reserved=None)
+                    else dif.SubcodeRecordingDate(
+                        year=None,
+                        month=None,
+                        day=None,
+                        week=None,
+                        time_zone_hours=None,
+                        time_zone_30_minutes=None,
+                        daylight_saving_time=None,
+                        reserved=None,
+                    )
                 )
                 new_recording_date = replace(existing_recording_date, reserved=value)
                 new_recording_date_optional = (

@@ -59,8 +59,11 @@ def write_frame_data_csv(output_file: TextIO, all_frame_data: list[dif.FrameData
                     # Subcode SMPTE binary group
                     "sc_smpte_binary_group",  # 8 hex digits
                     # Subcode recording date/time
-                    "sc_recording_date",  # year/month/day
-                    "sc_recording_date_reserved",  # 8 hex digits
+                    "sc_rec_date",  # yyyy/mm/dd
+                    "sc_rec_date_week",
+                    "sc_rec_date_tz",  # hh:mm
+                    "sc_rec_date_dst",
+                    "sc_rec_date_reserved",  # up to 0x3
                     "sc_recording_time",  # hour:minute:second[:frame]
                     "sc_recording_time_reserved",  # 8 hex digits
                 ],
@@ -119,11 +122,22 @@ def write_frame_data_csv(output_file: TextIO, all_frame_data: list[dif.FrameData
             }
         if frame_data.subcode_recording_date is not None:
             row_fields |= {
-                "sc_recording_date": frame_data.subcode_recording_date.format_date_str(),
-                "sc_recording_date_reserved": (
-                    hex_bytes(frame_data.subcode_recording_date.reserved)
-                    if frame_data.subcode_recording_date.reserved is not None
+                "sc_rec_date": frame_data.subcode_recording_date.format_date_str(),
+                "sc_rec_date_week": (
+                    frame_data.subcode_recording_date.week.name
+                    if frame_data.subcode_recording_date.week is not None
                     else ""
+                ),
+                "sc_rec_date_tz": frame_data.subcode_recording_date.format_time_zone_str(),
+                "sc_rec_date_dst": (
+                    frame_data.subcode_recording_date.daylight_saving_time.name
+                    if frame_data.subcode_recording_date.daylight_saving_time is not None
+                    else ""
+                ),
+                "sc_rec_date_reserved": (
+                    hex_int(frame_data.subcode_recording_date.reserved, 1)
+                    if frame_data.subcode_recording_date.reserved is not None
+                    else "",
                 ),
             }
         if frame_data.subcode_recording_time is not None:
@@ -197,8 +211,11 @@ def read_frame_data_csv(input_file: Iterator[str]) -> list[dif.FrameData]:
                 value=row["sc_smpte_binary_group"],
             ),
             subcode_recording_date=dif.SubcodeRecordingDate.parse_all(
-                date=row["sc_recording_date"],
-                reserved=row["sc_recording_date_reserved"],
+                date=row["sc_rec_date"],
+                week=row["sc_rec_date_week"],
+                time_zone=row["sc_rec_date_tz"],
+                daylight_saving_time=row["sc_rec_date_dst"],
+                reserved=row["sc_rec_date_reserved"],
             ),
             subcode_recording_time=dif.SubcodeRecordingTime.parse_all(
                 time=row["sc_recording_time"],
