@@ -50,9 +50,7 @@ class Command(ABC):
             self.end_frame + 1 if self.end_frame is not None else len(all_frame_data),
         )
 
-    def track_changed_frame(
-        self, old_frame_data, new_frame_data, frame_number, tracker
-    ):
+    def track_changed_frame(self, old_frame_data, new_frame_data, frame_number, tracker):
         """Track a changed frame in the FrameChangeTracker."""
         changed = old_frame_data != new_frame_data
         if changed:
@@ -67,9 +65,7 @@ class Command(ABC):
             and tracker.last_consecutive_changed_frames
             >= self.thresholds.max_consecutive_modifications
         ):
-            raise ValueError(
-                f"ERROR:  Changed too many frames in a row at frame {frame_number}."
-            )
+            raise ValueError(f"ERROR:  Changed too many frames in a row at frame {frame_number}.")
 
     def track_final_proportion(self, tracker):
         """Check the final proportion of changed frames against threshold."""
@@ -138,15 +134,7 @@ class WriteConstantCommand(Command):
     """
 
     column: str
-    value: (
-        int
-        | dif.ColorFrame
-        | dif.PolarityCorrection
-        | dif.BlankFlag
-        | bytes
-        | str
-        | None
-    )
+    value: int | dif.ColorFrame | dif.PolarityCorrection | dif.BlankFlag | bytes | str | None
 
     def __str__(self):
         value_str = (
@@ -180,25 +168,17 @@ class WriteConstantCommand(Command):
             case "sc_smpte_timecode_color_frame":
                 return dif.ColorFrame[value_str] if value_str is not None else None
             case "sc_smpte_timecode_polarity_correction":
-                return (
-                    dif.PolarityCorrection[value_str] if value_str is not None else None
-                )
+                return dif.PolarityCorrection[value_str] if value_str is not None else None
             case "sc_smpte_timecode_binary_group_flags":
                 return int(value_str, 0) if value_str is not None else None
             case "sc_smpte_timecode_blank_flag":
                 return dif.BlankFlag[value_str] if value_str is not None else None
             case "sc_recording_date_reserved" | "sc_recording_time_reserved":
-                b = (
-                    bytes.fromhex(value_str.removeprefix("0x"))
-                    if value_str is not None
-                    else None
-                )
+                b = bytes.fromhex(value_str.removeprefix("0x")) if value_str is not None else None
                 assert b is None or len(b) == 4
                 return b
             case _:
-                raise ValueError(
-                    f"Unsupported column {column} for write_constant command."
-                )
+                raise ValueError(f"Unsupported column {column} for write_constant command.")
 
     def value_str(self, value):
         """Convert the native data type used by FrameData into a configuration string."""
@@ -225,9 +205,7 @@ class WriteConstantCommand(Command):
             case "sc_recording_date_reserved" | "sc_recording_time_reserved":
                 return dif_csv.hex_bytes(value) if value is not None else None
             case _:
-                raise ValueError(
-                    f"Unsupported column {self.column} for write_constant command."
-                )
+                raise ValueError(f"Unsupported column {self.column} for write_constant command.")
 
     def get_value_from_frame_data(self, frame_data):
         """Retrieve the value from FrameData using the configured column."""
@@ -285,9 +263,7 @@ class WriteConstantCommand(Command):
                     else None
                 )
             case _:
-                raise ValueError(
-                    f"Unsupported column {self.column} for write_constant command."
-                )
+                raise ValueError(f"Unsupported column {self.column} for write_constant command.")
 
     def set_frame_data_to_parsed_value(self, frame_data, value):
         """Change the value in FrameData to the given value.
@@ -339,9 +315,7 @@ class WriteConstantCommand(Command):
                         polarity_correction=None,
                         binary_group_flags=None,
                         blank_flag=None,
-                        video_frame_dif_sequence_count=len(
-                            frame_data.subcode_pack_types[0]
-                        ),
+                        video_frame_dif_sequence_count=len(frame_data.subcode_pack_types[0]),
                     )
                 )
                 if self.column == "sc_smpte_timecode_color_frame":
@@ -368,9 +342,7 @@ class WriteConstantCommand(Command):
                 existing_recording_date = (
                     frame_data.subcode_recording_date
                     if frame_data.subcode_recording_date is not None
-                    else dif.SubcodeRecordingDate(
-                        year=None, month=None, day=None, reserved=None
-                    )
+                    else dif.SubcodeRecordingDate(year=None, month=None, day=None, reserved=None)
                 )
                 new_recording_date = replace(existing_recording_date, reserved=value)
                 new_recording_date = (
@@ -387,9 +359,7 @@ class WriteConstantCommand(Command):
                         second=None,
                         frame=None,
                         reserved=None,
-                        video_frame_dif_sequence_count=len(
-                            frame_data.subcode_pack_types[0]
-                        ),
+                        video_frame_dif_sequence_count=len(frame_data.subcode_pack_types[0]),
                     )
                 )
                 new_recording_time = replace(existing_recording_time, reserved=value)
@@ -398,9 +368,7 @@ class WriteConstantCommand(Command):
                 )
                 return replace(frame_data, subcode_recording_time=new_recording_time)
             case _:
-                raise ValueError(
-                    f"Unsupported column {self.column} for write_constant command."
-                )
+                raise ValueError(f"Unsupported column {self.column} for write_constant command.")
 
     def run(self, all_frame_data):
         # Look for most frequently occurring values and show them to the user.
@@ -421,9 +389,7 @@ class WriteConstantCommand(Command):
         tracker = FrameChangeTracker()
         for frame in self.frame_range(all_frame_data):
             frame_data = all_frame_data[frame]
-            new_frame_data = self.set_frame_data_to_parsed_value(
-                frame_data, chosen_value
-            )
+            new_frame_data = self.set_frame_data_to_parsed_value(frame_data, chosen_value)
             all_frame_data[frame] = new_frame_data
             self.track_changed_frame(frame_data, new_frame_data, frame, tracker)
         self.track_final_proportion(tracker)
@@ -450,9 +416,7 @@ class WriteConstantCommand(Command):
                 ):
                     continue
                 for dif_sequence in range(0, dif_sequence_count):
-                    if match.group(
-                        "dif_sequence_num"
-                    ) is not None and dif_sequence != int(
+                    if match.group("dif_sequence_num") is not None and dif_sequence != int(
                         match.group("dif_sequence_num")
                     ):
                         continue
@@ -559,9 +523,7 @@ class RenumberSMPTETimecodes(Command):
                 polarity_correction=None,
                 binary_group_flags=None,
                 blank_flag=None,
-                video_frame_dif_sequence_count=len(
-                    all_frame_data[0].subcode_pack_types[0]
-                ),
+                video_frame_dif_sequence_count=len(all_frame_data[0].subcode_pack_types[0]),
             )
             if self.initial_value is not None
             else all_frame_data[self.start_frame].subcode_smpte_timecode

@@ -83,9 +83,9 @@ def read_frame_data(frame_bytes, file_info):
 
                     # If the DIF sequence flag is wrong, this DV file is very malformed and
                     # beyond the scope of this tool to fix.
-                    assert (
-                        dsf == 0 and file_info.video_frame_dif_sequence_count == 10
-                    ) or (dsf == 1 and file_info.video_frame_dif_sequence_count == 12)
+                    assert (dsf == 0 and file_info.video_frame_dif_sequence_count == 10) or (
+                        dsf == 1 and file_info.video_frame_dif_sequence_count == 12
+                    )
                     # Check transmitting flags are all marked as valid
                     assert tf1 == 0  # audio
                     assert tf2 == 0  # VAUX + video
@@ -101,9 +101,7 @@ def read_frame_data(frame_bytes, file_info):
                     ssyb_len = 8
                     for ssyb_index in range(6):
                         ssyb_start = b_start + 3 + ssyb_len * ssyb_index
-                        ssyb_bytes.append(
-                            frame_bytes[ssyb_start : ssyb_start + ssyb_len]
-                        )
+                        ssyb_bytes.append(frame_bytes[ssyb_start : ssyb_start + ssyb_len])
 
                 b_start += dif.DIF_BLOCK_SIZE
 
@@ -191,9 +189,7 @@ def read_frame_data(frame_bytes, file_info):
             else None
         ),
         subcode_smpte_binary_group=(
-            max(
-                subcode_smpte_binary_group_hist, key=subcode_smpte_binary_group_hist.get
-            )
+            max(subcode_smpte_binary_group_hist, key=subcode_smpte_binary_group_hist.get)
             if subcode_smpte_binary_group_hist
             else None
         ),
@@ -214,15 +210,11 @@ def read_all_frame_data(input_file, input_file_info):
     all_frame_data = []
     for frame_number in range(input_file_info.video_frame_count):
         if frame_number % 100 == 0:
-            print(
-                f"Reading frame {frame_number} of {input_file_info.video_frame_count}..."
-            )
+            print(f"Reading frame {frame_number} of {input_file_info.video_frame_count}...")
 
         # Read the bytes for this frame into memory
         input_file.seek(frame_number * input_file_info.video_frame_size)
-        frame_bytes = io_util.read_file_bytes(
-            input_file, input_file_info.video_frame_size
-        )
+        frame_bytes = io_util.read_file_bytes(input_file, input_file_info.video_frame_size)
         assert len(frame_bytes) == input_file_info.video_frame_size
 
         # Parse the frame data
@@ -292,9 +284,7 @@ def write_frame_data(frame_bytes, file_info, frame_data):
                     # SMPTE 306M-2002 Section 11.2.2.2 Subcode section
                     for ssyb_index in range(6):
                         ssyb_start = b_start + 3 + ssyb_len * ssyb_index
-                        ssyb_bytes.append(
-                            frame_bytes[ssyb_start : ssyb_start + ssyb_len]
-                        )
+                        ssyb_bytes.append(frame_bytes[ssyb_start : ssyb_start + ssyb_len])
                         ssyb_locations.append(ssyb_start)
 
                 b_start += dif.DIF_BLOCK_SIZE
@@ -309,14 +299,10 @@ def write_frame_data(frame_bytes, file_info, frame_data):
                 # written after the loop.
                 # FR bit: set if in first half of the channel
                 frame_bytes[ssyb_start] = (frame_bytes[ssyb_start] & 0x7F) | (
-                    0x80
-                    if sequence < file_info.video_frame_dif_sequence_count / 2
-                    else 0x00
+                    0x80 if sequence < file_info.video_frame_dif_sequence_count / 2 else 0x00
                 )
                 # Syb bits: sync block number
-                frame_bytes[ssyb_start + 1] = (
-                    frame_bytes[ssyb_start + 1] & 0xF0
-                ) | ssyb_num
+                frame_bytes[ssyb_start + 1] = (frame_bytes[ssyb_start + 1] & 0xF0) | ssyb_num
                 # IDP parity bit: in practice this is 0xFF on a couple test
                 # captures I did.  Also, libdv writes 0xFF for this as well.
                 frame_bytes[ssyb_start + 2] = 0xFF
@@ -324,9 +310,7 @@ def write_frame_data(frame_bytes, file_info, frame_data):
                 # Write the subcode pack itself
                 pack_start = ssyb_start + 3
                 pack_len = 5
-                desired_pack_type = frame_data.subcode_pack_types[channel][sequence][
-                    ssyb_num
-                ]
+                desired_pack_type = frame_data.subcode_pack_types[channel][sequence][ssyb_num]
                 if desired_pack_type is None:
                     # User doesn't want to further modify the subcode pack.
                     continue
@@ -361,9 +345,9 @@ def write_frame_data(frame_bytes, file_info, frame_data):
             frame_bytes[ssyb_locations[6]] = (frame_bytes[ssyb_locations[6]] & 0x8F) | (
                 (frame_data.subcode_subcode_application_id & 0x07) << 4
             )
-            frame_bytes[ssyb_locations[11]] = (
-                frame_bytes[ssyb_locations[11]] & 0x8F
-            ) | ((frame_data.subcode_track_application_id & 0x07) << 4)
+            frame_bytes[ssyb_locations[11]] = (frame_bytes[ssyb_locations[11]] & 0x8F) | (
+                (frame_data.subcode_track_application_id & 0x07) << 4
+            )
 
     return frame_bytes
 
@@ -372,15 +356,11 @@ def write_all_frame_data(input_file, input_file_info, all_frame_data, output_fil
     assert input_file_info.video_frame_count == len(all_frame_data)
     for frame_number in range(input_file_info.video_frame_count):
         if frame_number % 100 == 0:
-            print(
-                f"Writing frame {frame_number} of {input_file_info.video_frame_count}..."
-            )
+            print(f"Writing frame {frame_number} of {input_file_info.video_frame_count}...")
 
         # Read the bytes for this frame into memory
         input_file.seek(frame_number * input_file_info.video_frame_size)
-        frame_bytes = io_util.read_file_bytes(
-            input_file, input_file_info.video_frame_size
-        )
+        frame_bytes = io_util.read_file_bytes(input_file, input_file_info.video_frame_size)
         assert len(frame_bytes) == input_file_info.video_frame_size
 
         # Update the frame data in this memory buffer

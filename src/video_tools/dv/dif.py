@@ -134,8 +134,7 @@ class SMPTETimecode:
             return False
 
         assert (
-            self.video_frame_dif_sequence_count == 10
-            or self.video_frame_dif_sequence_count == 12
+            self.video_frame_dif_sequence_count == 10 or self.video_frame_dif_sequence_count == 12
         )
 
         # These two fields physically overlap for different use cases.
@@ -162,12 +161,7 @@ class SMPTETimecode:
             if self.drop_frame and self.video_frame_dif_sequence_count == 12:
                 # drop_frame only applies to NTSC
                 return False
-            if (
-                self.drop_frame
-                and self.minute % 10 > 0
-                and self.second == 0
-                and self.frame < 2
-            ):
+            if self.drop_frame and self.minute % 10 > 0 and self.second == 0 and self.frame < 2:
                 # should have dropped the frame
                 return False
         else:
@@ -214,12 +208,7 @@ class SMPTETimecode:
         blank_flag,
         video_frame_dif_sequence_count,
     ):
-        if (
-            not time
-            and not color_frame
-            and not polarity_correction
-            and not binary_group_flags
-        ):
+        if not time and not color_frame and not polarity_correction and not binary_group_flags:
             return None
         match = None
         if time:
@@ -236,9 +225,7 @@ class SMPTETimecode:
             polarity_correction=(
                 PolarityCorrection[polarity_correction] if polarity_correction else None
             ),
-            binary_group_flags=(
-                int(binary_group_flags, 0) if binary_group_flags else None
-            ),
+            binary_group_flags=(int(binary_group_flags, 0) if binary_group_flags else None),
             blank_flag=BlankFlag[blank_flag] if blank_flag else None,
             video_frame_dif_sequence_count=video_frame_dif_sequence_count,
         )
@@ -253,9 +240,7 @@ class SMPTETimecode:
         # Also see SMPTE 12M
         assert len(ssyb_bytes) == 5
         assert ssyb_bytes[0] == SSYBPackType.SMPTE_TC
-        assert (
-            video_frame_dif_sequence_count == 10 or video_frame_dif_sequence_count == 12
-        )
+        assert video_frame_dif_sequence_count == 10 or video_frame_dif_sequence_count == 12
 
         # Unpack fields from bytes and validate them.  Validation failures are
         # common due to tape dropouts.
@@ -311,12 +296,8 @@ class SMPTETimecode:
             second=second_tens * 10 + second_units,
             frame=frame_tens * 10 + frame_units,
             drop_frame=df == 1,
-            color_frame=(
-                ColorFrame.SYNCHRONIZED if cf == 1 else ColorFrame.UNSYNCHRONIZED
-            ),
-            polarity_correction=(
-                PolarityCorrection.ODD if pc == 1 else PolarityCorrection.EVEN
-            ),
+            color_frame=(ColorFrame.SYNCHRONIZED if cf == 1 else ColorFrame.UNSYNCHRONIZED),
+            polarity_correction=(PolarityCorrection.ODD if pc == 1 else PolarityCorrection.EVEN),
             binary_group_flags=(bgf2 << 2) | (bgf1 << 1) | bgf0,
             blank_flag=BlankFlag.CONTINUOUS if cf == 1 else BlankFlag.DISCONTINUOUS,
             video_frame_dif_sequence_count=video_frame_dif_sequence_count,
@@ -346,8 +327,7 @@ class SMPTETimecode:
         bgf1 = (self.binary_group_flags & 0x02) >> 1
         bgf2 = (self.binary_group_flags & 0x04) >> 2
         assert (
-            self.video_frame_dif_sequence_count == 10
-            or self.video_frame_dif_sequence_count == 12
+            self.video_frame_dif_sequence_count == 10 or self.video_frame_dif_sequence_count == 12
         )
         if self.video_frame_dif_sequence_count == 10:  # 525/60 system
             ssyb_bytes[2] |= pc << 7
@@ -375,8 +355,7 @@ class SMPTETimecode:
             and self.drop_frame is not None
         )
         assert (
-            self.video_frame_dif_sequence_count == 10
-            or self.video_frame_dif_sequence_count == 12
+            self.video_frame_dif_sequence_count == 10 or self.video_frame_dif_sequence_count == 12
         )
         assert not self.drop_frame or self.video_frame_dif_sequence_count == 10
 
@@ -447,9 +426,7 @@ class SMPTEBinaryGroup:
         ]
 
 
-recording_date_pattern = re.compile(
-    r"^(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})$"
-)
+recording_date_pattern = re.compile(r"^(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})$")
 
 
 # Recording date from subcode pack
@@ -463,14 +440,12 @@ class SubcodeRecordingDate:
     month: int | None
     day: int | None
     # this will always be 4 bytes; the bits that the date came from are masked out.
-    # it's required for this class to be valid, but we allow its absence for intermediate processing.
+    # it's required for this class to be valid, but we allow absence for intermediate processing.
     reserved: bytes | None
 
     def valid(self, allow_incomplete=False):
         # Date must be fully present or fully absent
-        date_present = (
-            self.year is not None and self.month is not None and self.day is not None
-        )
+        date_present = self.year is not None and self.month is not None and self.day is not None
         date_absent = self.year is None and self.month is None and self.day is None
         if (date_present and date_absent) or (not date_present and not date_absent):
             return False
@@ -491,18 +466,11 @@ class SubcodeRecordingDate:
 
     def is_empty(self):
         return (
-            self.year is None
-            and self.month is None
-            and self.day is None
-            and self.reserved is None
+            self.year is None and self.month is None and self.day is None and self.reserved is None
         )
 
     def format_date_str(self):
-        return (
-            f"{self.year:02}-{self.month:02}-{self.day:02}"
-            if self.year is not None
-            else ""
-        )
+        return f"{self.year:02}-{self.month:02}-{self.day:02}" if self.year is not None else ""
 
     @classmethod
     def parse_all(cls, date, reserved):
@@ -569,9 +537,7 @@ class SubcodeRecordingDate:
 
         pack = cls(
             year=(
-                year_prefix * 100 + year_tens * 10 + year_units
-                if year_tens is not None
-                else None
+                year_prefix * 100 + year_tens * 10 + year_units if year_tens is not None else None
             ),
             month=month_tens * 10 + month_units if month_tens is not None else None,
             day=day_tens * 10 + day_units if day_tens is not None else None,
@@ -586,21 +552,13 @@ class SubcodeRecordingDate:
         ssyb_bytes = [
             SSYBPackType.RECORDING_DATE,
             0x00,
-            (
-                (int(self.day / 10) << 4) | int(self.day % 10)
-                if self.day is not None
-                else 0x3F
-            ),
+            ((int(self.day / 10) << 4) | int(self.day % 10) if self.day is not None else 0x3F),
             (
                 (int(self.month / 10) << 4) | int(self.month % 10)
                 if self.month is not None
                 else 0x1F
             ),
-            (
-                (int(short_year / 10) << 4) | int(short_year % 10)
-                if self.year is not None
-                else 0xFF
-            ),
+            ((int(short_year / 10) << 4) | int(short_year % 10) if self.year is not None else 0xFF),
         ]
         # If the user gave reserved bits that conflict with the date, then mask them out.
         reserved_mask = bytes(b"\xff\xc0\xe0\x00")
@@ -623,7 +581,7 @@ class SubcodeRecordingTime:
     second: int | None
     frame: int | None
     # this will always be 4 bytes; the bits that the time came from are masked out.
-    # it's required for this class to be valid, but we allow its absence for intermediate processing.
+    # it's required for this class to be valid, but we allow absence for intermediate processing.
     reserved: bytes | None
 
     # used for validation; not stored directly in the subcode:
@@ -631,11 +589,7 @@ class SubcodeRecordingTime:
 
     def valid(self, allow_incomplete=False):
         # Main time part must be fully present or fully absent
-        time_present = (
-            self.hour is not None
-            and self.minute is not None
-            and self.second is not None
-        )
+        time_present = self.hour is not None and self.minute is not None and self.second is not None
         time_absent = self.hour is None and self.minute is None and self.second is None
         if (time_present and time_absent) or (not time_present and not time_absent):
             return False
@@ -651,8 +605,7 @@ class SubcodeRecordingTime:
                 return False
 
         assert (
-            self.video_frame_dif_sequence_count == 10
-            or self.video_frame_dif_sequence_count == 12
+            self.video_frame_dif_sequence_count == 10 or self.video_frame_dif_sequence_count == 12
         )
         if self.frame is not None:
             if self.video_frame_dif_sequence_count == 10 and self.frame >= 30:
@@ -696,9 +649,7 @@ class SubcodeRecordingTime:
             minute=int(match.group("minute")) if match else None,
             second=int(match.group("second")) if match else None,
             frame=(
-                int(match.group("frame"))
-                if match and match.group("frame") is not None
-                else None
+                int(match.group("frame")) if match and match.group("frame") is not None else None
             ),
             reserved=bytes.fromhex(reserved.removeprefix("0x")) if reserved else None,
             video_frame_dif_sequence_count=video_frame_dif_sequence_count,
@@ -791,11 +742,7 @@ class SubcodeRecordingTime:
                 if self.minute is not None
                 else 0x7F
             ),
-            (
-                (int(self.hour / 10) << 4) | int(self.hour % 10)
-                if self.hour is not None
-                else 0x3F
-            ),
+            ((int(self.hour / 10) << 4) | int(self.hour % 10) if self.hour is not None else 0x3F),
         ]
         # If the user gave reserved bits that conflict with the time, then mask them out.
         reserved_mask = bytes(b"\xc0\x80\x80\xc0")

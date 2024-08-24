@@ -121,9 +121,7 @@ def parse_dvrescue_analyzer(analysis_xml_path):
     root = ET.parse(analysis_xml_path).getroot()
     # then, build a DVRescueFrameAnalysis for each frame in the file
     frame_objects = {}  # keyed by frame number
-    for frame in root.findall(
-        "./dvrescue:media/dvrescue:frames/dvrescue:frame", dvrescue_ns
-    ):
+    for frame in root.findall("./dvrescue:media/dvrescue:frames/dvrescue:frame", dvrescue_ns):
         frame_analysis = DVRescueFrameAnalysis(
             frame_number=int(frame.get("n")),
             timecode_repeated=frame.get("tc_r") is not None,
@@ -132,9 +130,7 @@ def parse_dvrescue_analyzer(analysis_xml_path):
         frame_objects[frame_analysis.frame_number] = frame_analysis
 
     return DVRescueFileAnalysis(
-        frame_count=int(
-            root.find("./dvrescue:media/dvrescue:frames", dvrescue_ns).get("count")
-        ),
+        frame_count=int(root.find("./dvrescue:media/dvrescue:frames", dvrescue_ns).get("count")),
         frame_analysis=frame_objects,
     )
 
@@ -207,8 +203,7 @@ def validate_inputs(inputs, dvanalyzer_results, dvrescue_results):
         # Frame count needs to be in agreement between the two tools.
         if dvanalyzer_analysis.frame_count != dvrescue_analysis.frame_count:
             return (
-                f"File {path} detected different frame counts between "
-                "DV Analyzer and DVRescue",
+                f"File {path} detected different frame counts between " "DV Analyzer and DVRescue",
                 None,
             )
 
@@ -224,8 +219,7 @@ def validate_inputs(inputs, dvanalyzer_results, dvrescue_results):
     # Check that the file size is evenly divisible by the frame count
     if sz % frame_count:
         return (
-            f"The file size {sz} is not evenly divisible by the "
-            "frame count {frame_count}.",
+            f"The file size {sz} is not evenly divisible by the " "frame count {frame_count}.",
             None,
         )
 
@@ -287,10 +281,7 @@ def merge_inputs(inputs, output, dvanalyzer_results, dvrescue_results, frame_siz
         # Look for a frame that is clean in both tools, and write it
         wrote_frame = False
         for input_name in inputs.keys():
-            if (
-                input_name in clean_dvanalyzer_inputs
-                and input_name in clean_dvrescue_inputs
-            ):
+            if input_name in clean_dvanalyzer_inputs and input_name in clean_dvrescue_inputs:
                 output.write(frame_data[input_name])
                 wrote_frame = True
                 break
@@ -340,9 +331,7 @@ def merge_binary(inputs, output):
         chunk_num += 1
 
         # read chunk_size bytes from each file
-        file_chunks = [
-            io_util.read_file_bytes(input, chunk_size) for input in inputs.values()
-        ]
+        file_chunks = [io_util.read_file_bytes(input, chunk_size) for input in inputs.values()]
         this_chunk_size = len(file_chunks[0])
         if this_chunk_size == 0:
             break
@@ -406,9 +395,7 @@ def main():
             print(f"Frame size is {frame_size} bytes.")
 
             # merge them
-            merge_inputs(
-                inputs, output, dvanalyzer_results, dvrescue_results, frame_size
-            )
+            merge_inputs(inputs, output, dvanalyzer_results, dvrescue_results, frame_size)
         elif args.merge_algorithm == "binary":
             print("Using simple binary merge algorithm.")
             # verify that the file sizes match

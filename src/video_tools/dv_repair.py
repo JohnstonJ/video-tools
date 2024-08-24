@@ -44,8 +44,7 @@ def parse_args():
     transform = subparsers.add_parser(
         "transform",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        help="Repair frame data inconsistencies in a CSV file by applying "
-        "transformations.",
+        help="Repair frame data inconsistencies in a CSV file by applying transformations.",
         description="Read frame data from a CSV file previously created by the "
         "read or transform commands.  Then, run a series of transformations in "
         "a user-provided YAML file to repair the frame data in this file.  The "

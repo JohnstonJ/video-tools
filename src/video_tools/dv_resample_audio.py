@@ -75,9 +75,7 @@ def resample_audio_frame(audio_frame, video_frame_count, input_file_info):
 
     # This is usually going to be an integer, but might be fractional at the end of the
     # entire video when video_frame_count can't hold an integer number of audio samples.
-    expected_sample_count = round(
-        video_frame_count * input_file_info.audio_samples_per_frame()
-    )
+    expected_sample_count = round(video_frame_count * input_file_info.audio_samples_per_frame())
 
     # This defines the maximum number of frames we will adjust by inserting silence or deleting.
     max_samples_to_finetune = 2  # resampling can be no more than 2 samples off
@@ -92,9 +90,7 @@ def resample_audio_frame(audio_frame, video_frame_count, input_file_info):
     if abs(audio_frame.samples - expected_sample_count) <= max_samples_to_finetune:
         frame_data = audio_frame.to_ndarray()
         frame_data.resize((1, expected_sample_count * 2))
-        new_audio_frame = AudioFrame.from_ndarray(
-            frame_data, format="s16", layout="stereo"
-        )
+        new_audio_frame = AudioFrame.from_ndarray(frame_data, format="s16", layout="stereo")
         new_audio_frame.sample_rate = input_file_info.audio_sample_rate
         return new_audio_frame
 
@@ -134,9 +130,7 @@ def resample_audio_frame(audio_frame, video_frame_count, input_file_info):
             output_frames.append(graph.pull().to_ndarray())
         except EOFError:
             break
-    resampled_frame_data = np.concatenate(
-        output_frames, axis=1, dtype=np.int16, casting="no"
-    )
+    resampled_frame_data = np.concatenate(output_frames, axis=1, dtype=np.int16, casting="no")
 
     # The resample should have gotten us most of the way there, other than a frame or two due to
     # rounding error.  If this assertion fails, something more serious is wrong with the resample.
@@ -150,9 +144,7 @@ def resample_audio_frame(audio_frame, video_frame_count, input_file_info):
 
     # Next, fine-tine the sample rate by inserting silence or discarding samples
     resampled_frame_data.resize((1, expected_sample_count * 2))
-    new_audio_frame = AudioFrame.from_ndarray(
-        resampled_frame_data, format="s16", layout="stereo"
-    )
+    new_audio_frame = AudioFrame.from_ndarray(resampled_frame_data, format="s16", layout="stereo")
     new_audio_frame.sample_rate = input_file_info.audio_sample_rate
     return new_audio_frame
 
@@ -167,14 +159,10 @@ def resync_audio(
 ):
     assert start_frame_number < input_file_info.video_frame_count
     # This is the number of video frames we'll read and resample
-    group_size = min(
-        max_frames_in_group, input_file_info.video_frame_count - start_frame_number
-    )
+    group_size = min(max_frames_in_group, input_file_info.video_frame_count - start_frame_number)
     # This is the total number of audio samples we will resample to; this will be an integer
     # except at the end of the input video:
-    ideal_group_audio_samples = round(
-        group_size * input_file_info.audio_samples_per_frame()
-    )
+    ideal_group_audio_samples = round(group_size * input_file_info.audio_samples_per_frame())
 
     # Read ONLY the next group_size video frames from the input file.  This is extremely critical
     # so that we are effectively ONLY looking at this physical location in the videotape.  It
@@ -227,9 +215,7 @@ def resync_audio(
                         continue
                     # convert packet position into video frame number
                     assert packet.pos % input_file_info.video_frame_size == 0
-                    relative_frame_number = int(
-                        packet.pos / input_file_info.video_frame_size
-                    )
+                    relative_frame_number = int(packet.pos / input_file_info.video_frame_size)
                     assert relative_frame_number < group_size
 
                     for frame in packet.decode():
@@ -242,24 +228,16 @@ def resync_audio(
                 all_frame_data = []
                 for relative_frame_number in range(group_size):
                     if relative_frame_number not in audio_frame_map:  # missing frame
-                        missing_frames.append(
-                            start_frame_number + relative_frame_number
-                        )
+                        missing_frames.append(start_frame_number + relative_frame_number)
                         # dither the sample count for missing frames, so that we don't accumulate
                         # significant error just from backfilling several consecutive frames:
                         missing_frame_sample_count = round(
-                            (relative_frame_number + 1)
-                            * (ideal_group_audio_samples / group_size)
-                        ) - round(
-                            relative_frame_number
-                            * (ideal_group_audio_samples / group_size)
-                        )
+                            (relative_frame_number + 1) * (ideal_group_audio_samples / group_size)
+                        ) - round(relative_frame_number * (ideal_group_audio_samples / group_size))
                         total_samples += missing_frame_sample_count
                         # fill the space with silence (multiply by 2 because stereo channels)
                         all_frame_data.append(
-                            np.zeros(
-                                (1, missing_frame_sample_count * 2), dtype=np.int16
-                            )
+                            np.zeros((1, missing_frame_sample_count * 2), dtype=np.int16)
                         )
                     else:
                         this_frame = audio_frame_map[relative_frame_number]
@@ -283,9 +261,9 @@ def resync_audio(
                 )
 
                 # Write the output frame
-                output_packets = output.streams.audio[
-                    audio_stream_number
-                ].codec_context.encode(resampled_frame)
+                output_packets = output.streams.audio[audio_stream_number].codec_context.encode(
+                    resampled_frame
+                )
                 for output_packet in output_packets:
                     output_packet.stream = output.streams.audio[audio_stream_number]
                     output.mux_one(output_packet)
@@ -300,8 +278,7 @@ def resync_audio(
                     else 0
                 ) + diff_sample_count
                 accumulated_diff_seconds = (
-                    float(accumulated_diff_sample_count)
-                    / input_file_info.audio_sample_rate
+                    float(accumulated_diff_sample_count) / input_file_info.audio_sample_rate
                 )
                 audio_stats.append(
                     AudioStreamStats(
@@ -332,9 +309,7 @@ def resync_all_audio(input_file, input_file_info, output_filename):
         last_audio_stats = None
 
         group_number = 0
-        for frame_number in range(
-            0, input_file_info.video_frame_count, frames_in_group
-        ):
+        for frame_number in range(0, input_file_info.video_frame_count, frames_in_group):
             if group_number % 10 == 0:
                 print(f"Processing frames at {frame_number}...")
             group_number += 1
@@ -378,13 +353,11 @@ def write_audio_stats(file, file_info, all_stats):
             row_fields[f"audio_{audio_stream_number}_expected_sample_count"] = (
                 stats.audio_stream_stats[audio_stream_number].expected_sample_count
             )
-            row_fields[f"audio_{audio_stream_number}_diff_sample_count"] = (
-                stats.audio_stream_stats[audio_stream_number].diff_sample_count
-            )
+            row_fields[f"audio_{audio_stream_number}_diff_sample_count"] = stats.audio_stream_stats[
+                audio_stream_number
+            ].diff_sample_count
             row_fields[f"audio_{audio_stream_number}_accumulated_diff_sample_count"] = (
-                stats.audio_stream_stats[
-                    audio_stream_number
-                ].accumulated_diff_sample_count
+                stats.audio_stream_stats[audio_stream_number].accumulated_diff_sample_count
             )
             row_fields[f"audio_{audio_stream_number}_accumulated_diff_seconds"] = (
                 stats.audio_stream_stats[audio_stream_number].accumulated_diff_seconds

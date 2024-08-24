@@ -17,9 +17,7 @@ from scipy.ndimage import convolve1d
 def FrameRangeParser(value):
     frames = value.split(",")
     if len(frames) > 2:
-        raise ValueError(
-            "Frame range must be in the form frame_num, or start_num,end_num."
-        )
+        raise ValueError("Frame range must be in the form frame_num, or start_num,end_num.")
     if len(frames) == 2:
         start = int(frames[0])
         end = int(frames[1])
@@ -142,8 +140,7 @@ def parse_args():
         "--max-changed-rows",
         type=int,
         default=20,
-        help="find-dropouts: The maximum number of changed rows before the frame "
-        "is discarded.",
+        help="find-dropouts: The maximum number of changed rows before the frame is discarded.",
     )
     return parser.parse_args()
 

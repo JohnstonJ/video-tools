@@ -13,11 +13,7 @@ def hex_int(int_value, digits, skip_prefix=False):
 def hex_bytes(bytes_value, allow_optional=False):
     return "0x" + "".join(
         [
-            (
-                hex_int(b, 2, skip_prefix=True)
-                if not allow_optional or b is not None
-                else "__"
-            )
+            (hex_int(b, 2, skip_prefix=True) if not allow_optional or b is not None else "__")
             for b in bytes_value
         ]
     )
@@ -41,14 +37,12 @@ def write_frame_data_csv(output_file, all_frame_data):
                     "sc_subcode_application_id",
                 ],
                 [
-                    # Contents of pack types for each channel & DIF sequence is a 24-digit hex string,
-                    # which is the list of pack types.  Users may replace a digit pair with "__" to
-                    # leave it unchanged when writing back out to an updated DV file.
+                    # Contents of pack types for each channel & DIF sequence is a 24-digit hex
+                    # string, which is the list of pack types.  Users may replace a digit pair with
+                    # "__" to leave it unchanged when writing back out to an updated DV file.
                     f"sc_pack_types_{channel}_{dif_sequence}"
                     for channel in range(len(all_frame_data[0].subcode_pack_types))
-                    for dif_sequence in range(
-                        len(all_frame_data[0].subcode_pack_types[channel])
-                    )
+                    for dif_sequence in range(len(all_frame_data[0].subcode_pack_types[channel]))
                 ],
                 [
                     # Subcode SMPTE timecode
@@ -77,25 +71,13 @@ def write_frame_data_csv(output_file, all_frame_data):
             # From all DIF block headers
             "arbitrary_bits": hex_int(frame_data.arbitrary_bits, 1),
             # Header DIF block
-            "h_track_application_id": hex_int(
-                frame_data.header_track_application_id, 1
-            ),
-            "h_audio_application_id": hex_int(
-                frame_data.header_audio_application_id, 1
-            ),
-            "h_video_application_id": hex_int(
-                frame_data.header_video_application_id, 1
-            ),
-            "h_subcode_application_id": hex_int(
-                frame_data.header_subcode_application_id, 1
-            ),
+            "h_track_application_id": hex_int(frame_data.header_track_application_id, 1),
+            "h_audio_application_id": hex_int(frame_data.header_audio_application_id, 1),
+            "h_video_application_id": hex_int(frame_data.header_video_application_id, 1),
+            "h_subcode_application_id": hex_int(frame_data.header_subcode_application_id, 1),
             # Subcode DIF block
-            "sc_track_application_id": hex_int(
-                frame_data.subcode_track_application_id, 1
-            ),
-            "sc_subcode_application_id": hex_int(
-                frame_data.subcode_subcode_application_id, 1
-            ),
+            "sc_track_application_id": hex_int(frame_data.subcode_track_application_id, 1),
+            "sc_subcode_application_id": hex_int(frame_data.subcode_subcode_application_id, 1),
         }
         for channel in range(len(frame_data.subcode_pack_types)):
             for dif_sequence in range(len(frame_data.subcode_pack_types[channel])):
@@ -128,9 +110,7 @@ def write_frame_data_csv(output_file, all_frame_data):
             }
         if frame_data.subcode_smpte_binary_group is not None:
             row_fields |= {
-                "sc_smpte_binary_group": hex_bytes(
-                    frame_data.subcode_smpte_binary_group.value
-                ),
+                "sc_smpte_binary_group": hex_bytes(frame_data.subcode_smpte_binary_group.value),
             }
         if frame_data.subcode_recording_date is not None:
             row_fields |= {
@@ -169,24 +149,17 @@ def read_frame_data_csv(input_file):
         while f"sc_pack_types_0_{video_frame_dif_sequence_count}" in row:
             video_frame_dif_sequence_count += 1
         assert video_frame_channel_count < 2
-        assert (
-            video_frame_dif_sequence_count == 10 or video_frame_dif_sequence_count == 12
-        )
+        assert video_frame_dif_sequence_count == 10 or video_frame_dif_sequence_count == 12
 
         # Read the subcode pack types
         subcode_pack_types = [
-            [
-                [None for ssyb in range(12)]
-                for sequence in range(video_frame_dif_sequence_count)
-            ]
+            [[None for ssyb in range(12)] for sequence in range(video_frame_dif_sequence_count)]
             for channel in range(video_frame_channel_count)
         ]
         for channel in range(video_frame_channel_count):
             for sequence in range(video_frame_dif_sequence_count):
                 type_seq = row[f"sc_pack_types_{channel}_{sequence}"].removeprefix("0x")
-                type_seq_pairs = [
-                    type_seq[i : i + 2] for i in range(0, len(type_seq), 2)
-                ]
+                type_seq_pairs = [type_seq[i : i + 2] for i in range(0, len(type_seq), 2)]
                 type_bytes = [
                     (int(type_seq_str, 16) if type_seq_str != "__" else None)
                     for type_seq_str in type_seq_pairs

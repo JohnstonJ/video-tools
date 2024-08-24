@@ -57,9 +57,7 @@ def read_dv_file_info(file):
 
         video_frame_rate = input.streams.video[0].base_rate
         # Make sure we got exact NTSC or PAL/SECAM frame rate
-        assert video_frame_rate == Fraction(
-            30000, 1001
-        ) or video_frame_rate == Fraction(25)
+        assert video_frame_rate == Fraction(30000, 1001) or video_frame_rate == Fraction(25)
 
         video_duration = Fraction(input.duration, 1000000)
 
@@ -94,9 +92,7 @@ def read_dv_file_info(file):
         assert audio_stereo_channel_count == 1 or audio_stereo_channel_count == 2
         audio_sample_rate = input.streams.audio[0].sample_rate
         assert (
-            audio_sample_rate == 32000
-            or audio_sample_rate == 44100
-            or audio_sample_rate == 48000
+            audio_sample_rate == 32000 or audio_sample_rate == 44100 or audio_sample_rate == 48000
         )
         for audio_stream in input.streams.audio:
             assert audio_stream.sample_rate == audio_sample_rate

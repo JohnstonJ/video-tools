@@ -118,9 +118,7 @@ class VideoFrameAnalysis:
     capture_global_difference_abnormal: bool
 
 
-def analyze_video_log(
-    video_frame_log, expected_fps, fps_tolerance, max_capture_global_difference
-):
+def analyze_video_log(video_frame_log, expected_fps, fps_tolerance, max_capture_global_difference):
     expected_frame_time = 1.0 / expected_fps * 1000.0
     max_frame_time = (1.0 + fps_tolerance / 100.0) * expected_frame_time
     min_frame_time = (1.0 - fps_tolerance / 100.0) * expected_frame_time
@@ -145,18 +143,12 @@ def analyze_video_log(
                 capture_time_gap=capture_time_gap,
                 capture_time_gap_abnormal=(
                     capture_time_gap is not None
-                    and (
-                        capture_time_gap > max_frame_time
-                        or capture_time_gap < min_frame_time
-                    )
+                    and (capture_time_gap > max_frame_time or capture_time_gap < min_frame_time)
                 ),
                 global_time_gap=global_time_gap,
                 global_time_gap_abnormal=(
                     global_time_gap is not None
-                    and (
-                        global_time_gap > max_frame_time
-                        or global_time_gap < min_frame_time
-                    )
+                    and (global_time_gap > max_frame_time or global_time_gap < min_frame_time)
                 ),
                 capture_global_difference=capture_global_difference,
                 capture_global_difference_abnormal=(
@@ -194,8 +186,7 @@ def analyze_audio_log(audio_frame_log, max_time_between_audio_frames):
                 log_entry=frame,
                 global_time_gap=global_time_gap,
                 global_time_gap_abnormal=(
-                    global_time_gap is not None
-                    and global_time_gap > max_time_between_audio_frames
+                    global_time_gap is not None and global_time_gap > max_time_between_audio_frames
                 ),
             )
         )

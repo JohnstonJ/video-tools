@@ -26,8 +26,11 @@ dv_repair = "video_tools.dv_repair:main"
 dv_resample_audio = "video_tools.dv_resample_audio:main"
 top_line_errors = "video_tools.top_line_errors:main"
 
+[tool.ruff]
+line-length = 100
+
 [tool.ruff.lint]
-extend-select = ["I", "RUF"]
+extend-select = ["E501", "I", "RUF"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
