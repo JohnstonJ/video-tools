@@ -11,7 +11,7 @@ def hex_int(int_value, digits, skip_prefix=False):
 
 
 def hex_bytes(bytes_value, allow_optional=False):
-    return f"0x" + "".join(
+    return "0x" + "".join(
         [
             (
                 hex_int(b, 2, skip_prefix=True)

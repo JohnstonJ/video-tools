@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools~=73.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -19,18 +19,15 @@ dependencies = [
     "scikit-video~=1.1",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "black~=24.4",
-    "isort~=5.13",
-]
-
 [project.scripts]
 analyze_virtualdub_timing_log = "video_tools.analyze_virtualdub_timing_log:main"
 dv_merge = "video_tools.dv_merge:main"
 dv_repair = "video_tools.dv_repair:main"
 dv_resample_audio = "video_tools.dv_resample_audio:main"
 top_line_errors = "video_tools.top_line_errors:main"
+
+[tool.ruff.lint]
+extend-select = ["I", "RUF"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

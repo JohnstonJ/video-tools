@@ -87,7 +87,8 @@ def run_dvanalyzer(input_filenames):
         "dvanalyzer",
         "--XML",
         "--Verbosity=9",  # Errors and info (including arbitrary bit)
-    ] + input_filenames
+        *input_filenames,
+    ]
     analysis_bytes = subprocess.run(args, capture_output=True, check=True).stdout
     return parse_dvanalyzer(analysis_bytes)
 
@@ -339,7 +340,9 @@ def merge_binary(inputs, output):
         chunk_num += 1
 
         # read chunk_size bytes from each file
-        file_chunks = [read_file_bytes(input, chunk_size) for input in inputs.values()]
+        file_chunks = [
+            io_util.read_file_bytes(input, chunk_size) for input in inputs.values()
+        ]
         this_chunk_size = len(file_chunks[0])
         if this_chunk_size == 0:
             break

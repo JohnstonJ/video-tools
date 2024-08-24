@@ -79,7 +79,7 @@ class Command(ABC):
             f" of {tracker.total_frames} frames."
         )
         if proportion > self.thresholds.max_changed_proportion:
-            raise ValueError(f"ERROR:  Changed too high a percentage of frames.")
+            raise ValueError("ERROR:  Changed too high a percentage of frames.")
 
     @abstractmethod
     def run(self, all_frame_data):

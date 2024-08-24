@@ -7,3 +7,5 @@
 *.png binary
 
 *.py text diff=python
+*.toml text
+*.yaml text

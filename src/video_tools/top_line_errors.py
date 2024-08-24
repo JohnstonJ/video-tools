@@ -5,6 +5,7 @@ import numpy as np
 np.float = np.float64
 np.int = np.int_
 
+# ruff: noqa: E402
 import argparse
 import sys
 from dataclasses import dataclass

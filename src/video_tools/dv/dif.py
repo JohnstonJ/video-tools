@@ -564,7 +564,7 @@ class SubcodeRecordingDate:
                 return None
             year_prefix = 20 if year_tens < 75 else 19
 
-        reserved_mask = bytes(b"\xFF\xC0\xE0\x00")
+        reserved_mask = bytes(b"\xff\xc0\xe0\x00")
         reserved = bytes([b & m for b, m in zip(ssyb_bytes[1:], reserved_mask)])
 
         pack = cls(
@@ -603,7 +603,7 @@ class SubcodeRecordingDate:
             ),
         ]
         # If the user gave reserved bits that conflict with the date, then mask them out.
-        reserved_mask = bytes(b"\xFF\xC0\xE0\x00")
+        reserved_mask = bytes(b"\xff\xc0\xe0\x00")
         reserved = [b & m for b, m in zip(self.reserved, reserved_mask)]
         ssyb_bytes[1:5] = [b | r for b, r in zip(ssyb_bytes[1:5], reserved)]
         return bytes(ssyb_bytes)
@@ -758,7 +758,7 @@ class SubcodeRecordingTime:
             if hour_units > 9:
                 return None
 
-        reserved_mask = bytes(b"\xC0\x80\x80\xC0")
+        reserved_mask = bytes(b"\xc0\x80\x80\xc0")
         reserved = bytes([b & m for b, m in zip(ssyb_bytes[1:], reserved_mask)])
 
         pack = cls(
@@ -798,7 +798,7 @@ class SubcodeRecordingTime:
             ),
         ]
         # If the user gave reserved bits that conflict with the time, then mask them out.
-        reserved_mask = bytes(b"\xC0\x80\x80\xC0")
+        reserved_mask = bytes(b"\xc0\x80\x80\xc0")
         reserved = [b & m for b, m in zip(self.reserved, reserved_mask)]
         ssyb_bytes[1:5] = [b | r for b, r in zip(ssyb_bytes[1:5], reserved)]
         return bytes(ssyb_bytes)

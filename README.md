@@ -10,20 +10,63 @@ Create and activate a Python virtual environment.  For example, on Windows from 
 .\Scripts\activate.bat
 ```
 
-Next, install the package locally for development:
+Next, install the package locally:
 
 ```
-pip install --editable .[dev]
-```
-
-Or build a wheel:
-
-```
-pip install --upgrade build
-python -m build
+pip install .
 ```
 
 When running some tools, note that you must also ensure that FFmpeg is in your `PATH`, if it is not already.
+
+### Development setup
+
+To develop this Python project, first start with the activated virtual environment you previously created.
+
+```
+pip install --editable .
+```
+
+To run verifications, first install Nox:
+
+```
+pip install --upgrade nox
+```
+
+And then run them.
+
+```
+nox -s verify
+```
+
+Running nox without arguments will verify, and then build the distribution wheel:
+
+```
+nox
+```
+
+To reformat code:
+
+```
+nox -s format
+```
+
+Don't forget you can add the `-R` parameter to nox if you want to reuse existing virtual environments.
+
+To integrate the linter, ruff, with VS Code:
+
+1.  Install the Ruff extension for VS Code.  Note it will use its own bundled copy of Ruff.
+2.  Go to `.vscode/settings.json` for the project and add:
+    ```
+    {
+      "[python]": {
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        },
+        "editor.defaultFormatter": "charliermarsh.ruff"
+      }
+    }
+    ```
 
 ## Workflows
 

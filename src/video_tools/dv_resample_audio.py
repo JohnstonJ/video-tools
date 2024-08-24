@@ -8,7 +8,7 @@ import numpy as np
 from av.audio.frame import AudioFrame
 from av.filter import Graph
 
-import video_tools.dv.file_info as file_info
+import video_tools.dv.file_info as dv_file_info
 import video_tools.io_util as io_util
 
 
@@ -186,7 +186,7 @@ def resync_audio(
     with io.BytesIO(group_bytes) as group_file:
         # Make sure the audio format or frame rate didn't unexpectedly change on us.  (Could
         # happen if there were multiple recordings from different equipment on the same tape.)
-        group_info = file_info.read_dv_file_info(group_file)
+        group_info = dv_file_info.read_dv_file_info(group_file)
         input_file_info.assert_similar(group_info)
 
         # Read all audio samples from these few video frames.
@@ -404,7 +404,7 @@ def main():
     stats_filename = args.stats
 
     with open(input_filename, mode="rb") as input_file:
-        file_info = file_info.read_dv_file_info(input_file)
+        file_info = dv_file_info.read_dv_file_info(input_file)
 
         all_audio_stats = resync_all_audio(input_file, file_info, output_filename)
 
