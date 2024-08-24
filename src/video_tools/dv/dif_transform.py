@@ -627,17 +627,17 @@ def load_transformations(transformations_file):
     transformations_yaml = yaml.safe_load(transformations_file)
 
     # Read thresholds
-    max_changed_proportion_str = transformations_yaml.get("thresholds", {}).get(
-        "max_changed_proportion", str(DEFAULT_MAX_CHANGED_PROPORTION)
+    max_changed_proportion = transformations_yaml.get("thresholds", {}).get(
+        "max_changed_proportion", DEFAULT_MAX_CHANGED_PROPORTION
     )
-    max_consecutive_modifications_str = transformations_yaml.get("thresholds", {}).get(
-        "max_consecutive_modifications", str(DEFAULT_MAX_CONSECUTIVE_MODIFICATIONS)
+    max_consecutive_modifications = transformations_yaml.get("thresholds", {}).get(
+        "max_consecutive_modifications", DEFAULT_MAX_CONSECUTIVE_MODIFICATIONS
     )
     global_thresholds = Thresholds(
-        max_changed_proportion=float(max_changed_proportion_str),
+        max_changed_proportion=float(max_changed_proportion),
         max_consecutive_modifications=(
-            int(max_consecutive_modifications_str)
-            if max_consecutive_modifications_str is not None
+            int(max_consecutive_modifications)
+            if max_consecutive_modifications is not None
             else None
         ),
     )
@@ -646,18 +646,18 @@ def load_transformations(transformations_file):
     commands = []
     for command_dict in transformations_yaml.get("commands", []) or []:
         # Look for per-command threshold overrides
-        max_changed_proportion_str = command_dict.get("thresholds", {}).get(
-            "max_changed_proportion", str(global_thresholds.max_changed_proportion)
+        max_changed_proportion = command_dict.get("thresholds", {}).get(
+            "max_changed_proportion", global_thresholds.max_changed_proportion
         )
-        max_consecutive_modifications_str = command_dict.get("thresholds", {}).get(
+        max_consecutive_modifications = command_dict.get("thresholds", {}).get(
             "max_consecutive_modifications",
-            str(global_thresholds.max_consecutive_modifications),
+            global_thresholds.max_consecutive_modifications,
         )
         local_thresholds = Thresholds(
-            max_changed_proportion=float(max_changed_proportion_str),
+            max_changed_proportion=float(max_changed_proportion),
             max_consecutive_modifications=(
-                int(max_consecutive_modifications_str)
-                if max_consecutive_modifications_str is not None
+                int(max_consecutive_modifications)
+                if max_consecutive_modifications is not None
                 else None
             ),
         )
