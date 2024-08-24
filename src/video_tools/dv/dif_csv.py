@@ -53,9 +53,10 @@ def write_frame_data_csv(output_file, all_frame_data):
                 [
                     # Subcode SMPTE timecode
                     "sc_smpte_timecode",
-                    "sc_smpte_timecode_color_frame",
-                    "sc_smpte_timecode_polarity_correction",
-                    "sc_smpte_timecode_binary_group_flags",
+                    "sc_smpte_timecode_color_frame",  # SMPTE 306M
+                    "sc_smpte_timecode_polarity_correction",  # SMPTE 306M
+                    "sc_smpte_timecode_binary_group_flags",  # SMPTE 306M
+                    "sc_smpte_timecode_blank_flag",  # IEC 61834-4
                     # Subcode SMPTE binary group
                     "sc_smpte_binary_group",  # 8 hex digits
                     # Subcode recording date/time
@@ -117,6 +118,11 @@ def write_frame_data_csv(output_file, all_frame_data):
                 "sc_smpte_timecode_binary_group_flags": (
                     hex_int(frame_data.subcode_smpte_timecode.binary_group_flags, 1)
                     if frame_data.subcode_smpte_timecode.binary_group_flags is not None
+                    else ""
+                ),
+                "sc_smpte_timecode_blank_flag": (
+                    frame_data.subcode_smpte_timecode.blank_flag.name
+                    if frame_data.subcode_smpte_timecode.blank_flag is not None
                     else ""
                 ),
             }
@@ -206,6 +212,7 @@ def read_frame_data_csv(input_file):
                 color_frame=row["sc_smpte_timecode_color_frame"],
                 polarity_correction=row["sc_smpte_timecode_polarity_correction"],
                 binary_group_flags=row["sc_smpte_timecode_binary_group_flags"],
+                blank_flag=row["sc_smpte_timecode_blank_flag"],
                 video_frame_dif_sequence_count=video_frame_dif_sequence_count,
             ),
             subcode_smpte_binary_group=dif.SMPTEBinaryGroup.parse_all(

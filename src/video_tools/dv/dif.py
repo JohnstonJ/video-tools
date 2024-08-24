@@ -49,10 +49,18 @@ DIF_BLOCK_NUMBER = calculate_dif_block_numbers()
 
 # Subcode pack types
 class SSYBPackType(IntEnum):
-    SMPTE_TC = 0x13  # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
-    SMPTE_BG = 0x14  # SMPTE 306M-2002 Section 9.2.2 Binary group pack (BG)
+    # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
+    # IEC 61834-4:1998 4.4 Time Code
+    SMPTE_TC = 0x13
+
+    # SMPTE 306M-2002 Section 9.2.2 Binary group pack (BG)
+    # IEC 61834-4:1998 4.5 Binary Group
+    SMPTE_BG = 0x14
+
     RECORDING_DATE = 0x62  # Recording date (can't find documentation on this)
+
     RECORDING_TIME = 0x63  # Recording time (can't find documentation on this)
+
     EMPTY = 0xFF  # All pack bytes are 0xFF (probably a dropout)
 
 
@@ -70,6 +78,14 @@ class PolarityCorrection(IntEnum):
     ODD = 0x1
 
 
+# Blank flag: determines whether a discontinuity exists prior to the
+# absolute track number on the track where this pack is recorded
+# IEC 61834-4:1998 4.4 Time Code
+class BlankFlag(IntEnum):
+    DISCONTINUOUS = 0x0
+    CONTINUOUS = 0x1
+
+
 smpte_time_pattern = re.compile(
     r"^(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})(?P<frame_separator>[:;])(?P<frame>\d{2})$"
 )
@@ -77,6 +93,7 @@ smpte_time_pattern = re.compile(
 
 # SMPTE timecode
 # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
+# IEC 61834-4:1998 4.4 Time Code
 # Also see SMPTE 12M
 @dataclass(frozen=True)
 class SMPTETimecode:
@@ -86,10 +103,18 @@ class SMPTETimecode:
     minute: int | None
     second: int | None
     frame: int | None
-    drop_frame: bool | None
-    color_frame: ColorFrame | None
-    polarity_correction: PolarityCorrection | None
-    binary_group_flags: int | None
+
+    # The next four fields are defined as seen in SMPTE 306M-2002.
+    drop_frame: bool | None  # always True in IEC 61834-4
+    color_frame: ColorFrame | None  # overlaps with blank_flag in IEC 61834-4
+    polarity_correction: PolarityCorrection | None  # always 1 in IEC 61834-4
+    binary_group_flags: int | None  # always 0x7 in IEC 61834-4
+
+    # IEC 61834-4:1998 defines this field instead of the SMPTE fields above
+    # when not recording TITLE BINARY pack.  In that scenario, the remaining
+    # fields from SMPTE that don't overlap are always set to the highest bit
+    # values possible.
+    blank_flag: BlankFlag | None  # overlaps with color_frame in SMPTE 306M
 
     # used for validation; not stored directly in the subcode:
     video_frame_dif_sequence_count: int
@@ -104,6 +129,7 @@ class SMPTETimecode:
             or self.color_frame is None
             or self.polarity_correction is None
             or self.binary_group_flags is None
+            or self.blank_flag is None
         ) and not allow_incomplete:
             return False
 
@@ -111,6 +137,13 @@ class SMPTETimecode:
             self.video_frame_dif_sequence_count == 10
             or self.video_frame_dif_sequence_count == 12
         )
+
+        # These two fields physically overlap for different use cases.
+        if (int(self.blank_flag) if self.blank_flag is not None else None) != (
+            int(self.color_frame) if self.color_frame is not None else None
+        ):
+            return False
+
         if self.hour is not None:
             # The timecode itself must be all present or all absent
             assert (
@@ -157,6 +190,7 @@ class SMPTETimecode:
             and self.color_frame is None
             and self.polarity_correction is None
             and self.binary_group_flags is None
+            and self.blank_flag is None
         )
 
     def format_time_str(self):
@@ -177,6 +211,7 @@ class SMPTETimecode:
         color_frame,
         polarity_correction,
         binary_group_flags,
+        blank_flag,
         video_frame_dif_sequence_count,
     ):
         if (
@@ -204,6 +239,7 @@ class SMPTETimecode:
             binary_group_flags=(
                 int(binary_group_flags, 0) if binary_group_flags else None
             ),
+            blank_flag=BlankFlag[blank_flag] if blank_flag else None,
             video_frame_dif_sequence_count=video_frame_dif_sequence_count,
         )
         if not val.valid(allow_incomplete=True):
@@ -213,6 +249,7 @@ class SMPTETimecode:
     @classmethod
     def parse_ssyb_pack(cls, ssyb_bytes, video_frame_dif_sequence_count):
         # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
+        # IEC 61834-4:1998 4.4 Time Code
         # Also see SMPTE 12M
         assert len(ssyb_bytes) == 5
         assert ssyb_bytes[0] == SSYBPackType.SMPTE_TC
@@ -222,6 +259,9 @@ class SMPTETimecode:
 
         # Unpack fields from bytes and validate them.  Validation failures are
         # common due to tape dropouts.
+
+        # NOTE: CF bit is also BF bit in IEC 61834-4 if not
+        # recording TITLE BINARY pack.
         cf = (ssyb_bytes[1] & 0x80) >> 7
         df = (ssyb_bytes[1] & 0x40) >> 6
         frame_tens = (ssyb_bytes[1] & 0x30) >> 4
@@ -278,6 +318,7 @@ class SMPTETimecode:
                 PolarityCorrection.ODD if pc == 1 else PolarityCorrection.EVEN
             ),
             binary_group_flags=(bgf2 << 2) | (bgf1 << 1) | bgf0,
+            blank_flag=BlankFlag.CONTINUOUS if cf == 1 else BlankFlag.DISCONTINUOUS,
             video_frame_dif_sequence_count=video_frame_dif_sequence_count,
         )
 
@@ -285,10 +326,13 @@ class SMPTETimecode:
 
     def to_ssyb_pack(self):
         # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
+        # IEC 61834-4:1998 4.4 Time Code
         # Also see SMPTE 12M
         assert self.valid()
         ssyb_bytes = [
             SSYBPackType.SMPTE_TC,
+            # NOTE: self.valid() asserts that color_frame == blank_flag, which
+            # both overlap with the MSB here.
             (int(self.color_frame) << 7)
             | (0x40 if self.drop_frame else 0x00)
             | (int(self.frame / 10) << 4)
@@ -365,6 +409,7 @@ class SMPTETimecode:
 
 # SMPTE binary group
 # SMPTE 306M-2002 Section 9.2.2 Binary group pack (BG)
+# IEC 61834-4:1998 4.5 Binary Group
 # Also see SMPTE 12M
 @dataclass(frozen=True)
 class SMPTEBinaryGroup:

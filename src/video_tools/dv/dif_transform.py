@@ -138,7 +138,15 @@ class WriteConstantCommand(Command):
     """
 
     column: str
-    value: int | dif.ColorFrame | dif.PolarityCorrection | bytes | str | None
+    value: (
+        int
+        | dif.ColorFrame
+        | dif.PolarityCorrection
+        | dif.BlankFlag
+        | bytes
+        | str
+        | None
+    )
 
     def __str__(self):
         value_str = (
@@ -177,6 +185,8 @@ class WriteConstantCommand(Command):
                 )
             case "sc_smpte_timecode_binary_group_flags":
                 return int(value_str, 0) if value_str is not None else None
+            case "sc_smpte_timecode_blank_flag":
+                return dif.BlankFlag[value_str] if value_str is not None else None
             case "sc_recording_date_reserved" | "sc_recording_time_reserved":
                 b = (
                     bytes.fromhex(value_str.removeprefix("0x"))
@@ -207,6 +217,7 @@ class WriteConstantCommand(Command):
             case (
                 "sc_smpte_timecode_color_frame"
                 | "sc_smpte_timecode_polarity_correction"
+                | "sc_smpte_timecode_blank_flag"
             ):
                 return value.name if value is not None else None
             case "sc_smpte_timecode_binary_group_flags":
@@ -252,6 +263,12 @@ class WriteConstantCommand(Command):
             case "sc_smpte_timecode_binary_group_flags":
                 return (
                     frame_data.subcode_smpte_timecode.binary_group_flags
+                    if frame_data.subcode_smpte_timecode
+                    else None
+                )
+            case "sc_smpte_timecode_blank_flag":
+                return (
+                    frame_data.subcode_smpte_timecode.blank_flag
                     if frame_data.subcode_smpte_timecode
                     else None
                 )
@@ -307,6 +324,7 @@ class WriteConstantCommand(Command):
                 "sc_smpte_timecode_color_frame"
                 | "sc_smpte_timecode_polarity_correction"
                 | "sc_smpte_timecode_binary_group_flags"
+                | "sc_smpte_timecode_blank_flag"
             ):
                 existing_timecode = (
                     frame_data.subcode_smpte_timecode
@@ -320,17 +338,30 @@ class WriteConstantCommand(Command):
                         color_frame=None,
                         polarity_correction=None,
                         binary_group_flags=None,
+                        blank_flag=None,
                         video_frame_dif_sequence_count=len(
                             frame_data.subcode_pack_types[0]
                         ),
                     )
                 )
                 if self.column == "sc_smpte_timecode_color_frame":
-                    new_timecode = replace(existing_timecode, color_frame=value)
+                    # physically overlaps with blank_flag on tape
+                    blank_flag = dif.BlankFlag(value) if value is not None else None
+                    new_timecode = replace(
+                        existing_timecode, color_frame=value, blank_flag=blank_flag
+                    )
                 elif self.column == "sc_smpte_timecode_polarity_correction":
                     new_timecode = replace(existing_timecode, polarity_correction=value)
                 elif self.column == "sc_smpte_timecode_binary_group_flags":
                     new_timecode = replace(existing_timecode, binary_group_flags=value)
+                elif self.column == "sc_smpte_timecode_blank_flag":
+                    # physically overlaps with color_frame on tape
+                    color_frame = dif.ColorFrame(value) if value is not None else None
+                    new_timecode = replace(
+                        existing_timecode, color_frame=color_frame, blank_flag=value
+                    )
+                else:
+                    assert False
                 new_timecode = new_timecode if not new_timecode.is_empty() else None
                 return replace(frame_data, subcode_smpte_timecode=new_timecode)
             case "sc_recording_date_reserved":
@@ -527,6 +558,7 @@ class RenumberSMPTETimecodes(Command):
                 color_frame=None,
                 polarity_correction=None,
                 binary_group_flags=None,
+                blank_flag=None,
                 video_frame_dif_sequence_count=len(
                     all_frame_data[0].subcode_pack_types[0]
                 ),
@@ -551,6 +583,7 @@ class RenumberSMPTETimecodes(Command):
                     color_frame=None,
                     polarity_correction=None,
                     binary_group_flags=None,
+                    blank_flag=None,
                     video_frame_dif_sequence_count=next_value.video_frame_dif_sequence_count,
                 )
             else:
