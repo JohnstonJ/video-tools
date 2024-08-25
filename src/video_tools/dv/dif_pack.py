@@ -711,9 +711,11 @@ class GenericDate(Pack):
             # Assertion is to keep mypy happy at this point
             assert self.year is not None and self.month is not None and self.day is not None
             try:
-                datetime.date(year=self.year, month=self.month, day=self.day)
+                date_obj = datetime.date(year=self.year, month=self.month, day=self.day)
             except ValueError:
                 return "The date field has an invalid range."
+            if self.week is not None and date_obj.weekday() != int(self.week):
+                return "The weekday is incorrect for the given date."
             if self.year >= 2075 or self.year < 1975:
                 return "The year is too far into the future or the past."
 
@@ -838,7 +840,7 @@ class GenericDate(Pack):
         # Time zone fields are all present or all absent
         if ssyb_bytes[1] & 0x3F != 0x3F:
             ds = (ssyb_bytes[1] & 0x80) >> 7
-            tm = (ssyb_bytes[1] & 0x40) >> 7
+            tm = (ssyb_bytes[1] & 0x40) >> 6
             tz_tens = (ssyb_bytes[1] & 0x30) >> 4
             if tz_tens > 2:
                 return None
@@ -851,8 +853,6 @@ class GenericDate(Pack):
         day_units = None
         if ssyb_bytes[2] & 0x3F != 0x3F:
             day_tens = (ssyb_bytes[2] & 0x30) >> 4
-            if day_tens > 3:
-                return None
             day_units = ssyb_bytes[2] & 0x0F
             if day_units > 9:
                 return None
@@ -866,9 +866,7 @@ class GenericDate(Pack):
             if month_units > 9:
                 return None
 
-        year_tens = None
-        year_units = None
-        year_prefix = None
+        year = None
         if ssyb_bytes[4] & 0xFF != 0xFF:
             year_tens = (ssyb_bytes[4] & 0xF0) >> 4
             if year_tens > 9:
@@ -876,14 +874,11 @@ class GenericDate(Pack):
             year_units = ssyb_bytes[4] & 0x0F
             if year_units > 9:
                 return None
-            year_prefix = 20 if year_tens < 75 else 19
+            year = year_tens * 10 + year_units
+            year += 2000 if year < 75 else 1900
 
         return cls(
-            year=(
-                year_prefix * 100 + year_tens * 10 + year_units
-                if year_prefix is not None and year_tens is not None and year_units is not None
-                else None
-            ),
+            year=year,
             month=(
                 month_tens * 10 + month_units
                 if month_tens is not None and month_units is not None
@@ -898,8 +893,16 @@ class GenericDate(Pack):
             time_zone_hours=(
                 tz_tens * 10 + tz_units if tz_tens is not None and tz_units is not None else None
             ),
-            time_zone_30_minutes=True if tm == 0 else False,
-            daylight_saving_time=DaylightSavingTime.DST if ds == 0 else DaylightSavingTime.NORMAL,
+            time_zone_30_minutes=(
+                (True if tm == 0 else False)
+                if tz_tens is not None and tz_units is not None
+                else None
+            ),
+            daylight_saving_time=(
+                (DaylightSavingTime.DST if ds == 0 else DaylightSavingTime.NORMAL)
+                if tz_tens is not None and tz_units is not None
+                else None
+            ),
             reserved=reserved,
         )
 
