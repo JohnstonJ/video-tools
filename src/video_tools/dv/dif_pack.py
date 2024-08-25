@@ -17,17 +17,18 @@ import video_tools.dv.file_info as dv_file_info
 # IEC 61834-4:1998
 class PackType(IntEnum):
     # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
-    # IEC 61834-4:1998 4.4 Time Code
-    SMPTE_TC = 0x13
+    # IEC 61834-4:1998 4.4 Time Code (TITLE)
+    TITLE_TIME_CODE = 0x13
 
     # SMPTE 306M-2002 Section 9.2.2 Binary group pack (BG)
     # IEC 61834-4:1998 4.5 Binary Group
     SMPTE_BG = 0x14
 
-    # IEC 61834-4:1998 9.3 Rec Date (Recording date)
+    # IEC 61834-4:1998 9.3 Rec Date (Recording date) (VAUX)
     RECORDING_DATE = 0x62
 
-    RECORDING_TIME = 0x63  # Recording time (can't find documentation on this)
+    # IEC 61834-4:1998 9.4 Rec Time (VAUX)
+    VAUX_RECORDING_TIME = 0x63
 
     EMPTY = 0xFF  # All pack bytes are 0xFF (probably a dropout)
 
@@ -170,7 +171,7 @@ class PolarityCorrection(IntEnum):
 
 # Blank flag: determines whether a discontinuity exists prior to the
 # absolute track number on the track where this pack is recorded
-# IEC 61834-4:1998 4.4 Time Code
+# IEC 61834-4:1998 4.4 Time Code (TITLE)
 class BlankFlag(IntEnum):
     DISCONTINUOUS = 0x0
     CONTINUOUS = 0x1
@@ -181,28 +182,29 @@ smpte_time_pattern = re.compile(
 )
 
 
-# SMPTE timecode
-# SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
-# IEC 61834-4:1998 4.4 Time Code
-# Also see SMPTE 12M
+# Generic timecode base class: several pack types share mostly the same common timecode fields,
+# with only a very few minor variations.  This class abstracts these details.
+# See the derived classes for references to the standards.
 @dataclass(frozen=True, kw_only=True)
-class SMPTETimecode(Pack):
+class GenericTimecode(Pack):
     hour: int | None = None
     minute: int | None = None
     second: int | None = None
     frame: int | None = None
 
-    # The next four fields are defined as seen in SMPTE 306M-2002.
-    drop_frame: bool | None = None  # always True in IEC 61834-4
-    color_frame: ColorFrame | None = None  # overlaps with blank_flag in IEC 61834-4
-    polarity_correction: PolarityCorrection | None = None  # always 1 in IEC 61834-4
-    binary_group_flags: int | None = None  # always 0x7 in IEC 61834-4
+    # The next four fields are defined as seen in SMPTE 306M, and in IEC 61834-4 when recording
+    # BINARY packs.
+    drop_frame: bool | None = None  # always True in IEC 61834-4 if no BINARY pack
+    color_frame: ColorFrame | None = None  # overlaps with blank_flag in IEC 61834-4 if no bin pack
+    polarity_correction: PolarityCorrection | None = None  # always 1 in IEC 61834-4 if no bin pack
+    binary_group_flags: int | None = None  # always 0x7 in IEC 61834-4 if no BINARY pack
 
-    # IEC 61834-4:1998 defines this field instead of the SMPTE fields above
-    # when not recording TITLE BINARY pack.  In that scenario, the remaining
-    # fields from SMPTE that don't overlap are always set to the highest bit
-    # values possible.
-    blank_flag: BlankFlag | None = None  # overlaps with color_frame in SMPTE 306M
+    # Some packs allow the pack to be present while the actual time fields are empty.
+    # Derived classes can choose what is allowed.
+    _time_required: ClassVar[bool]
+    # Some packs allow frames to be omitted while the rest of the time is still present.
+    # This variable controls the behavior.
+    _frames_required: ClassVar[bool]
 
     class MainFields(NamedTuple):
         hour: int | None
@@ -220,46 +222,65 @@ class SMPTETimecode(Pack):
     class BinaryGroupFlagsFields(NamedTuple):
         binary_group_flags: int | None
 
-    class BlankFlagFields(NamedTuple):
-        blank_flag: BlankFlag | None
-
     text_fields: ClassVar[CSVFieldMap] = {
         None: MainFields,
         "color_frame": ColorFrameFields,
         "polarity_correction": PolarityCorrectionFields,
         "binary_group_flags": BinaryGroupFlagsFields,
-        "blank_flag": BlankFlagFields,
     }
 
     def valid(self, system: dv_file_info.DVSystem) -> bool:
+        # Main time part must be fully present or fully absent
+        time_present = self.hour is not None and self.minute is not None and self.second is not None
+        time_absent = self.hour is None and self.minute is None and self.second is None
+        if (time_present and time_absent) or (not time_present and not time_absent):
+            return False
+        # Don't allow specifying frames if there's no other time
+        if self.frame is not None and time_absent:
+            return False
+
+        # Apply additional requirements based on the derived class
+        if self._time_required and time_absent:
+            return False
+        if time_present and self._frames_required and self.frame is None:
+            return False
+
+        # The remaining bits should always be here... physically, the bits are holding _something_
         if (
-            self.hour is None
-            or self.minute is None
-            or self.second is None
-            or self.frame is None
-            or self.drop_frame is None
+            self.drop_frame is None
             or self.color_frame is None
             or self.polarity_correction is None
             or self.binary_group_flags is None
-            or self.blank_flag is None
         ):
             return False
 
-        # These two fields physically overlap for different use cases.
-        if int(self.blank_flag) != int(self.color_frame):
-            return False
+        # Check ranges of values
+        if time_present:
+            try:
+                # Assertion is to keep mypy happy at this point
+                assert self.hour is not None and self.minute is not None and self.second is not None
+                datetime.time(hour=self.hour, minute=self.minute, second=self.second)
+            except ValueError:
+                return False
 
-        if self.hour >= 24 or self.minute >= 60 or self.second >= 60:
-            return False
-        if system == dv_file_info.DVSystem.SYS_525_60 and self.frame >= 30:
-            return False
-        if system == dv_file_info.DVSystem.SYS_625_50 and self.frame >= 25:
-            return False
-        if self.drop_frame and system == dv_file_info.DVSystem.SYS_625_50:
-            # drop_frame only applies to NTSC
-            return False
-        if self.drop_frame and self.minute % 10 > 0 and self.second == 0 and self.frame < 2:
-            # should have dropped the frame
+        if self.frame is not None:
+            if self.frame < 0:
+                return False
+            if system == dv_file_info.DVSystem.SYS_525_60 and self.frame >= 30:
+                return False
+            if system == dv_file_info.DVSystem.SYS_625_50 and self.frame >= 25:
+                return False
+            if self.drop_frame and system == dv_file_info.DVSystem.SYS_625_50:
+                # drop_frame only applies to NTSC.  But if the frame number is absent completely,
+                # we'll skip this verification, since some packs might simply be leaving the bits
+                # unconditionally set (who knows? I need to see more test data).
+                return False
+            assert self.minute is not None and self.second is not None
+            if self.drop_frame and self.minute % 10 > 0 and self.second == 0 and self.frame < 2:
+                # should have dropped the frame
+                return False
+
+        if self.binary_group_flags < 0 or self.binary_group_flags > 0x7:
             return False
 
         return True
@@ -291,10 +312,6 @@ class SMPTETimecode(Pack):
             case "binary_group_flags":
                 return cls.BinaryGroupFlagsFields(
                     binary_group_flags=int(text_value, 0) if text_value else None,
-                )
-            case "blank_flag":
-                return cls.BlankFlagFields(
-                    blank_flag=BlankFlag[text_value] if text_value else None,
                 )
             case _:
                 raise ValueError(f"{text_field} is not a valid field name.")
@@ -331,110 +348,145 @@ class SMPTETimecode(Pack):
                     if value_subset.binary_group_flags is not None
                     else ""
                 )
-            case "blank_flag":
-                assert isinstance(value_subset, cls.BlankFlagFields)
-                return value_subset.blank_flag.name if value_subset.blank_flag is not None else ""
             case _:
                 raise ValueError(f"{text_field} is not a valid field name.")
 
-    pack_type = PackType.SMPTE_TC
-
     @classmethod
-    def _do_parse_binary(
-        cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem
-    ) -> SMPTETimecode | None:
+    def _do_parse_binary_generic_tc(
+        cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem, **init_kwargs: Any
+    ) -> GenericTimecode | None:
+        # Good starting points to look at:
         # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
-        # IEC 61834-4:1998 4.4 Time Code
+        # IEC 61834-4:1998 4.4 Time Code (TITLE)
+        # IEC 61834-4:1998 9.4 Rec Time (VAUX)
         # Also see SMPTE 12M
 
         # Unpack fields from bytes and validate them.  Validation failures are
         # common due to tape dropouts.
 
-        # NOTE: CF bit is also BF bit in IEC 61834-4 if not
-        # recording TITLE BINARY pack.
         cf = (ssyb_bytes[1] & 0x80) >> 7
         df = (ssyb_bytes[1] & 0x40) >> 6
-        frame_tens = (ssyb_bytes[1] & 0x30) >> 4
-        if frame_tens > 2:
-            return None
-        frame_units = ssyb_bytes[1] & 0x0F
-        if frame_units > 9:
-            return None
+        frame_tens = None
+        frame_units = None
+        if ssyb_bytes[1] & 0x3F != 0x3F:
+            frame_tens = (ssyb_bytes[1] & 0x30) >> 4
+            if frame_tens > 2:
+                return None
+            frame_units = ssyb_bytes[1] & 0x0F
+            if frame_units > 9:
+                return None
 
         if system == dv_file_info.DVSystem.SYS_525_60:
             pc = (ssyb_bytes[2] & 0x80) >> 7
         elif system == dv_file_info.DVSystem.SYS_625_50:
             bgf0 = (ssyb_bytes[2] & 0x80) >> 7
-        second_tens = (ssyb_bytes[2] & 0x70) >> 4
-        if second_tens > 5:
-            return None
-        second_units = ssyb_bytes[2] & 0x0F
-        if second_units > 9:
-            return None
+        second_tens = None
+        second_units = None
+        if ssyb_bytes[2] & 0x7F != 0x7F:
+            second_tens = (ssyb_bytes[2] & 0x70) >> 4
+            if second_tens > 5:
+                return None
+            second_units = ssyb_bytes[2] & 0x0F
+            if second_units > 9:
+                return None
 
         if system == dv_file_info.DVSystem.SYS_525_60:
             bgf0 = (ssyb_bytes[3] & 0x80) >> 7
         elif system == dv_file_info.DVSystem.SYS_625_50:
             bgf2 = (ssyb_bytes[3] & 0x80) >> 7
-        minute_tens = (ssyb_bytes[3] & 0x70) >> 4
-        if minute_tens > 5:
-            return None
-        minute_units = ssyb_bytes[3] & 0x0F
-        if minute_units > 9:
-            return None
+        minute_tens = None
+        minute_units = None
+        if ssyb_bytes[3] & 0x7F != 0x7F:
+            minute_tens = (ssyb_bytes[3] & 0x70) >> 4
+            if minute_tens > 5:
+                return None
+            minute_units = ssyb_bytes[3] & 0x0F
+            if minute_units > 9:
+                return None
 
         if system == dv_file_info.DVSystem.SYS_525_60:
             bgf2 = (ssyb_bytes[4] & 0x80) >> 7
         elif system == dv_file_info.DVSystem.SYS_625_50:
             pc = (ssyb_bytes[4] & 0x80) >> 7
         bgf1 = (ssyb_bytes[4] & 0x40) >> 6
-        hour_tens = (ssyb_bytes[4] & 0x30) >> 4
-        if hour_tens > 2:
-            return None
-        hour_units = ssyb_bytes[4] & 0x0F
-        if hour_units > 9:
-            return None
+        hour_tens = None
+        hour_units = None
+        if ssyb_bytes[4] & 0x3F != 0x3F:
+            hour_tens = (ssyb_bytes[4] & 0x30) >> 4
+            if hour_tens > 2:
+                return None
+            hour_units = ssyb_bytes[4] & 0x0F
+            if hour_units > 9:
+                return None
 
         return cls(
-            hour=hour_tens * 10 + hour_units,
-            minute=minute_tens * 10 + minute_units,
-            second=second_tens * 10 + second_units,
-            frame=frame_tens * 10 + frame_units,
+            hour=(
+                hour_tens * 10 + hour_units
+                if hour_tens is not None and hour_units is not None
+                else None
+            ),
+            minute=(
+                minute_tens * 10 + minute_units
+                if minute_tens is not None and minute_units is not None
+                else None
+            ),
+            second=(
+                second_tens * 10 + second_units
+                if second_tens is not None and second_units is not None
+                else None
+            ),
+            frame=(
+                frame_tens * 10 + frame_units
+                if frame_tens is not None and frame_units is not None
+                else None
+            ),
             drop_frame=df == 1,
             color_frame=(ColorFrame.SYNCHRONIZED if cf == 1 else ColorFrame.UNSYNCHRONIZED),
             polarity_correction=(PolarityCorrection.ODD if pc == 1 else PolarityCorrection.EVEN),
             binary_group_flags=(bgf2 << 2) | (bgf1 << 1) | bgf0,
-            blank_flag=BlankFlag.CONTINUOUS if cf == 1 else BlankFlag.DISCONTINUOUS,
+            **init_kwargs,
         )
 
+    @classmethod
+    def _do_parse_binary(
+        cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem
+    ) -> GenericTimecode | None:
+        return cls._do_parse_binary_generic_tc(ssyb_bytes, system)
+
     def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
+        # Good starting points to look at:
         # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
-        # IEC 61834-4:1998 4.4 Time Code
+        # IEC 61834-4:1998 4.4 Time Code (TITLE)
+        # IEC 61834-4:1998 9.4 Rec Time (VAUX)
         # Also see SMPTE 12M
         assert (  # assertion repeated from valid() to keep mypy happy
-            self.hour is not None
-            and self.minute is not None
-            and self.second is not None
-            and self.frame is not None
-            and self.drop_frame is not None
+            self.drop_frame is not None
             and self.color_frame is not None
             and self.polarity_correction is not None
             and self.binary_group_flags is not None
-            and self.blank_flag is not None
         )
         ssyb_bytes = [
             self.pack_type,
-            # NOTE: self.valid() asserts that color_frame == blank_flag, which
-            # both overlap with the MSB here.
             (
                 (int(self.color_frame) << 7)
                 | (0x40 if self.drop_frame else 0x00)
-                | (int(self.frame / 10) << 4)
-                | int(self.frame % 10)
+                | (
+                    (int(self.frame / 10) << 4) | int(self.frame % 10)
+                    if self.frame is not None
+                    else 0x3F
+                )
             ),
-            (int(self.second / 10) << 4) | int(self.second % 10),
-            (int(self.minute / 10) << 4) | int(self.minute % 10),
-            (int(self.hour / 10) << 4) | int(self.hour % 10),
+            (
+                (int(self.second / 10) << 4) | int(self.second % 10)
+                if self.second is not None
+                else 0x7F
+            ),
+            (
+                (int(self.minute / 10) << 4) | int(self.minute % 10)
+                if self.minute is not None
+                else 0x7F
+            ),
+            ((int(self.hour / 10) << 4) | int(self.hour % 10) if self.hour is not None else 0x3F),
         ]
         pc = int(self.polarity_correction)
         bgf0 = self.binary_group_flags & 0x01
@@ -450,10 +502,12 @@ class SMPTETimecode(Pack):
             ssyb_bytes[4] |= (pc << 7) | (bgf1 << 6)
         return bytes(ssyb_bytes)
 
-    def increment_frame(self, system: dv_file_info.DVSystem) -> SMPTETimecode:
+    def increment_frame(self, system: dv_file_info.DVSystem) -> GenericTimecode:
         """Return a copy with frame incremented by 1."""
         # Read current values and make sure they were present.  (Other field
         # values are allowed to be empty.)
+        #
+        # Note that at this time, we only support this operation on times that have frame numbers.
         h = self.hour
         m = self.minute
         s = self.second
@@ -492,6 +546,78 @@ class SMPTETimecode(Pack):
             f = 2
 
         return replace(self, hour=h, minute=m, second=s, frame=f)
+
+
+# Title timecode
+# SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
+# IEC 61834-4:1998 4.4 Time Code (TITLE)
+# Also see SMPTE 12M
+@dataclass(frozen=True, kw_only=True)
+class TitleTimecode(GenericTimecode):
+    # IEC 61834-4:1998 defines this field instead of the other SMPTE fields
+    # when not recording TITLE BINARY pack.  In that scenario, the remaining
+    # fields from SMPTE that don't overlap are always set to the highest bit
+    # values possible, and the end-user should ensure that it is indeed the case.
+    blank_flag: BlankFlag | None = None  # overlaps with color_frame from above
+
+    _time_required = True
+    _frames_required = True
+
+    class BlankFlagFields(NamedTuple):
+        blank_flag: BlankFlag | None
+
+    text_fields: ClassVar[CSVFieldMap] = {
+        **GenericTimecode.text_fields,
+        "blank_flag": BlankFlagFields,
+    }
+
+    def valid(self, system: dv_file_info.DVSystem) -> bool:
+        if not super().valid(system):
+            return False
+
+        # These two fields physically overlap for different use cases.
+        assert self.blank_flag is not None and self.color_frame is not None
+        if int(self.blank_flag) != int(self.color_frame):
+            return False
+
+        return True
+
+    @classmethod
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
+        if text_field == "blank_flag":
+            return cls.BlankFlagFields(
+                blank_flag=BlankFlag[text_value] if text_value else None,
+            )
+        return super().parse_text_value(text_field, text_value)
+
+    @classmethod
+    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+        if text_field == "blank_flag":
+            assert isinstance(value_subset, cls.BlankFlagFields)
+            return value_subset.blank_flag.name if value_subset.blank_flag is not None else ""
+        return super().to_text_value(text_field, value_subset)
+
+    pack_type = PackType.TITLE_TIME_CODE
+
+    @classmethod
+    def _do_parse_binary(
+        cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem
+    ) -> TitleTimecode | None:
+        # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
+        # IEC 61834-4:1998 4.4 Time Code (TITLE)
+        # Also see SMPTE 12M
+
+        # NOTE: CF bit is also BF bit in IEC 61834-4 if not
+        # recording TITLE BINARY pack.
+        bf = (ssyb_bytes[1] & 0x80) >> 7
+        return cast(
+            TitleTimecode,
+            cls._do_parse_binary_generic_tc(
+                ssyb_bytes,
+                system,
+                blank_flag=BlankFlag.CONTINUOUS if bf == 1 else BlankFlag.DISCONTINUOUS,
+            ),
+        )
 
 
 # SMPTE binary group
@@ -565,7 +691,7 @@ class DaylightSavingTime(IntEnum):
 
 
 # Recording date from subcode pack
-# IEC 61834-4:1998 9.3 Rec Date (Recording date)
+# IEC 61834-4:1998 9.3 Rec Date (Recording date) (VAUX)
 @dataclass(frozen=True, kw_only=True)
 class SubcodeRecordingDate(Pack):
     # The year field is a regular 4-digit field for ease of use.
@@ -844,213 +970,12 @@ class SubcodeRecordingDate(Pack):
         return bytes(ssyb_bytes)
 
 
-recording_time_pattern = re.compile(
-    r"^(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})(:(?P<frame>\d{2}))?$"
-)
-
-
-# Recording time from subcode pack
-# I can't find a reference for this definition.
+# VAUX recording time
+# IEC 61834-4:1998 9.4 Rec Time (VAUX)
+# Also see SMPTE 12M
 @dataclass(frozen=True, kw_only=True)
-class SubcodeRecordingTime(Pack):
-    hour: int | None = None
-    minute: int | None = None
-    second: int | None = None
-    frame: int | None = None
-    # this will always be 4 bytes; the bits that the time came from are masked out.
-    # it's required for this class to be valid, but we allow absence for intermediate processing.
-    reserved: bytes | None = None
+class VAUXRecordingTime(GenericTimecode):
+    _time_required = False
+    _frames_required = False
 
-    class MainFields(NamedTuple):
-        hour: int | None
-        minute: int | None
-        second: int | None
-        frame: int | None
-
-    class ReservedFields(NamedTuple):
-        reserved: bytes | None
-
-    text_fields: ClassVar[CSVFieldMap] = {
-        None: MainFields,
-        "reserved": ReservedFields,
-    }
-
-    def valid(self, system: dv_file_info.DVSystem) -> bool:
-        # Main time part must be fully present or fully absent
-        time_present = self.hour is not None and self.minute is not None and self.second is not None
-        time_absent = self.hour is None and self.minute is None and self.second is None
-        if (time_present and time_absent) or (not time_present and not time_absent):
-            return False
-        # No frame number if the time is absent
-        # (but we can have times without frame numbers)
-        if time_absent and self.frame is not None:
-            return False
-
-        if time_present:
-            try:
-                # Assertion is to keep mypy happy at this point
-                assert self.hour is not None and self.minute is not None and self.second is not None
-                datetime.time(hour=self.hour, minute=self.minute, second=self.second)
-            except ValueError:
-                return False
-
-        if self.frame is not None:
-            if system == dv_file_info.DVSystem.SYS_525_60 and self.frame >= 30:
-                return False
-            if system == dv_file_info.DVSystem.SYS_625_50 and self.frame >= 25:
-                return False
-
-        if self.reserved is None or len(self.reserved) != 4:
-            return False
-        return True
-
-    @classmethod
-    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
-        match text_field:
-            case None:
-                match = None
-                if text_value:
-                    match = recording_time_pattern.match(text_value)
-                    if not match:
-                        raise ValueError(f"Parsing error while reading time {text_value}.")
-                return cls.MainFields(
-                    hour=int(match.group("hour")) if match else None,
-                    minute=int(match.group("minute")) if match else None,
-                    second=int(match.group("second")) if match else None,
-                    frame=(
-                        int(match.group("frame"))
-                        if match and match.group("frame") is not None
-                        else None
-                    ),
-                )
-            case "reserved":
-                return cls.ReservedFields(
-                    reserved=bytes.fromhex(text_value.removeprefix("0x")) if text_value else None,
-                )
-            case _:
-                raise ValueError(f"{text_field} is not a valid field name.")
-
-    @classmethod
-    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
-        match text_field:
-            case None:
-                assert isinstance(value_subset, cls.MainFields)
-                v = value_subset
-                if v.hour is not None and v.frame is not None:
-                    return f"{v.hour:02}:{v.minute:02}:{v.second:02}:{v.frame:02}"
-                elif v.hour is not None:
-                    return f"{v.hour:02}:{v.minute:02}:{v.second:02}"
-                return ""
-            case "reserved":
-                assert isinstance(value_subset, cls.ReservedFields)
-                return (
-                    du.hex_bytes(value_subset.reserved) if value_subset.reserved is not None else ""
-                )
-            case _:
-                raise ValueError(f"{text_field} is not a valid field name.")
-
-    pack_type = PackType.RECORDING_TIME
-
-    @classmethod
-    def _do_parse_binary(
-        cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem
-    ) -> SubcodeRecordingTime | None:
-        # The pack can be present, but all date fields absent.
-        # Also, some systems record times without frames
-        frame_tens = None
-        frame_units = None
-        second_tens = None
-        second_units = None
-        minute_tens = None
-        minute_units = None
-        hour_tens = None
-        hour_units = None
-
-        # Unpack fields from bytes and validate them.  Validation failures are
-        # common due to tape dropouts.
-        if ssyb_bytes[1] & 0x3F != 0x3F:
-            frame_tens = (ssyb_bytes[1] & 0x30) >> 4
-            if frame_tens > 2:
-                return None
-            frame_units = ssyb_bytes[1] & 0x0F
-            if frame_units > 9:
-                return None
-
-        # Timestamps could be entirely absent
-        if ssyb_bytes[2] & 0x7F != 0x7F:
-            second_tens = (ssyb_bytes[2] & 0x70) >> 4
-            if second_tens > 5:
-                return None
-            second_units = ssyb_bytes[2] & 0x0F
-            if second_units > 9:
-                return None
-
-        if ssyb_bytes[3] & 0x7F != 0x7F:
-            minute_tens = (ssyb_bytes[3] & 0x70) >> 4
-            if minute_tens > 5:
-                return None
-            minute_units = ssyb_bytes[3] & 0x0F
-            if minute_units > 9:
-                return None
-
-        if ssyb_bytes[4] & 0x3F != 0x3F:
-            hour_tens = (ssyb_bytes[4] & 0x30) >> 4
-            if hour_tens > 2:
-                return None
-            hour_units = ssyb_bytes[4] & 0x0F
-            if hour_units > 9:
-                return None
-
-        reserved_mask = bytes(b"\xc0\x80\x80\xc0")
-        reserved = bytes([b & m for b, m in zip(ssyb_bytes[1:], reserved_mask)])
-
-        return cls(
-            hour=(
-                hour_tens * 10 + hour_units
-                if hour_tens is not None and hour_units is not None
-                else None
-            ),
-            minute=(
-                minute_tens * 10 + minute_units
-                if minute_tens is not None and minute_units is not None
-                else None
-            ),
-            second=(
-                second_tens * 10 + second_units
-                if second_tens is not None and second_units is not None
-                else None
-            ),
-            frame=(
-                frame_tens * 10 + frame_units
-                if frame_tens is not None and frame_units is not None
-                else None
-            ),
-            reserved=reserved,
-        )
-
-    def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
-        assert self.reserved is not None  # assertion repeated from valid() to keep mypy happy
-        ssyb_bytes = [
-            self.pack_type,
-            (
-                (int(self.frame / 10) << 4) | int(self.frame % 10)
-                if self.frame is not None
-                else 0x3F
-            ),
-            (
-                (int(self.second / 10) << 4) | int(self.second % 10)
-                if self.second is not None
-                else 0x7F
-            ),
-            (
-                (int(self.minute / 10) << 4) | int(self.minute % 10)
-                if self.minute is not None
-                else 0x7F
-            ),
-            ((int(self.hour / 10) << 4) | int(self.hour % 10) if self.hour is not None else 0x3F),
-        ]
-        # If the user gave reserved bits that conflict with the time, then mask them out.
-        reserved_mask = bytes(b"\xc0\x80\x80\xc0")
-        reserved = [b & m for b, m in zip(self.reserved, reserved_mask)]
-        ssyb_bytes[1:5] = [b | r for b, r in zip(ssyb_bytes[1:5], reserved)]
-        return bytes(ssyb_bytes)
+    pack_type = PackType.VAUX_RECORDING_TIME

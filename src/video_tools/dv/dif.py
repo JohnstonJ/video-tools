@@ -70,10 +70,10 @@ class FrameData:
     # value is always the pack header (subcode pack type) when reading a DV file.
     # it may be None when writing if we want to leave the pack unmodified.
     subcode_pack_types: list[list[list[int | None]]]
-    subcode_smpte_timecode: pack.SMPTETimecode
+    subcode_title_timecode: pack.TitleTimecode
     subcode_smpte_binary_group: pack.SMPTEBinaryGroup
     subcode_recording_date: pack.SubcodeRecordingDate
-    subcode_recording_time: pack.SubcodeRecordingTime
+    subcode_vaux_recording_time: pack.VAUXRecordingTime
 
     @property
     def system(self) -> dv_file_info.DVSystem:

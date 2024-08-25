@@ -181,10 +181,10 @@ class WriteConstantCommand(Command):
                 assert value_str != ""
                 return int(value_str, 0)
             case _ if du.field_has_prefix(
-                "sc_timecode", column, excluded_prefixes=["sc_timecode_bg"]
+                "sc_title_timecode", column, excluded_prefixes=["sc_timecode_bg"]
             ):
-                return pack.SMPTETimecode.parse_text_value(
-                    du.remove_field_prefix("sc_timecode", column), value_str
+                return pack.TitleTimecode.parse_text_value(
+                    du.remove_field_prefix("sc_title_timecode", column), value_str
                 )
             case _ if du.field_has_prefix("sc_timecode_bg", column):
                 return pack.SMPTEBinaryGroup.parse_text_value(
@@ -194,9 +194,9 @@ class WriteConstantCommand(Command):
                 return pack.SubcodeRecordingDate.parse_text_value(
                     du.remove_field_prefix("sc_rec_date", column), value_str
                 )
-            case _ if du.field_has_prefix("sc_rec_time", column):
-                return pack.SubcodeRecordingTime.parse_text_value(
-                    du.remove_field_prefix("sc_rec_time", column), value_str
+            case _ if du.field_has_prefix("sc_vaux_rec_time", column):
+                return pack.VAUXRecordingTime.parse_text_value(
+                    du.remove_field_prefix("sc_vaux_rec_time", column), value_str
                 )
             case _:
                 raise ValueError(f"Unsupported column {column} for write_constant command.")
@@ -218,11 +218,11 @@ class WriteConstantCommand(Command):
                 assert isinstance(value, int)
                 return du.hex_int(value, 2)
             case _ if du.field_has_prefix(
-                "sc_timecode", self.column, excluded_prefixes=["sc_timecode_bg"]
+                "sc_title_timecode", self.column, excluded_prefixes=["sc_timecode_bg"]
             ):
                 assert isinstance(value, NamedTuple)
-                return pack.SMPTETimecode.to_text_value(
-                    du.remove_field_prefix("sc_timecode", self.column), value
+                return pack.TitleTimecode.to_text_value(
+                    du.remove_field_prefix("sc_title_timecode", self.column), value
                 )
             case _ if du.field_has_prefix("sc_timecode_bg", self.column):
                 assert isinstance(value, NamedTuple)
@@ -234,10 +234,10 @@ class WriteConstantCommand(Command):
                 return pack.SubcodeRecordingDate.to_text_value(
                     du.remove_field_prefix("sc_rec_date", self.column), value
                 )
-            case _ if du.field_has_prefix("sc_rec_time", self.column):
+            case _ if du.field_has_prefix("sc_vaux_rec_time", self.column):
                 assert isinstance(value, NamedTuple)
-                return pack.SubcodeRecordingDate.to_text_value(
-                    du.remove_field_prefix("sc_rec_time", self.column), value
+                return pack.VAUXRecordingTime.to_text_value(
+                    du.remove_field_prefix("sc_vaux_rec_time", self.column), value
                 )
             case _:
                 raise ValueError(f"Unsupported column {self.column} for write_constant command.")
@@ -262,10 +262,10 @@ class WriteConstantCommand(Command):
                     int(match.group("dif_sequence"))
                 ][int(match.group("pack"))]
             case _ if du.field_has_prefix(
-                "sc_timecode", self.column, excluded_prefixes=["sc_timecode_bg"]
+                "sc_title_timecode", self.column, excluded_prefixes=["sc_timecode_bg"]
             ):
-                return frame_data.subcode_smpte_timecode.value_subset_for_text_field(
-                    du.remove_field_prefix("sc_timecode", self.column)
+                return frame_data.subcode_title_timecode.value_subset_for_text_field(
+                    du.remove_field_prefix("sc_title_timecode", self.column)
                 )
             case _ if du.field_has_prefix("sc_timecode_bg", self.column):
                 return frame_data.subcode_smpte_binary_group.value_subset_for_text_field(
@@ -275,9 +275,9 @@ class WriteConstantCommand(Command):
                 return frame_data.subcode_recording_date.value_subset_for_text_field(
                     du.remove_field_prefix("sc_rec_date", self.column)
                 )
-            case _ if du.field_has_prefix("sc_rec_time", self.column):
-                return frame_data.subcode_recording_time.value_subset_for_text_field(
-                    du.remove_field_prefix("sc_rec_time", self.column)
+            case _ if du.field_has_prefix("sc_vaux_rec_time", self.column):
+                return frame_data.subcode_vaux_recording_time.value_subset_for_text_field(
+                    du.remove_field_prefix("sc_vaux_rec_time", self.column)
                 )
             case _:
                 raise ValueError(f"Unsupported column {self.column} for write_constant command.")
@@ -323,13 +323,13 @@ class WriteConstantCommand(Command):
                 new_channels[channel] = new_dif_sequences
                 return replace(frame_data, subcode_pack_types=new_channels)
             case _ if du.field_has_prefix(
-                "sc_timecode", self.column, excluded_prefixes=["sc_timecode_bg"]
+                "sc_title_timecode", self.column, excluded_prefixes=["sc_timecode_bg"]
             ):
                 assert isinstance(value, NamedTuple)
                 return replace(
                     frame_data,
-                    subcode_smpte_timecode=replace(
-                        frame_data.subcode_smpte_timecode, **value._asdict()
+                    subcode_title_timecode=replace(
+                        frame_data.subcode_title_timecode, **value._asdict()
                     ),
                 )
             case _ if du.field_has_prefix("sc_timecode_bg", self.column):
@@ -348,12 +348,12 @@ class WriteConstantCommand(Command):
                         frame_data.subcode_recording_date, **value._asdict()
                     ),
                 )
-            case _ if du.field_has_prefix("sc_rec_time", self.column):
+            case _ if du.field_has_prefix("sc_vaux_rec_time", self.column):
                 assert isinstance(value, NamedTuple)
                 return replace(
                     frame_data,
-                    subcode_recording_time=replace(
-                        frame_data.subcode_recording_time, **value._asdict()
+                    subcode_vaux_recording_time=replace(
+                        frame_data.subcode_vaux_recording_time, **value._asdict()
                     ),
                 )
             case _:
@@ -488,17 +488,17 @@ class RenumberArbitraryBits(Command):
 
 
 @dataclass(frozen=True, kw_only=True)
-class RenumberSMPTETimecodes(Command):
-    """Renumbers the SMPTE timecodes.
+class RenumberTitleTimecodes(Command):
+    """Renumbers the title timecodes.
 
     The initial value will be taken from the first frame if not specified.
     """
 
-    initial_value: pack.SMPTETimecode | None
+    initial_value: pack.TitleTimecode | None
 
     def __str__(self) -> str:
         return (
-            f"renumber_smpte_timecodes in frames "
+            f"renumber_title_timecodes in frames "
             f"[{self.start_frame}, {self.end_frame}] "
             f"with initial_value={self.initial_value}"
         )
@@ -508,7 +508,7 @@ class RenumberSMPTETimecodes(Command):
         next_value = (
             self.initial_value
             if self.initial_value is not None
-            else all_frame_data[self.start_frame].subcode_smpte_timecode
+            else all_frame_data[self.start_frame].subcode_title_timecode
         )
         assert next_value is not None
         next_value_str = next_value.to_text_value(
@@ -522,20 +522,20 @@ class RenumberSMPTETimecodes(Command):
             frame_data = all_frame_data[frame]
 
             new_tc = replace(
-                frame_data.subcode_smpte_timecode,
+                frame_data.subcode_title_timecode,
                 hour=next_value.hour,
                 minute=next_value.minute,
                 second=next_value.second,
                 frame=next_value.frame,
                 drop_frame=next_value.drop_frame,
             )
-            new_frame_data = replace(frame_data, subcode_smpte_timecode=new_tc)
+            new_frame_data = replace(frame_data, subcode_title_timecode=new_tc)
 
             all_frame_data[frame] = new_frame_data
             self.track_changed_frame(frame_data, new_frame_data, frame, tracker)
 
             # Calculate next value
-            next_value = next_value.increment_frame(frame_data.system)
+            next_value = cast(pack.TitleTimecode, next_value.increment_frame(frame_data.system))
 
         self.track_final_proportion(tracker)
 
@@ -627,14 +627,14 @@ def load_transformations(transformations_file: BinaryIO) -> Transformations:
                     thresholds=local_thresholds,
                 )
             )
-        elif command_dict["type"] == "renumber_smpte_timecodes":
+        elif command_dict["type"] == "renumber_title_timecodes":
             commands.append(
-                RenumberSMPTETimecodes(
+                RenumberTitleTimecodes(
                     type=command_dict["type"],
                     initial_value=(
                         cast(
-                            pack.SMPTETimecode,
-                            pack.SMPTETimecode.parse_text_values(
+                            pack.TitleTimecode,
+                            pack.TitleTimecode.parse_text_values(
                                 {None: command_dict.get("initial_value", "")}
                             ),
                         )
