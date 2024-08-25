@@ -13,6 +13,10 @@ import video_tools.dv.data_util as du
 import video_tools.dv.file_info as dv_file_info
 
 
+class PackValidationError(ValueError):
+    pass
+
+
 # Pack types
 # IEC 61834-4:1998
 class PackType(IntEnum):
@@ -165,7 +169,9 @@ class Pack(ABC):
 
     def to_binary(self, system: dv_file_info.DVSystem) -> bytes:
         """Convert this pack to the 5 byte binary format."""
-        assert self.validate(system) is None
+        validation_message = self.validate(system)
+        if validation_message is not None:
+            raise PackValidationError(validation_message)
         b = self._do_to_binary(system)
         assert len(b) == 5
         assert b[0] == self.pack_type
@@ -311,7 +317,9 @@ class GenericTimecode(Pack):
                 if text_value:
                     match = smpte_time_pattern.match(text_value)
                     if not match:
-                        raise ValueError(f"Parsing error while reading timecode {text_value}.")
+                        raise PackValidationError(
+                            f"Parsing error while reading timecode {text_value}."
+                        )
                 return cls.MainFields(
                     hour=int(match.group("hour")) if match else None,
                     minute=int(match.group("minute")) if match else None,
@@ -337,7 +345,7 @@ class GenericTimecode(Pack):
                     binary_group_flags=int(text_value, 0) if text_value else None,
                 )
             case _:
-                raise ValueError(f"{text_field} is not a valid field name.")
+                assert False
 
     @classmethod
     def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
@@ -372,7 +380,7 @@ class GenericTimecode(Pack):
                     else ""
                 )
             case _:
-                raise ValueError(f"{text_field} is not a valid field name.")
+                assert False
 
     @classmethod
     def _do_parse_binary_generic_tc(
@@ -535,14 +543,12 @@ class GenericTimecode(Pack):
         m = self.minute
         s = self.second
         f = self.frame
-        assert (
-            h is not None
-            and m is not None
-            and s is not None
-            and f is not None
-            and self.drop_frame is not None
-        )
-        assert not self.drop_frame or system == dv_file_info.DVSystem.SYS_525_60
+        if h is None or m is None or s is None or f is None or self.drop_frame is None:
+            raise PackValidationError("Cannot increment a time pack with no time in it.")
+        if self.drop_frame and system != dv_file_info.DVSystem.SYS_525_60:
+            raise PackValidationError(
+                "Drop frame flag is set on PAL/SECAM video, which probably doesn't make sense."
+            )
 
         # Increment values as appropriate
         f += 1
@@ -745,7 +751,7 @@ class GenericDate(Pack):
                 if text_value:
                     match = generic_date_pattern.match(text_value)
                     if not match:
-                        raise ValueError(f"Parsing error while reading date {text_value}.")
+                        raise PackValidationError(f"Parsing error while reading date {text_value}.")
                 return cls.MainFields(
                     year=int(match.group("year")) if match else None,
                     month=int(match.group("month")) if match else None,
@@ -761,9 +767,11 @@ class GenericDate(Pack):
                 if text_value:
                     match = time_zone_pattern.match(text_value)
                     if not match:
-                        raise ValueError(f"Parsing error while reading time zone {text_value}.")
+                        raise PackValidationError(
+                            f"Parsing error while reading time zone {text_value}."
+                        )
                     if match.group("minutes") != "30" and match.group("minutes") != 00:
-                        raise ValueError("Minutes portion of time zone must be 30 or 00.")
+                        raise PackValidationError("Minutes portion of time zone must be 30 or 00.")
                     tz_hours = int(match.group("hour"))
                     tz_30_minutes = match.group("minute") == "30"
                 return cls.TimeZoneFields(
@@ -779,7 +787,7 @@ class GenericDate(Pack):
                     reserved=int(text_value, 0) if text_value else None,
                 )
             case _:
-                raise ValueError(f"{text_field} is not a valid field name.")
+                assert False
 
     @classmethod
     def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
@@ -810,7 +818,7 @@ class GenericDate(Pack):
                     else ""
                 )
             case _:
-                raise ValueError(f"{text_field} is not a valid field name.")
+                assert False
 
     @classmethod
     def _do_parse_binary(
@@ -961,7 +969,9 @@ class TitleTimecode(GenericTimecode):
             return base_validate
 
         # These two fields physically overlap for different use cases.
-        assert self.blank_flag is not None and self.color_frame is not None
+        if self.blank_flag is None:
+            return "A value for the blank flag must be provided."
+        assert self.color_frame is not None  # base class checks this
         if int(self.blank_flag) != int(self.color_frame):
             return (
                 f"Blank flag integer value of {int(self.blank_flag)} must be equal to the color "
@@ -1080,11 +1090,11 @@ class NoInfo(Pack):
 
     @classmethod
     def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
-        raise ValueError("NoInfo pack has no fields.")
+        assert False
 
     @classmethod
     def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
-        raise ValueError("NoInfo pack has no fields.")
+        assert False
 
     pack_type = PackType.NO_INFO
 
