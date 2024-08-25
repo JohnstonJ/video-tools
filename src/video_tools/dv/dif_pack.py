@@ -22,7 +22,7 @@ class PackType(IntEnum):
 
     # SMPTE 306M-2002 Section 9.2.2 Binary group pack (BG)
     # IEC 61834-4:1998 4.5 Binary Group
-    SMPTE_BG = 0x14
+    TITLE_BINARY_GROUP = 0x14
 
     # IEC 61834-4:1998 9.3 Rec Date (Recording date) (VAUX)
     VAUX_RECORDING_DATE = 0x62
@@ -548,6 +548,53 @@ class GenericTimecode(Pack):
         return replace(self, hour=h, minute=m, second=s, frame=f)
 
 
+# Generic SMPTE binary group base class: several pack types reuse the same structure.
+# See the derived classes for references to the standards.
+@dataclass(frozen=True, kw_only=True)
+class GenericBinaryGroup(Pack):
+    # this will always be 4 bytes
+    value: bytes | None = None
+
+    class MainFields(NamedTuple):
+        value: bytes | None  # Formats as 8 hex digits
+
+    text_fields: ClassVar[CSVFieldMap] = {None: MainFields}
+
+    def valid(self, system: dv_file_info.DVSystem) -> bool:
+        return self.value is not None and len(self.value) == 4
+
+    @classmethod
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
+        assert text_field is None
+        return cls.MainFields(
+            value=bytes.fromhex(text_value.removeprefix("0x")) if text_value else None
+        )
+
+    @classmethod
+    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+        assert text_field is None
+        assert isinstance(value_subset, cls.MainFields)
+        return du.hex_bytes(value_subset.value) if value_subset.value is not None else ""
+
+    @classmethod
+    def _do_parse_binary(
+        cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem
+    ) -> GenericBinaryGroup | None:
+        return cls(value=bytes(ssyb_bytes[1:]))
+
+    def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
+        assert self.value is not None  # assertion repeated from valid() to keep mypy happy
+        return bytes(
+            [
+                self.pack_type,
+                self.value[0],
+                self.value[1],
+                self.value[2],
+                self.value[3],
+            ]
+        )
+
+
 generic_date_pattern = re.compile(r"^(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})$")
 time_zone_pattern = re.compile(r"^(?P<hour>\d{2}):(?P<minute>\d{2})$")
 
@@ -923,56 +970,13 @@ class TitleTimecode(GenericTimecode):
         )
 
 
-# SMPTE binary group
+# Title binary group
 # SMPTE 306M-2002 Section 9.2.2 Binary group pack (BG)
-# IEC 61834-4:1998 4.5 Binary Group
+# IEC 61834-4:1998 4.5 Binary Group (TITLE)
 # Also see SMPTE 12M
 @dataclass(frozen=True, kw_only=True)
-# TODO rename the class to better match the purpose
-class SMPTEBinaryGroup(Pack):
-    # this will always be 4 bytes
-    value: bytes | None = None
-
-    class MainFields(NamedTuple):
-        value: bytes | None  # Formats as 8 hex digits
-
-    text_fields: ClassVar[CSVFieldMap] = {None: MainFields}
-
-    def valid(self, system: dv_file_info.DVSystem) -> bool:
-        return self.value is not None and len(self.value) == 4
-
-    @classmethod
-    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
-        assert text_field is None
-        return cls.MainFields(
-            value=bytes.fromhex(text_value.removeprefix("0x")) if text_value else None
-        )
-
-    @classmethod
-    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
-        assert text_field is None
-        assert isinstance(value_subset, cls.MainFields)
-        return du.hex_bytes(value_subset.value) if value_subset.value is not None else ""
-
-    pack_type = PackType.SMPTE_BG
-
-    @classmethod
-    def _do_parse_binary(
-        cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem
-    ) -> SMPTEBinaryGroup | None:
-        return SMPTEBinaryGroup(value=bytes(ssyb_bytes[1:]))
-
-    def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
-        assert self.value is not None  # assertion repeated from valid() to keep mypy happy
-        return bytes(
-            [
-                self.pack_type,
-                self.value[0],
-                self.value[1],
-                self.value[2],
-                self.value[3],
-            ]
-        )
+class TitleBinaryGroup(GenericBinaryGroup):
+    pack_type = PackType.TITLE_BINARY_GROUP
 
 
 # VAUX recording date

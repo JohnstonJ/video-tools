@@ -32,7 +32,7 @@ def read_frame_data(frame_bytes: bytearray, file_info: DVFileInfo) -> dif.FrameD
         for channel in range(file_info.video_frame_channel_count)
     ]
     subcode_title_timecode_hist: dict[pack.TitleTimecode, int] = defaultdict(int)
-    subcode_smpte_binary_group_hist: dict[pack.SMPTEBinaryGroup, int] = defaultdict(int)
+    subcode_title_binary_group_hist: dict[pack.TitleBinaryGroup, int] = defaultdict(int)
     subcode_vaux_recording_date_hist: dict[pack.VAUXRecordingDate, int] = defaultdict(int)
     subcode_vaux_recording_time_hist: dict[pack.VAUXRecordingTime, int] = defaultdict(int)
 
@@ -143,15 +143,15 @@ def read_frame_data(frame_bytes: bytearray, file_info: DVFileInfo) -> dif.FrameD
                     )
                     if subcode_title_timecode is not None:
                         subcode_title_timecode_hist[subcode_title_timecode] += 1
-                elif subcode_pack_type == pack.PackType.SMPTE_BG:
-                    subcode_smpte_binary_group = cast(
-                        pack.SMPTEBinaryGroup,
-                        pack.SMPTEBinaryGroup.parse_binary(
+                elif subcode_pack_type == pack.PackType.TITLE_BINARY_GROUP:
+                    subcode_title_binary_group = cast(
+                        pack.TitleBinaryGroup,
+                        pack.TitleBinaryGroup.parse_binary(
                             ssyb_bytes[ssyb_num][3:], file_info.system
                         ),
                     )
-                    if subcode_smpte_binary_group is not None:
-                        subcode_smpte_binary_group_hist[subcode_smpte_binary_group] += 1
+                    if subcode_title_binary_group is not None:
+                        subcode_title_binary_group_hist[subcode_title_binary_group] += 1
                 elif subcode_pack_type == pack.PackType.VAUX_RECORDING_DATE:
                     subcode_vaux_recording_date = cast(
                         pack.VAUXRecordingDate,
@@ -203,10 +203,10 @@ def read_frame_data(frame_bytes: bytearray, file_info: DVFileInfo) -> dif.FrameD
             if subcode_title_timecode_hist
             else pack.TitleTimecode()
         ),
-        subcode_smpte_binary_group=(
-            max(subcode_smpte_binary_group_hist, key=subcode_smpte_binary_group_hist.__getitem__)
-            if subcode_smpte_binary_group_hist
-            else pack.SMPTEBinaryGroup()
+        subcode_title_binary_group=(
+            max(subcode_title_binary_group_hist, key=subcode_title_binary_group_hist.__getitem__)
+            if subcode_title_binary_group_hist
+            else pack.TitleBinaryGroup()
         ),
         subcode_vaux_recording_date=(
             max(subcode_vaux_recording_date_hist, key=subcode_vaux_recording_date_hist.__getitem__)
@@ -336,9 +336,9 @@ def write_frame_data(
                 elif desired_pack_type == pack.PackType.TITLE_TIME_CODE:
                     assert frame_data.subcode_title_timecode is not None
                     new_pack = frame_data.subcode_title_timecode.to_binary(frame_data.system)
-                elif desired_pack_type == pack.PackType.SMPTE_BG:
-                    assert frame_data.subcode_smpte_binary_group is not None
-                    new_pack = frame_data.subcode_smpte_binary_group.to_binary(frame_data.system)
+                elif desired_pack_type == pack.PackType.TITLE_BINARY_GROUP:
+                    assert frame_data.subcode_title_binary_group is not None
+                    new_pack = frame_data.subcode_title_binary_group.to_binary(frame_data.system)
                 elif desired_pack_type == pack.PackType.VAUX_RECORDING_DATE:
                     assert frame_data.subcode_vaux_recording_date is not None
                     new_pack = frame_data.subcode_vaux_recording_date.to_binary(frame_data.system)

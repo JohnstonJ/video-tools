@@ -30,7 +30,7 @@ def write_frame_data_csv(output_file: TextIO, all_frame_data: list[dif.FrameData
             for dif_sequence in range(len(all_frame_data[0].subcode_pack_types[channel]))
         ],
         *du.add_field_prefix("sc_title_timecode", pack.TitleTimecode.text_fields).keys(),
-        *du.add_field_prefix("sc_timecode_bg", pack.SMPTEBinaryGroup.text_fields).keys(),
+        *du.add_field_prefix("sc_title_timecode_bg", pack.TitleBinaryGroup.text_fields).keys(),
         *du.add_field_prefix("sc_vaux_rec_date", pack.VAUXRecordingDate.text_fields).keys(),
         *du.add_field_prefix("sc_vaux_rec_time", pack.VAUXRecordingTime.text_fields).keys(),
     ]
@@ -55,7 +55,7 @@ def write_frame_data_csv(output_file: TextIO, all_frame_data: list[dif.FrameData
                 "sc_title_timecode", frame_data.subcode_title_timecode.to_text_values()
             ),
             **du.add_field_prefix(
-                "sc_timecode_bg", frame_data.subcode_smpte_binary_group.to_text_values()
+                "sc_title_timecode_bg", frame_data.subcode_title_binary_group.to_text_values()
             ),
             **du.add_field_prefix(
                 "sc_vaux_rec_date", frame_data.subcode_vaux_recording_date.to_text_values()
@@ -123,14 +123,14 @@ def read_frame_data_csv(input_file: Iterator[str]) -> list[dif.FrameData]:
                 pack.TitleTimecode,
                 pack.TitleTimecode.parse_text_values(
                     du.select_field_prefix(
-                        "sc_title_timecode", row, excluded_prefixes=["sc_timecode_bg"]
+                        "sc_title_timecode", row, excluded_prefixes=["sc_title_timecode_bg"]
                     )
                 ),
             ),
-            subcode_smpte_binary_group=cast(
-                pack.SMPTEBinaryGroup,
-                pack.SMPTEBinaryGroup.parse_text_values(
-                    du.select_field_prefix("sc_timecode_bg", row)
+            subcode_title_binary_group=cast(
+                pack.TitleBinaryGroup,
+                pack.TitleBinaryGroup.parse_text_values(
+                    du.select_field_prefix("sc_title_timecode_bg", row)
                 ),
             ),
             subcode_vaux_recording_date=cast(
