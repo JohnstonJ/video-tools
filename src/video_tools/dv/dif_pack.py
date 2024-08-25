@@ -195,7 +195,8 @@ class BlankFlag(IntEnum):
 
 
 smpte_time_pattern = re.compile(
-    r"^(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})(?P<frame_separator>[:;])(?P<frame>\d{2})$"
+    r"^(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})"
+    r"((?P<frame_separator>[:;])(?P<frame>\d{2}))?$"
 )
 
 
@@ -315,8 +316,13 @@ class GenericTimecode(Pack):
                     hour=int(match.group("hour")) if match else None,
                     minute=int(match.group("minute")) if match else None,
                     second=int(match.group("second")) if match else None,
-                    frame=int(match.group("frame")) if match else None,
-                    drop_frame=(match.group("frame_separator") == ";") if match else None,
+                    # frames are optional in this regex
+                    frame=int(match.group("frame")) if match and match.group("frame") else None,
+                    drop_frame=(
+                        (match.group("frame_separator") == ";")
+                        if match and match.group("frame_separator")
+                        else None
+                    ),
                 )
             case "color_frame":
                 return cls.ColorFrameFields(
