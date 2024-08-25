@@ -21,6 +21,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "pytest~=8.3",
+    "pytest-cov~=5.0",
     "types-pyyaml~=6.0",
 ]
 
@@ -35,7 +37,7 @@ top_line_errors = "video_tools.top_line_errors:main"
 plugins = [
     "numpy.typing.mypy_plugin"
 ]
-files = "src/**/*.py"
+files = "src/**/*.py,tests/**/*.py"
 strict = true
 # These are additional checks not covered by strict:
 disallow_any_unimported = true
