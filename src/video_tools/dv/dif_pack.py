@@ -24,11 +24,23 @@ class PackType(IntEnum):
     # IEC 61834-4:1998 4.5 Binary Group
     TITLE_BINARY_GROUP = 0x14
 
+    # IEC 61834-4:1998 8.3 Rec Date (AAUX)
+    AAUX_RECORDING_DATE = 0x52
+
+    # IEC 61834-4:1998 8.4 Rec Time (AAUX)
+    AAUX_RECORDING_TIME = 0x53
+
+    # IEC 61834-4:1998 8.5 Binary Group (AAUX)
+    AAUX_BINARY_GROUP = 0x54
+
     # IEC 61834-4:1998 9.3 Rec Date (Recording date) (VAUX)
     VAUX_RECORDING_DATE = 0x62
 
     # IEC 61834-4:1998 9.4 Rec Time (VAUX)
     VAUX_RECORDING_TIME = 0x63
+
+    # IEC 61834-4:1998 9.5 Binary Group (VAUX)
+    VAUX_BINARY_GROUP = 0x64
 
     # IEC 61834-4:1998 12.16 No Info: No information (SOFT MODE)
     # Also, very commonly a dropout - especially in the subcode DIF block
@@ -981,6 +993,31 @@ class TitleBinaryGroup(GenericBinaryGroup):
     pack_type = PackType.TITLE_BINARY_GROUP
 
 
+# AAUX recording date
+# IEC 61834-4:1998 8.3 Rec Date (AAUX)
+@dataclass(frozen=True, kw_only=True)
+class AAUXRecordingDate(GenericDate):
+    pack_type = PackType.AAUX_RECORDING_DATE
+
+
+# AAUX recording time
+# IEC 61834-4:1998 8.4 Rec Time (AAUX)
+# Also see SMPTE 12M
+@dataclass(frozen=True, kw_only=True)
+class AAUXRecordingTime(GenericTimecode):
+    _time_required = False
+    _frames_required = False
+
+    pack_type = PackType.AAUX_RECORDING_TIME
+
+
+# AAUX binary group
+# IEC 61834-4:1998 8.5 Binary Group (AAUX)
+@dataclass(frozen=True, kw_only=True)
+class AAUXBinaryGroup(GenericBinaryGroup):
+    pack_type = PackType.AAUX_BINARY_GROUP
+
+
 # VAUX recording date
 # IEC 61834-4:1998 9.3 Rec Date (Recording date) (VAUX)
 @dataclass(frozen=True, kw_only=True)
@@ -997,6 +1034,13 @@ class VAUXRecordingTime(GenericTimecode):
     _frames_required = False
 
     pack_type = PackType.VAUX_RECORDING_TIME
+
+
+# VAUX binary group
+# IEC 61834-4:1998 9.5 Binary Group (VAUX)
+@dataclass(frozen=True, kw_only=True)
+class VAUXBinaryGroup(GenericBinaryGroup):
+    pack_type = PackType.VAUX_BINARY_GROUP
 
 
 # No Info block
