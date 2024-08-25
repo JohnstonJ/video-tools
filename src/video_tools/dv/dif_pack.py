@@ -30,7 +30,9 @@ class PackType(IntEnum):
     # IEC 61834-4:1998 9.4 Rec Time (VAUX)
     VAUX_RECORDING_TIME = 0x63
 
-    EMPTY = 0xFF  # All pack bytes are 0xFF (probably a dropout)
+    # IEC 61834-4:1998 12.16 No Info: No information (SOFT MODE)
+    # Also, very commonly a dropout - especially in the subcode DIF block
+    NO_INFO = 0xFF
 
 
 # NOTE:  Pack fields are often ultimately all required to be valid, but we allow them to
@@ -995,3 +997,37 @@ class VAUXRecordingTime(GenericTimecode):
     _frames_required = False
 
     pack_type = PackType.VAUX_RECORDING_TIME
+
+
+# No Info block
+# IEC 61834-4:1998 12.16 No Info: No information (SOFT MODE)
+# Also, very commonly a dropout - especially in the subcode DIF block
+@dataclass(frozen=True, kw_only=True)
+class NoInfo(Pack):
+    text_fields: ClassVar[CSVFieldMap] = {}
+
+    def valid(self, system: dv_file_info.DVSystem) -> bool:
+        return True
+
+    @classmethod
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
+        raise ValueError("NoInfo pack has no fields.")
+
+    @classmethod
+    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+        raise ValueError("NoInfo pack has no fields.")
+
+    pack_type = PackType.NO_INFO
+
+    @classmethod
+    def _do_parse_binary(cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem) -> NoInfo | None:
+        # The standard says that ssyb_bytes will always be 0xFFFFFFFFFF.  In practice, you'll also
+        # "get" this pack as a result of dropouts from other packs: if the leading pack header is
+        # lost and becomes 0xFF (this pack type), but the rest of the pack is not lost, then we'd
+        # see other non-0xFF bytes here.  Unfortunately, in such a scenario, since the pack header
+        # was lost, we don't know what pack that data is supposed to go with.  So we'll just let
+        # this pack discard those bytes as it's probably not worth trying to preserve them.
+        return cls()
+
+    def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
+        return bytes([self.pack_type, 0xFF, 0xFF, 0xFF, 0xFF])

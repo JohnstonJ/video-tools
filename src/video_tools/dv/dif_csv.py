@@ -145,6 +145,7 @@ def read_frame_data_csv(input_file: Iterator[str]) -> list[dif.FrameData]:
                     du.select_field_prefix("sc_vaux_rec_time", row)
                 ),
             ),
+            no_info=pack.NoInfo(),
         )
         all_frame_data.append(frame_data)
 

@@ -75,6 +75,9 @@ class FrameData:
     subcode_vaux_recording_date: pack.VAUXRecordingDate
     subcode_vaux_recording_time: pack.VAUXRecordingTime
 
+    # Generic value for No Info pack
+    no_info: pack.NoInfo
+
     @property
     def system(self) -> dv_file_info.DVSystem:
         return dv_file_info.DIF_SEQUENCE_COUNT_TO_SYSTEM[len(self.subcode_pack_types[0])]

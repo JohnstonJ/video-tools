@@ -218,6 +218,7 @@ def read_frame_data(frame_bytes: bytearray, file_info: DVFileInfo) -> dif.FrameD
             if subcode_vaux_recording_time_hist
             else pack.VAUXRecordingTime()
         ),
+        no_info=pack.NoInfo(),
     )
 
 
@@ -331,20 +332,16 @@ def write_frame_data(
                 if desired_pack_type is None:
                     # User doesn't want to further modify the subcode pack.
                     continue
-                elif desired_pack_type == pack.PackType.EMPTY:
-                    new_pack = bytes([0xFF] * pack_len)
                 elif desired_pack_type == pack.PackType.TITLE_TIME_CODE:
-                    assert frame_data.subcode_title_timecode is not None
                     new_pack = frame_data.subcode_title_timecode.to_binary(frame_data.system)
                 elif desired_pack_type == pack.PackType.TITLE_BINARY_GROUP:
-                    assert frame_data.subcode_title_binary_group is not None
                     new_pack = frame_data.subcode_title_binary_group.to_binary(frame_data.system)
                 elif desired_pack_type == pack.PackType.VAUX_RECORDING_DATE:
-                    assert frame_data.subcode_vaux_recording_date is not None
                     new_pack = frame_data.subcode_vaux_recording_date.to_binary(frame_data.system)
                 elif desired_pack_type == pack.PackType.VAUX_RECORDING_TIME:
-                    assert frame_data.subcode_vaux_recording_time is not None
                     new_pack = frame_data.subcode_vaux_recording_time.to_binary(frame_data.system)
+                elif desired_pack_type == pack.PackType.NO_INFO:
+                    new_pack = frame_data.no_info.to_binary(frame_data.system)
                 else:
                     raise ValueError(
                         "Unsupported subcode pack type.  Use "
