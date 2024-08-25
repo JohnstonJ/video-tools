@@ -64,7 +64,7 @@ def parse_args() -> AnalyzeVirtualDubTimingLogArgs:
 # all times are in milliseconds...
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class VideoFrameLog:
     """Timing analysis row from the CSV file for a video frame."""
 
@@ -75,7 +75,7 @@ class VideoFrameLog:
     key: int
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class AudioFrameLog:
     """Timing analysis row from the CSV file for an audio frame."""
 
@@ -112,7 +112,7 @@ def parse_timing_log(log_file: Iterator[str]) -> tuple[list[VideoFrameLog], list
     return (video_frame_log, audio_frame_log)
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class VideoFrameAnalysis:
     """Analysis results for a video frame."""
 
@@ -177,7 +177,7 @@ def analyze_video_log(
     return log_analysis
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class AudioFrameAnalysis:
     """Analysis results for an audio frame."""
 

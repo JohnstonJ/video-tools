@@ -45,7 +45,7 @@ def parse_args() -> DVMergeArgs:
     return parser.parse_args(namespace=DVMergeArgs())
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class DVAnalyzerFrameAnalysis:
     """Contains frame analysis data from DV Analyzer."""
 
@@ -53,7 +53,7 @@ class DVAnalyzerFrameAnalysis:
     frame_number: int
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class DVAnalyzerFileAnalysis:
     """Contains file analysis data from DV Analyzer."""
 
@@ -111,7 +111,7 @@ def run_dvanalyzer(input_filenames: list[str]) -> dict[str, DVAnalyzerFileAnalys
     return parse_dvanalyzer(analysis_bytes)
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class DVRescueFrameAnalysis:
     """Contains frame analysis data from DV Rescue."""
 
@@ -120,7 +120,7 @@ class DVRescueFrameAnalysis:
     timecode_nonconsecutive: bool
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class DVRescueFileAnalysis:
     """Contains file analysis data from DV Rescue."""
 

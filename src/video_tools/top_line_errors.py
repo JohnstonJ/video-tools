@@ -168,7 +168,7 @@ def parse_args() -> TopLineErrorsArgs:
     return parser.parse_args(namespace=TopLineErrorsArgs())
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class FrameData:
     """Contains information about an analyzed frame."""
 

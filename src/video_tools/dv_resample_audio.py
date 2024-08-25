@@ -51,7 +51,7 @@ def parse_args() -> DVResampleAudioArgs:
     return parser.parse_args(namespace=DVResampleAudioArgs())
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class AudioStreamStats:
     """Contains information about a group of audio samples in a single audio stream."""
 
@@ -65,7 +65,7 @@ class AudioStreamStats:
     missing_frames: list[int]  # video frame numbers completely missing audio data
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class AudioStats:
     """Contains information about a group of audio samples and how they relate to video sync."""
 
