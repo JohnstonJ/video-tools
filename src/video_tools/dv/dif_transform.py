@@ -190,9 +190,9 @@ class WriteConstantCommand(Command):
                 return pack.SMPTEBinaryGroup.parse_text_value(
                     du.remove_field_prefix("sc_timecode_bg", column), value_str
                 )
-            case _ if du.field_has_prefix("sc_rec_date", column):
-                return pack.SubcodeRecordingDate.parse_text_value(
-                    du.remove_field_prefix("sc_rec_date", column), value_str
+            case _ if du.field_has_prefix("sc_vaux_rec_date", column):
+                return pack.VAUXRecordingDate.parse_text_value(
+                    du.remove_field_prefix("sc_vaux_rec_date", column), value_str
                 )
             case _ if du.field_has_prefix("sc_vaux_rec_time", column):
                 return pack.VAUXRecordingTime.parse_text_value(
@@ -229,10 +229,10 @@ class WriteConstantCommand(Command):
                 return pack.SMPTEBinaryGroup.to_text_value(
                     du.remove_field_prefix("sc_timecode_bg", self.column), value
                 )
-            case _ if du.field_has_prefix("sc_rec_date", self.column):
+            case _ if du.field_has_prefix("sc_vaux_rec_date", self.column):
                 assert isinstance(value, NamedTuple)
-                return pack.SubcodeRecordingDate.to_text_value(
-                    du.remove_field_prefix("sc_rec_date", self.column), value
+                return pack.VAUXRecordingDate.to_text_value(
+                    du.remove_field_prefix("sc_vaux_rec_date", self.column), value
                 )
             case _ if du.field_has_prefix("sc_vaux_rec_time", self.column):
                 assert isinstance(value, NamedTuple)
@@ -271,9 +271,9 @@ class WriteConstantCommand(Command):
                 return frame_data.subcode_smpte_binary_group.value_subset_for_text_field(
                     du.remove_field_prefix("sc_timecode_bg", self.column)
                 )
-            case _ if du.field_has_prefix("sc_rec_date", self.column):
-                return frame_data.subcode_recording_date.value_subset_for_text_field(
-                    du.remove_field_prefix("sc_rec_date", self.column)
+            case _ if du.field_has_prefix("sc_vaux_rec_date", self.column):
+                return frame_data.subcode_vaux_recording_date.value_subset_for_text_field(
+                    du.remove_field_prefix("sc_vaux_rec_date", self.column)
                 )
             case _ if du.field_has_prefix("sc_vaux_rec_time", self.column):
                 return frame_data.subcode_vaux_recording_time.value_subset_for_text_field(
@@ -340,12 +340,12 @@ class WriteConstantCommand(Command):
                         frame_data.subcode_smpte_binary_group, **value._asdict()
                     ),
                 )
-            case _ if du.field_has_prefix("sc_rec_date", self.column):
+            case _ if du.field_has_prefix("sc_vaux_rec_date", self.column):
                 assert isinstance(value, NamedTuple)
                 return replace(
                     frame_data,
-                    subcode_recording_date=replace(
-                        frame_data.subcode_recording_date, **value._asdict()
+                    subcode_vaux_recording_date=replace(
+                        frame_data.subcode_vaux_recording_date, **value._asdict()
                     ),
                 )
             case _ if du.field_has_prefix("sc_vaux_rec_time", self.column):

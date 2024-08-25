@@ -25,7 +25,7 @@ class PackType(IntEnum):
     SMPTE_BG = 0x14
 
     # IEC 61834-4:1998 9.3 Rec Date (Recording date) (VAUX)
-    RECORDING_DATE = 0x62
+    VAUX_RECORDING_DATE = 0x62
 
     # IEC 61834-4:1998 9.4 Rec Time (VAUX)
     VAUX_RECORDING_TIME = 0x63
@@ -548,130 +548,7 @@ class GenericTimecode(Pack):
         return replace(self, hour=h, minute=m, second=s, frame=f)
 
 
-# Title timecode
-# SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
-# IEC 61834-4:1998 4.4 Time Code (TITLE)
-# Also see SMPTE 12M
-@dataclass(frozen=True, kw_only=True)
-class TitleTimecode(GenericTimecode):
-    # IEC 61834-4:1998 defines this field instead of the other SMPTE fields
-    # when not recording TITLE BINARY pack.  In that scenario, the remaining
-    # fields from SMPTE that don't overlap are always set to the highest bit
-    # values possible, and the end-user should ensure that it is indeed the case.
-    blank_flag: BlankFlag | None = None  # overlaps with color_frame from above
-
-    _time_required = True
-    _frames_required = True
-
-    class BlankFlagFields(NamedTuple):
-        blank_flag: BlankFlag | None
-
-    text_fields: ClassVar[CSVFieldMap] = {
-        **GenericTimecode.text_fields,
-        "blank_flag": BlankFlagFields,
-    }
-
-    def valid(self, system: dv_file_info.DVSystem) -> bool:
-        if not super().valid(system):
-            return False
-
-        # These two fields physically overlap for different use cases.
-        assert self.blank_flag is not None and self.color_frame is not None
-        if int(self.blank_flag) != int(self.color_frame):
-            return False
-
-        return True
-
-    @classmethod
-    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
-        if text_field == "blank_flag":
-            return cls.BlankFlagFields(
-                blank_flag=BlankFlag[text_value] if text_value else None,
-            )
-        return super().parse_text_value(text_field, text_value)
-
-    @classmethod
-    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
-        if text_field == "blank_flag":
-            assert isinstance(value_subset, cls.BlankFlagFields)
-            return value_subset.blank_flag.name if value_subset.blank_flag is not None else ""
-        return super().to_text_value(text_field, value_subset)
-
-    pack_type = PackType.TITLE_TIME_CODE
-
-    @classmethod
-    def _do_parse_binary(
-        cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem
-    ) -> TitleTimecode | None:
-        # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
-        # IEC 61834-4:1998 4.4 Time Code (TITLE)
-        # Also see SMPTE 12M
-
-        # NOTE: CF bit is also BF bit in IEC 61834-4 if not
-        # recording TITLE BINARY pack.
-        bf = (ssyb_bytes[1] & 0x80) >> 7
-        return cast(
-            TitleTimecode,
-            cls._do_parse_binary_generic_tc(
-                ssyb_bytes,
-                system,
-                blank_flag=BlankFlag.CONTINUOUS if bf == 1 else BlankFlag.DISCONTINUOUS,
-            ),
-        )
-
-
-# SMPTE binary group
-# SMPTE 306M-2002 Section 9.2.2 Binary group pack (BG)
-# IEC 61834-4:1998 4.5 Binary Group
-# Also see SMPTE 12M
-@dataclass(frozen=True, kw_only=True)
-class SMPTEBinaryGroup(Pack):
-    # this will always be 4 bytes
-    value: bytes | None = None
-
-    class MainFields(NamedTuple):
-        value: bytes | None  # Formats as 8 hex digits
-
-    text_fields: ClassVar[CSVFieldMap] = {None: MainFields}
-
-    def valid(self, system: dv_file_info.DVSystem) -> bool:
-        return self.value is not None and len(self.value) == 4
-
-    @classmethod
-    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
-        assert text_field is None
-        return cls.MainFields(
-            value=bytes.fromhex(text_value.removeprefix("0x")) if text_value else None
-        )
-
-    @classmethod
-    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
-        assert text_field is None
-        assert isinstance(value_subset, cls.MainFields)
-        return du.hex_bytes(value_subset.value) if value_subset.value is not None else ""
-
-    pack_type = PackType.SMPTE_BG
-
-    @classmethod
-    def _do_parse_binary(
-        cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem
-    ) -> SMPTEBinaryGroup | None:
-        return SMPTEBinaryGroup(value=bytes(ssyb_bytes[1:]))
-
-    def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
-        assert self.value is not None  # assertion repeated from valid() to keep mypy happy
-        return bytes(
-            [
-                self.pack_type,
-                self.value[0],
-                self.value[1],
-                self.value[2],
-                self.value[3],
-            ]
-        )
-
-
-recording_date_pattern = re.compile(r"^(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})$")
+generic_date_pattern = re.compile(r"^(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})$")
 time_zone_pattern = re.compile(r"^(?P<hour>\d{2}):(?P<minute>\d{2})$")
 
 
@@ -690,10 +567,11 @@ class DaylightSavingTime(IntEnum):
     NORMAL = 0x1
 
 
-# Recording date from subcode pack
-# IEC 61834-4:1998 9.3 Rec Date (Recording date) (VAUX)
+# Generic date base class: several pack types share the same common date fields.  This class
+# abstracts these details.
+# See the derived classes for references to the standards.
 @dataclass(frozen=True, kw_only=True)
-class SubcodeRecordingDate(Pack):
+class GenericDate(Pack):
     # The year field is a regular 4-digit field for ease of use.
     # However, the subcode only encodes a 2-digit year; we use 75 as the Y2K rollover threshold:
     # https://github.com/MediaArea/MediaInfoLib/blob/abdbb218b07f6cc0d4504c863ac5b42ecfab6fc6/Source/MediaInfo/Multiple/File_DvDif_Analysis.cpp#L1225
@@ -784,7 +662,7 @@ class SubcodeRecordingDate(Pack):
             case None:
                 match = None
                 if text_value:
-                    match = recording_date_pattern.match(text_value)
+                    match = generic_date_pattern.match(text_value)
                     if not match:
                         raise ValueError(f"Parsing error while reading date {text_value}.")
                 return cls.MainFields(
@@ -853,13 +731,14 @@ class SubcodeRecordingDate(Pack):
             case _:
                 raise ValueError(f"{text_field} is not a valid field name.")
 
-    pack_type = PackType.RECORDING_DATE
-
     @classmethod
     def _do_parse_binary(
         cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem
-    ) -> SubcodeRecordingDate | None:
-        # The pack can be present, but all fields absent when the recording date is unknown.
+    ) -> GenericDate | None:
+        # Good starting points to look at:
+        # IEC 61834-4:1998 9.3 Rec Date (Recording date) (VAUX)
+
+        # The pack can be present, but all fields absent when the date is unknown.
 
         # Unpack fields from bytes and validate them.  Validation failures are
         # common due to tape dropouts.
@@ -936,6 +815,8 @@ class SubcodeRecordingDate(Pack):
         )
 
     def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
+        # Good starting points to look at:
+        # IEC 61834-4:1998 9.3 Rec Date (Recording date) (VAUX)
         assert self.reserved is not None  # assertion repeated from valid() to keep mypy happy
         short_year = self.year % 100 if self.year is not None else None
         ssyb_bytes = [
@@ -968,6 +849,137 @@ class SubcodeRecordingDate(Pack):
             ),
         ]
         return bytes(ssyb_bytes)
+
+
+# Title timecode
+# SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
+# IEC 61834-4:1998 4.4 Time Code (TITLE)
+# Also see SMPTE 12M
+@dataclass(frozen=True, kw_only=True)
+class TitleTimecode(GenericTimecode):
+    # IEC 61834-4:1998 defines this field instead of the other SMPTE fields
+    # when not recording TITLE BINARY pack.  In that scenario, the remaining
+    # fields from SMPTE that don't overlap are always set to the highest bit
+    # values possible, and the end-user should ensure that it is indeed the case.
+    blank_flag: BlankFlag | None = None  # overlaps with color_frame from above
+
+    _time_required = True
+    _frames_required = True
+
+    class BlankFlagFields(NamedTuple):
+        blank_flag: BlankFlag | None
+
+    text_fields: ClassVar[CSVFieldMap] = {
+        **GenericTimecode.text_fields,
+        "blank_flag": BlankFlagFields,
+    }
+
+    def valid(self, system: dv_file_info.DVSystem) -> bool:
+        if not super().valid(system):
+            return False
+
+        # These two fields physically overlap for different use cases.
+        assert self.blank_flag is not None and self.color_frame is not None
+        if int(self.blank_flag) != int(self.color_frame):
+            return False
+
+        return True
+
+    @classmethod
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
+        if text_field == "blank_flag":
+            return cls.BlankFlagFields(
+                blank_flag=BlankFlag[text_value] if text_value else None,
+            )
+        return super().parse_text_value(text_field, text_value)
+
+    @classmethod
+    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+        if text_field == "blank_flag":
+            assert isinstance(value_subset, cls.BlankFlagFields)
+            return value_subset.blank_flag.name if value_subset.blank_flag is not None else ""
+        return super().to_text_value(text_field, value_subset)
+
+    pack_type = PackType.TITLE_TIME_CODE
+
+    @classmethod
+    def _do_parse_binary(
+        cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem
+    ) -> TitleTimecode | None:
+        # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
+        # IEC 61834-4:1998 4.4 Time Code (TITLE)
+        # Also see SMPTE 12M
+
+        # NOTE: CF bit is also BF bit in IEC 61834-4 if not
+        # recording TITLE BINARY pack.
+        bf = (ssyb_bytes[1] & 0x80) >> 7
+        return cast(
+            TitleTimecode,
+            cls._do_parse_binary_generic_tc(
+                ssyb_bytes,
+                system,
+                blank_flag=BlankFlag.CONTINUOUS if bf == 1 else BlankFlag.DISCONTINUOUS,
+            ),
+        )
+
+
+# SMPTE binary group
+# SMPTE 306M-2002 Section 9.2.2 Binary group pack (BG)
+# IEC 61834-4:1998 4.5 Binary Group
+# Also see SMPTE 12M
+@dataclass(frozen=True, kw_only=True)
+# TODO rename the class to better match the purpose
+class SMPTEBinaryGroup(Pack):
+    # this will always be 4 bytes
+    value: bytes | None = None
+
+    class MainFields(NamedTuple):
+        value: bytes | None  # Formats as 8 hex digits
+
+    text_fields: ClassVar[CSVFieldMap] = {None: MainFields}
+
+    def valid(self, system: dv_file_info.DVSystem) -> bool:
+        return self.value is not None and len(self.value) == 4
+
+    @classmethod
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
+        assert text_field is None
+        return cls.MainFields(
+            value=bytes.fromhex(text_value.removeprefix("0x")) if text_value else None
+        )
+
+    @classmethod
+    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+        assert text_field is None
+        assert isinstance(value_subset, cls.MainFields)
+        return du.hex_bytes(value_subset.value) if value_subset.value is not None else ""
+
+    pack_type = PackType.SMPTE_BG
+
+    @classmethod
+    def _do_parse_binary(
+        cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem
+    ) -> SMPTEBinaryGroup | None:
+        return SMPTEBinaryGroup(value=bytes(ssyb_bytes[1:]))
+
+    def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
+        assert self.value is not None  # assertion repeated from valid() to keep mypy happy
+        return bytes(
+            [
+                self.pack_type,
+                self.value[0],
+                self.value[1],
+                self.value[2],
+                self.value[3],
+            ]
+        )
+
+
+# VAUX recording date
+# IEC 61834-4:1998 9.3 Rec Date (Recording date) (VAUX)
+@dataclass(frozen=True, kw_only=True)
+class VAUXRecordingDate(GenericDate):
+    pack_type = PackType.VAUX_RECORDING_DATE
 
 
 # VAUX recording time

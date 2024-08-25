@@ -72,7 +72,7 @@ class FrameData:
     subcode_pack_types: list[list[list[int | None]]]
     subcode_title_timecode: pack.TitleTimecode
     subcode_smpte_binary_group: pack.SMPTEBinaryGroup
-    subcode_recording_date: pack.SubcodeRecordingDate
+    subcode_vaux_recording_date: pack.VAUXRecordingDate
     subcode_vaux_recording_time: pack.VAUXRecordingTime
 
     @property

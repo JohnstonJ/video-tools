@@ -31,7 +31,7 @@ def write_frame_data_csv(output_file: TextIO, all_frame_data: list[dif.FrameData
         ],
         *du.add_field_prefix("sc_title_timecode", pack.TitleTimecode.text_fields).keys(),
         *du.add_field_prefix("sc_timecode_bg", pack.SMPTEBinaryGroup.text_fields).keys(),
-        *du.add_field_prefix("sc_rec_date", pack.SubcodeRecordingDate.text_fields).keys(),
+        *du.add_field_prefix("sc_vaux_rec_date", pack.VAUXRecordingDate.text_fields).keys(),
         *du.add_field_prefix("sc_vaux_rec_time", pack.VAUXRecordingTime.text_fields).keys(),
     ]
     writer = csv.DictWriter(output_file, fieldnames=fieldnames)
@@ -58,7 +58,7 @@ def write_frame_data_csv(output_file: TextIO, all_frame_data: list[dif.FrameData
                 "sc_timecode_bg", frame_data.subcode_smpte_binary_group.to_text_values()
             ),
             **du.add_field_prefix(
-                "sc_rec_date", frame_data.subcode_recording_date.to_text_values()
+                "sc_vaux_rec_date", frame_data.subcode_vaux_recording_date.to_text_values()
             ),
             **du.add_field_prefix(
                 "sc_vaux_rec_time", frame_data.subcode_vaux_recording_time.to_text_values()
@@ -133,10 +133,10 @@ def read_frame_data_csv(input_file: Iterator[str]) -> list[dif.FrameData]:
                     du.select_field_prefix("sc_timecode_bg", row)
                 ),
             ),
-            subcode_recording_date=cast(
-                pack.SubcodeRecordingDate,
-                pack.SubcodeRecordingDate.parse_text_values(
-                    du.select_field_prefix("sc_rec_date", row)
+            subcode_vaux_recording_date=cast(
+                pack.VAUXRecordingDate,
+                pack.VAUXRecordingDate.parse_text_values(
+                    du.select_field_prefix("sc_vaux_rec_date", row)
                 ),
             ),
             subcode_vaux_recording_time=cast(
