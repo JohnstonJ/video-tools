@@ -22,7 +22,7 @@ class PackValidationError(ValueError):
 class PackType(IntEnum):
     # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
     # IEC 61834-4:1998 4.4 Time Code (TITLE)
-    TITLE_TIME_CODE = 0x13
+    TITLE_TIMECODE = 0x13
 
     # SMPTE 306M-2002 Section 9.2.2 Binary group pack (BG)
     # IEC 61834-4:1998 4.5 Binary Group
@@ -996,7 +996,7 @@ class TitleTimecode(GenericTimecode):
             return value_subset.blank_flag.name if value_subset.blank_flag is not None else ""
         return super().to_text_value(text_field, value_subset)
 
-    pack_type = PackType.TITLE_TIME_CODE
+    pack_type = PackType.TITLE_TIMECODE
 
     @classmethod
     def _do_parse_binary(

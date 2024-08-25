@@ -133,7 +133,7 @@ def read_frame_data(frame_bytes: bytearray, file_info: DVFileInfo) -> dif.FrameD
             for ssyb_num in range(12):
                 subcode_pack_type = ssyb_bytes[ssyb_num][3]
                 subcode_pack_types[channel][sequence][ssyb_num] = subcode_pack_type
-                if subcode_pack_type == pack.PackType.TITLE_TIME_CODE:
+                if subcode_pack_type == pack.PackType.TITLE_TIMECODE:
                     subcode_title_timecode = cast(
                         pack.TitleTimecode,
                         pack.TitleTimecode.parse_binary(
@@ -332,7 +332,7 @@ def write_frame_data(
                 if desired_pack_type is None:
                     # User doesn't want to further modify the subcode pack.
                     continue
-                elif desired_pack_type == pack.PackType.TITLE_TIME_CODE:
+                elif desired_pack_type == pack.PackType.TITLE_TIMECODE:
                     new_pack = frame_data.subcode_title_timecode.to_binary(frame_data.system)
                 elif desired_pack_type == pack.PackType.TITLE_BINARY_GROUP:
                     new_pack = frame_data.subcode_title_binary_group.to_binary(frame_data.system)
