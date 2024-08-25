@@ -58,11 +58,14 @@ CSVFieldMap = dict[str | None, type[NamedTuple]]
 @dataclass(frozen=True, kw_only=True)
 class Pack(ABC):
     @abstractmethod
-    def valid(self, system: dv_file_info.DVSystem) -> bool:
+    def validate(self, system: dv_file_info.DVSystem) -> str | None:
         """Indicate whether the contents of the pack are fully valid.
 
         A fully valid pack can be safely written to a binary DV file.  When reading a binary
         DV file, this function is used to throw out corrupted packs.
+
+        The return value contains a description of the validation failure.  If the pack passes
+        validation, then None is returned.
         """
         pass
 
@@ -140,8 +143,8 @@ class Pack(ABC):
         """The derived class should parse the bytes into a new Pack object.
 
         It does not need to assert the length of ssyb_bytes or assert that the pack type is indeed
-        correct.  It also does not need to call pack.valid() and return None if it's invalid.  The
-        main parse_binary function does those common tasks for you.
+        correct.  It also does not need to call pack.validate() and return None if it's invalid.
+        The main parse_binary function does those common tasks for you.
         """
 
     @classmethod
@@ -153,7 +156,7 @@ class Pack(ABC):
         assert len(ssyb_bytes) == 5
         assert ssyb_bytes[0] == cls.pack_type
         pack = cls._do_parse_binary(ssyb_bytes, system)
-        return pack if pack is not None and pack.valid(system) else None
+        return pack if pack is not None and pack.validate(system) is None else None
 
     @abstractmethod
     def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
@@ -162,7 +165,7 @@ class Pack(ABC):
 
     def to_binary(self, system: dv_file_info.DVSystem) -> bytes:
         """Convert this pack to the 5 byte binary format."""
-        assert self.valid(system)
+        assert self.validate(system) is None
         b = self._do_to_binary(system)
         assert len(b) == 5
         assert b[0] == self.pack_type
@@ -243,21 +246,21 @@ class GenericTimecode(Pack):
         "binary_group_flags": BinaryGroupFlagsFields,
     }
 
-    def valid(self, system: dv_file_info.DVSystem) -> bool:
+    def validate(self, system: dv_file_info.DVSystem) -> str | None:
         # Main time part must be fully present or fully absent
         time_present = self.hour is not None and self.minute is not None and self.second is not None
         time_absent = self.hour is None and self.minute is None and self.second is None
         if (time_present and time_absent) or (not time_present and not time_absent):
-            return False
+            return "All main time fields must be fully present or fully absent."
         # Don't allow specifying frames if there's no other time
         if self.frame is not None and time_absent:
-            return False
+            return "Frame numbers cannot be given if the rest of the time is missing."
 
         # Apply additional requirements based on the derived class
         if self._time_required and time_absent:
-            return False
+            return "A time value is required but was not given."
         if time_present and self._frames_required and self.frame is None:
-            return False
+            return "A frame number must be given with the time value."
 
         # The remaining bits should always be here... physically, the bits are holding _something_
         if (
@@ -266,7 +269,7 @@ class GenericTimecode(Pack):
             or self.polarity_correction is None
             or self.binary_group_flags is None
         ):
-            return False
+            return "All auxiliary SMPTE timecode fields must be provided."
 
         # Check ranges of values
         if time_present:
@@ -275,29 +278,29 @@ class GenericTimecode(Pack):
                 assert self.hour is not None and self.minute is not None and self.second is not None
                 datetime.time(hour=self.hour, minute=self.minute, second=self.second)
             except ValueError:
-                return False
+                return "The time field has an invalid range."
 
         if self.frame is not None:
             if self.frame < 0:
-                return False
+                return "A negative frame number was provided."
             if system == dv_file_info.DVSystem.SYS_525_60 and self.frame >= 30:
-                return False
+                return "The frame number is too high for the given NTSC frame rate."
             if system == dv_file_info.DVSystem.SYS_625_50 and self.frame >= 25:
-                return False
+                return "The frame number is too high for the given PAL/SECAM frame rate."
             if self.drop_frame and system == dv_file_info.DVSystem.SYS_625_50:
                 # drop_frame only applies to NTSC.  But if the frame number is absent completely,
                 # we'll skip this verification, since some packs might simply be leaving the bits
                 # unconditionally set (who knows? I need to see more test data).
-                return False
+                return "The drop frame flag was set, but this does not make sense for PAL/SECAM."
             assert self.minute is not None and self.second is not None
             if self.drop_frame and self.minute % 10 > 0 and self.second == 0 and self.frame < 2:
                 # should have dropped the frame
-                return False
+                return "The drop frame flag was set, but a dropped frame number was provided."
 
         if self.binary_group_flags < 0 or self.binary_group_flags > 0x7:
-            return False
+            return "Binary group flags are out of range."
 
-        return True
+        return None
 
     @classmethod
     def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
@@ -473,7 +476,7 @@ class GenericTimecode(Pack):
         # IEC 61834-4:1998 4.4 Time Code (TITLE)
         # IEC 61834-4:1998 9.4 Rec Time (VAUX)
         # Also see SMPTE 12M
-        assert (  # assertion repeated from valid() to keep mypy happy
+        assert (  # assertion repeated from validate() to keep mypy happy
             self.drop_frame is not None
             and self.color_frame is not None
             and self.polarity_correction is not None
@@ -574,8 +577,15 @@ class GenericBinaryGroup(Pack):
 
     text_fields: ClassVar[CSVFieldMap] = {None: MainFields}
 
-    def valid(self, system: dv_file_info.DVSystem) -> bool:
-        return self.value is not None and len(self.value) == 4
+    def validate(self, system: dv_file_info.DVSystem) -> str | None:
+        if self.value is None:
+            return "A binary group value was not provided."
+        if len(self.value) != 4:
+            return (
+                "The binary group has the wrong length: expected 4 bytes "
+                f"but got {len(self.value)}."
+            )
+        return None
 
     @classmethod
     def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
@@ -597,7 +607,7 @@ class GenericBinaryGroup(Pack):
         return cls(value=bytes(ssyb_bytes[1:]))
 
     def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
-        assert self.value is not None  # assertion repeated from valid() to keep mypy happy
+        assert self.value is not None  # assertion repeated from validate() to keep mypy happy
         return bytes(
             [
                 self.pack_type,
@@ -675,15 +685,15 @@ class GenericDate(Pack):
         "reserved": ReservedFields,
     }
 
-    def valid(self, system: dv_file_info.DVSystem) -> bool:
+    def validate(self, system: dv_file_info.DVSystem) -> str | None:
         # Date must be fully present or fully absent
         date_present = self.year is not None and self.month is not None and self.day is not None
         date_absent = self.year is None and self.month is None and self.day is None
         if (date_present and date_absent) or (not date_present and not date_absent):
-            return False
+            return "All main date fields must be fully present or fully absent."
         # No week if the date is absent
         if date_absent and self.week is not None:
-            return False
+            return "A weekday must not be provided if the date is otherwise absent."
 
         if date_present:
             # Assertion is to keep mypy happy at this point
@@ -691,9 +701,9 @@ class GenericDate(Pack):
             try:
                 datetime.date(year=self.year, month=self.month, day=self.day)
             except ValueError:
-                return False
+                return "The date field has an invalid range."
             if self.year >= 2075 or self.year < 1975:
-                return False
+                return "The year is too far into the future or the past."
 
         # Time zone offset parts must be fully present or fully absent.
         tz_present = (
@@ -707,15 +717,19 @@ class GenericDate(Pack):
             and self.daylight_saving_time is None
         )
         if (tz_present and tz_absent) or (not tz_present and not tz_absent):
-            return False
+            return "All main time zone fields must be fully present or fully absent."
 
-        if self.time_zone_hours is not None and self.time_zone_hours >= 24:
-            return False
+        if self.time_zone_hours is not None and (
+            self.time_zone_hours < 0 or self.time_zone_hours >= 24
+        ):
+            return "Time zone hours are out of range."
 
         if self.reserved is None:
-            return False
+            return "Reserved bits are required.  They should be 0x3 per the standard."
+        if self.reserved < 0 or self.reserved > 0x3:
+            return "Reserved bits are out of range."
 
-        return True
+        return None
 
     @classmethod
     def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
@@ -878,7 +892,7 @@ class GenericDate(Pack):
     def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
         # Good starting points to look at:
         # IEC 61834-4:1998 9.3 Rec Date (Recording date) (VAUX)
-        assert self.reserved is not None  # assertion repeated from valid() to keep mypy happy
+        assert self.reserved is not None  # assertion repeated from validate() to keep mypy happy
         short_year = self.year % 100 if self.year is not None else None
         ssyb_bytes = [
             self.pack_type,
@@ -935,16 +949,21 @@ class TitleTimecode(GenericTimecode):
         "blank_flag": BlankFlagFields,
     }
 
-    def valid(self, system: dv_file_info.DVSystem) -> bool:
-        if not super().valid(system):
-            return False
+    def validate(self, system: dv_file_info.DVSystem) -> str | None:
+        base_validate = super().validate(system)
+        if base_validate is not None:
+            return base_validate
 
         # These two fields physically overlap for different use cases.
         assert self.blank_flag is not None and self.color_frame is not None
         if int(self.blank_flag) != int(self.color_frame):
-            return False
+            return (
+                f"Blank flag integer value of {int(self.blank_flag)} must be equal to the color "
+                f"frame flag integer value of {int(self.color_frame)}, because they occupy the "
+                "same physical bit positions on the tape.  Change one value to match the other."
+            )
 
-        return True
+        return None
 
     @classmethod
     def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
@@ -1050,8 +1069,8 @@ class VAUXBinaryGroup(GenericBinaryGroup):
 class NoInfo(Pack):
     text_fields: ClassVar[CSVFieldMap] = {}
 
-    def valid(self, system: dv_file_info.DVSystem) -> bool:
-        return True
+    def validate(self, system: dv_file_info.DVSystem) -> str | None:
+        return None
 
     @classmethod
     def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
