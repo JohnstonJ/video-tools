@@ -5,6 +5,7 @@ from typing import Iterator, TextIO, cast
 
 import video_tools.dv.data_util as du
 import video_tools.dv.dif as dif
+import video_tools.dv.dif_pack as pack
 
 
 def write_frame_data_csv(output_file: TextIO, all_frame_data: list[dif.FrameData]) -> None:
@@ -28,10 +29,10 @@ def write_frame_data_csv(output_file: TextIO, all_frame_data: list[dif.FrameData
             for channel in range(len(all_frame_data[0].subcode_pack_types))
             for dif_sequence in range(len(all_frame_data[0].subcode_pack_types[channel]))
         ],
-        *du.add_field_prefix("sc_timecode", dif.SMPTETimecode.text_fields).keys(),
-        *du.add_field_prefix("sc_timecode_bg", dif.SMPTEBinaryGroup.text_fields).keys(),
-        *du.add_field_prefix("sc_rec_date", dif.SubcodeRecordingDate.text_fields).keys(),
-        *du.add_field_prefix("sc_rec_time", dif.SubcodeRecordingTime.text_fields).keys(),
+        *du.add_field_prefix("sc_timecode", pack.SMPTETimecode.text_fields).keys(),
+        *du.add_field_prefix("sc_timecode_bg", pack.SMPTEBinaryGroup.text_fields).keys(),
+        *du.add_field_prefix("sc_rec_date", pack.SubcodeRecordingDate.text_fields).keys(),
+        *du.add_field_prefix("sc_rec_time", pack.SubcodeRecordingTime.text_fields).keys(),
     ]
     writer = csv.DictWriter(output_file, fieldnames=fieldnames)
     writer.writeheader()
@@ -119,26 +120,26 @@ def read_frame_data_csv(input_file: Iterator[str]) -> list[dif.FrameData]:
             subcode_subcode_application_id=int(row["sc_subcode_application_id"], 0),
             subcode_pack_types=subcode_pack_types,
             subcode_smpte_timecode=cast(
-                dif.SMPTETimecode,
-                dif.SMPTETimecode.parse_text_values(
+                pack.SMPTETimecode,
+                pack.SMPTETimecode.parse_text_values(
                     du.select_field_prefix("sc_timecode", row, excluded_prefixes=["sc_timecode_bg"])
                 ),
             ),
             subcode_smpte_binary_group=cast(
-                dif.SMPTEBinaryGroup,
-                dif.SMPTEBinaryGroup.parse_text_values(
+                pack.SMPTEBinaryGroup,
+                pack.SMPTEBinaryGroup.parse_text_values(
                     du.select_field_prefix("sc_timecode_bg", row)
                 ),
             ),
             subcode_recording_date=cast(
-                dif.SubcodeRecordingDate,
-                dif.SubcodeRecordingDate.parse_text_values(
+                pack.SubcodeRecordingDate,
+                pack.SubcodeRecordingDate.parse_text_values(
                     du.select_field_prefix("sc_rec_date", row)
                 ),
             ),
             subcode_recording_time=cast(
-                dif.SubcodeRecordingTime,
-                dif.SubcodeRecordingTime.parse_text_values(
+                pack.SubcodeRecordingTime,
+                pack.SubcodeRecordingTime.parse_text_values(
                     du.select_field_prefix("sc_rec_time", row)
                 ),
             ),

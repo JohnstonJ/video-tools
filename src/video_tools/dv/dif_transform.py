@@ -12,6 +12,7 @@ import yaml
 
 import video_tools.dv.data_util as du
 import video_tools.dv.dif as dif
+import video_tools.dv.dif_pack as pack
 
 MOST_COMMON = "MOST_COMMON"
 
@@ -182,19 +183,19 @@ class WriteConstantCommand(Command):
             case _ if du.field_has_prefix(
                 "sc_timecode", column, excluded_prefixes=["sc_timecode_bg"]
             ):
-                return dif.SMPTETimecode.parse_text_value(
+                return pack.SMPTETimecode.parse_text_value(
                     du.remove_field_prefix("sc_timecode", column), value_str
                 )
             case _ if du.field_has_prefix("sc_timecode_bg", column):
-                return dif.SMPTEBinaryGroup.parse_text_value(
+                return pack.SMPTEBinaryGroup.parse_text_value(
                     du.remove_field_prefix("sc_timecode_bg", column), value_str
                 )
             case _ if du.field_has_prefix("sc_rec_date", column):
-                return dif.SubcodeRecordingDate.parse_text_value(
+                return pack.SubcodeRecordingDate.parse_text_value(
                     du.remove_field_prefix("sc_rec_date", column), value_str
                 )
             case _ if du.field_has_prefix("sc_rec_time", column):
-                return dif.SubcodeRecordingTime.parse_text_value(
+                return pack.SubcodeRecordingTime.parse_text_value(
                     du.remove_field_prefix("sc_rec_time", column), value_str
                 )
             case _:
@@ -220,22 +221,22 @@ class WriteConstantCommand(Command):
                 "sc_timecode", self.column, excluded_prefixes=["sc_timecode_bg"]
             ):
                 assert isinstance(value, NamedTuple)
-                return dif.SMPTETimecode.to_text_value(
+                return pack.SMPTETimecode.to_text_value(
                     du.remove_field_prefix("sc_timecode", self.column), value
                 )
             case _ if du.field_has_prefix("sc_timecode_bg", self.column):
                 assert isinstance(value, NamedTuple)
-                return dif.SMPTEBinaryGroup.to_text_value(
+                return pack.SMPTEBinaryGroup.to_text_value(
                     du.remove_field_prefix("sc_timecode_bg", self.column), value
                 )
             case _ if du.field_has_prefix("sc_rec_date", self.column):
                 assert isinstance(value, NamedTuple)
-                return dif.SubcodeRecordingDate.to_text_value(
+                return pack.SubcodeRecordingDate.to_text_value(
                     du.remove_field_prefix("sc_rec_date", self.column), value
                 )
             case _ if du.field_has_prefix("sc_rec_time", self.column):
                 assert isinstance(value, NamedTuple)
-                return dif.SubcodeRecordingDate.to_text_value(
+                return pack.SubcodeRecordingDate.to_text_value(
                     du.remove_field_prefix("sc_rec_time", self.column), value
                 )
             case _:
@@ -493,7 +494,7 @@ class RenumberSMPTETimecodes(Command):
     The initial value will be taken from the first frame if not specified.
     """
 
-    initial_value: dif.SMPTETimecode | None
+    initial_value: pack.SMPTETimecode | None
 
     def __str__(self) -> str:
         return (
@@ -632,8 +633,8 @@ def load_transformations(transformations_file: BinaryIO) -> Transformations:
                     type=command_dict["type"],
                     initial_value=(
                         cast(
-                            dif.SMPTETimecode,
-                            dif.SMPTETimecode.parse_text_values(
+                            pack.SMPTETimecode,
+                            pack.SMPTETimecode.parse_text_values(
                                 {None: command_dict.get("initial_value", "")}
                             ),
                         )
