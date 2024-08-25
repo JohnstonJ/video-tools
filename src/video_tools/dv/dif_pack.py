@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ctypes
 import datetime
 import re
 from abc import ABC, abstractmethod
@@ -382,6 +383,25 @@ class GenericTimecode(Pack):
             case _:
                 assert False
 
+    class _BinaryFields(ctypes.BigEndianStructure):
+        _pack_ = 1
+        _fields_: ClassVar = [
+            ("cf", ctypes.c_uint8, 1),
+            ("df", ctypes.c_uint8, 1),
+            ("frame_tens", ctypes.c_uint8, 2),
+            ("frame_units", ctypes.c_uint8, 4),
+            ("pc2_8", ctypes.c_uint8, 1),
+            ("second_tens", ctypes.c_uint8, 3),
+            ("second_units", ctypes.c_uint8, 4),
+            ("pc3_8", ctypes.c_uint8, 1),
+            ("minute_tens", ctypes.c_uint8, 3),
+            ("minute_units", ctypes.c_uint8, 4),
+            ("pc4_8", ctypes.c_uint8, 1),
+            ("bgf1", ctypes.c_uint8, 1),
+            ("hour_tens", ctypes.c_uint8, 2),
+            ("hour_units", ctypes.c_uint8, 4),
+        ]
+
     @classmethod
     def _do_parse_binary_generic_tc(
         cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem, **init_kwargs: Any
@@ -395,58 +415,57 @@ class GenericTimecode(Pack):
         # Unpack fields from bytes and validate them.  Validation failures are
         # common due to tape dropouts.
 
-        cf = (ssyb_bytes[1] & 0x80) >> 7
-        df = (ssyb_bytes[1] & 0x40) >> 6
+        bin = cls._BinaryFields.from_buffer_copy(ssyb_bytes, 1)
+
         frame_tens = None
         frame_units = None
-        if ssyb_bytes[1] & 0x3F != 0x3F:
-            frame_tens = (ssyb_bytes[1] & 0x30) >> 4
+        if bin.frame_tens != 0x3 or bin.frame_units != 0xF:
+            frame_tens = bin.frame_tens
             if frame_tens > 2:
                 return None
-            frame_units = ssyb_bytes[1] & 0x0F
+            frame_units = bin.frame_units
             if frame_units > 9:
                 return None
 
         if system == dv_file_info.DVSystem.SYS_525_60:
-            pc = (ssyb_bytes[2] & 0x80) >> 7
+            pc = bin.pc2_8
         elif system == dv_file_info.DVSystem.SYS_625_50:
-            bgf0 = (ssyb_bytes[2] & 0x80) >> 7
+            bgf0 = bin.pc2_8
         second_tens = None
         second_units = None
-        if ssyb_bytes[2] & 0x7F != 0x7F:
-            second_tens = (ssyb_bytes[2] & 0x70) >> 4
+        if bin.second_tens != 0x7 or bin.second_units != 0xF:
+            second_tens = bin.second_tens
             if second_tens > 5:
                 return None
-            second_units = ssyb_bytes[2] & 0x0F
+            second_units = bin.second_units
             if second_units > 9:
                 return None
 
         if system == dv_file_info.DVSystem.SYS_525_60:
-            bgf0 = (ssyb_bytes[3] & 0x80) >> 7
+            bgf0 = bin.pc3_8
         elif system == dv_file_info.DVSystem.SYS_625_50:
-            bgf2 = (ssyb_bytes[3] & 0x80) >> 7
+            bgf2 = bin.pc3_8
         minute_tens = None
         minute_units = None
-        if ssyb_bytes[3] & 0x7F != 0x7F:
-            minute_tens = (ssyb_bytes[3] & 0x70) >> 4
+        if bin.minute_tens != 0x7 or bin.minute_units != 0xF:
+            minute_tens = bin.minute_tens
             if minute_tens > 5:
                 return None
-            minute_units = ssyb_bytes[3] & 0x0F
+            minute_units = bin.minute_units
             if minute_units > 9:
                 return None
 
         if system == dv_file_info.DVSystem.SYS_525_60:
-            bgf2 = (ssyb_bytes[4] & 0x80) >> 7
+            bgf2 = bin.pc4_8
         elif system == dv_file_info.DVSystem.SYS_625_50:
-            pc = (ssyb_bytes[4] & 0x80) >> 7
-        bgf1 = (ssyb_bytes[4] & 0x40) >> 6
+            pc = bin.pc4_8
         hour_tens = None
         hour_units = None
-        if ssyb_bytes[4] & 0x3F != 0x3F:
-            hour_tens = (ssyb_bytes[4] & 0x30) >> 4
+        if bin.hour_tens != 0x3 or bin.hour_units != 0xF:
+            hour_tens = bin.hour_tens
             if hour_tens > 2:
                 return None
-            hour_units = ssyb_bytes[4] & 0x0F
+            hour_units = bin.hour_units
             if hour_units > 9:
                 return None
 
@@ -471,10 +490,10 @@ class GenericTimecode(Pack):
                 if frame_tens is not None and frame_units is not None
                 else None
             ),
-            drop_frame=df == 1,
-            color_frame=(ColorFrame.SYNCHRONIZED if cf == 1 else ColorFrame.UNSYNCHRONIZED),
+            drop_frame=bin.df == 1,
+            color_frame=(ColorFrame.SYNCHRONIZED if bin.cf == 1 else ColorFrame.UNSYNCHRONIZED),
             polarity_correction=(PolarityCorrection.ODD if pc == 1 else PolarityCorrection.EVEN),
-            binary_group_flags=(bgf2 << 2) | (bgf1 << 1) | bgf0,
+            binary_group_flags=(bgf2 << 2) | (bin.bgf1 << 1) | bgf0,
             **init_kwargs,
         )
 
@@ -496,42 +515,27 @@ class GenericTimecode(Pack):
             and self.polarity_correction is not None
             and self.binary_group_flags is not None
         )
-        ssyb_bytes = [
-            self.pack_type,
-            (
-                (int(self.color_frame) << 7)
-                | (0x40 if self.drop_frame else 0x00)
-                | (
-                    (int(self.frame / 10) << 4) | int(self.frame % 10)
-                    if self.frame is not None
-                    else 0x3F
-                )
-            ),
-            (
-                (int(self.second / 10) << 4) | int(self.second % 10)
-                if self.second is not None
-                else 0x7F
-            ),
-            (
-                (int(self.minute / 10) << 4) | int(self.minute % 10)
-                if self.minute is not None
-                else 0x7F
-            ),
-            ((int(self.hour / 10) << 4) | int(self.hour % 10) if self.hour is not None else 0x3F),
-        ]
         pc = int(self.polarity_correction)
         bgf0 = self.binary_group_flags & 0x01
         bgf1 = (self.binary_group_flags & 0x02) >> 1
         bgf2 = (self.binary_group_flags & 0x04) >> 2
-        if system == dv_file_info.DVSystem.SYS_525_60:
-            ssyb_bytes[2] |= pc << 7
-            ssyb_bytes[3] |= bgf0 << 7
-            ssyb_bytes[4] |= (bgf2 << 7) | (bgf1 << 6)
-        elif system == dv_file_info.DVSystem.SYS_625_50:
-            ssyb_bytes[2] |= bgf0 << 7
-            ssyb_bytes[3] |= bgf2 << 7
-            ssyb_bytes[4] |= (pc << 7) | (bgf1 << 6)
-        return bytes(ssyb_bytes)
+        struct = self._BinaryFields(
+            cf=self.color_frame,
+            df=self.drop_frame,
+            frame_tens=int(self.frame / 10) if self.frame is not None else 0x3,
+            frame_units=self.frame % 10 if self.frame is not None else 0xF,
+            pc2_8=pc if system == dv_file_info.DVSystem.SYS_525_60 else bgf0,
+            second_tens=int(self.second / 10) if self.second is not None else 0x7,
+            second_units=self.second % 10 if self.second is not None else 0xF,
+            pc3_8=bgf0 if system == dv_file_info.DVSystem.SYS_525_60 else bgf2,
+            minute_tens=int(self.minute / 10) if self.minute is not None else 0x7,
+            minute_units=self.minute % 10 if self.minute is not None else 0xF,
+            pc4_8=bgf2 if system == dv_file_info.DVSystem.SYS_525_60 else pc,
+            bgf1=bgf1,
+            hour_tens=int(self.hour / 10) if self.hour is not None else 0x3,
+            hour_units=self.hour % 10 if self.hour is not None else 0xF,
+        )
+        return bytes([self.pack_type, *bytes(struct)])
 
     def increment_frame(self, system: dv_file_info.DVSystem) -> GenericTimecode:
         """Return a copy with frame incremented by 1."""
@@ -822,6 +826,23 @@ class GenericDate(Pack):
             case _:
                 assert False
 
+    class _BinaryFields(ctypes.BigEndianStructure):
+        _pack_ = 1
+        _fields_: ClassVar = [
+            ("ds", ctypes.c_uint8, 1),
+            ("tm", ctypes.c_uint8, 1),
+            ("tz_tens", ctypes.c_uint8, 2),
+            ("tz_units", ctypes.c_uint8, 4),
+            ("reserved", ctypes.c_uint8, 2),
+            ("day_tens", ctypes.c_uint8, 2),
+            ("day_units", ctypes.c_uint8, 4),
+            ("week", ctypes.c_uint8, 3),
+            ("month_tens", ctypes.c_uint8, 1),
+            ("month_units", ctypes.c_uint8, 4),
+            ("year_tens", ctypes.c_uint8, 4),
+            ("year_units", ctypes.c_uint8, 4),
+        ]
+
     @classmethod
     def _do_parse_binary(
         cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem
@@ -833,45 +854,46 @@ class GenericDate(Pack):
 
         # Unpack fields from bytes and validate them.  Validation failures are
         # common due to tape dropouts.
+
+        bin = cls._BinaryFields.from_buffer_copy(ssyb_bytes, 1)
+
         ds = None
         tm = None
         tz_tens = None
         tz_units = None
         # Time zone fields are all present or all absent
-        if ssyb_bytes[1] & 0x3F != 0x3F:
-            ds = (ssyb_bytes[1] & 0x80) >> 7
-            tm = (ssyb_bytes[1] & 0x40) >> 6
-            tz_tens = (ssyb_bytes[1] & 0x30) >> 4
+        if bin.tz_tens != 0x3 or bin.tz_units != 0xF:
+            ds = bin.ds
+            tm = bin.tm
+            tz_tens = bin.tz_tens
             if tz_tens > 2:
                 return None
-            tz_units = ssyb_bytes[1] & 0x0F
+            tz_units = bin.tz_units
             if tz_units > 9:
                 return None
 
-        reserved = (ssyb_bytes[2] & 0xC0) >> 6
         day_tens = None
         day_units = None
-        if ssyb_bytes[2] & 0x3F != 0x3F:
-            day_tens = (ssyb_bytes[2] & 0x30) >> 4
-            day_units = ssyb_bytes[2] & 0x0F
+        if bin.day_tens != 0x3 or bin.day_units != 0xF:
+            day_tens = bin.day_tens
+            day_units = bin.day_units
             if day_units > 9:
                 return None
 
-        week = (ssyb_bytes[3] & 0xE0) >> 5 if ssyb_bytes[3] & 0xE0 != 0xE0 else None
         month_tens = None
         month_units = None
-        if ssyb_bytes[3] & 0x1F != 0x1F:
-            month_tens = (ssyb_bytes[3] & 0x10) >> 4
-            month_units = ssyb_bytes[3] & 0x0F
+        if bin.month_tens != 0x1 or bin.month_units != 0xF:
+            month_tens = bin.month_tens
+            month_units = bin.month_units
             if month_units > 9:
                 return None
 
         year = None
-        if ssyb_bytes[4] & 0xFF != 0xFF:
-            year_tens = (ssyb_bytes[4] & 0xF0) >> 4
+        if bin.year_tens != 0xF or bin.year_units != 0xF:
+            year_tens = bin.year_tens
             if year_tens > 9:
                 return None
-            year_units = ssyb_bytes[4] & 0x0F
+            year_units = bin.year_units
             if year_units > 9:
                 return None
             year = year_tens * 10 + year_units
@@ -889,7 +911,7 @@ class GenericDate(Pack):
                 if day_tens is not None and day_units is not None
                 else None
             ),
-            week=Week(week) if week is not None else None,
+            week=Week(bin.week) if bin.week != 0x7 else None,
             time_zone_hours=(
                 tz_tens * 10 + tz_units if tz_tens is not None and tz_units is not None else None
             ),
@@ -903,7 +925,7 @@ class GenericDate(Pack):
                 if tz_tens is not None and tz_units is not None
                 else None
             ),
-            reserved=reserved,
+            reserved=bin.reserved,
         )
 
     def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
@@ -911,36 +933,21 @@ class GenericDate(Pack):
         # IEC 61834-4:1998 9.3 Rec Date (Recording date) (VAUX)
         assert self.reserved is not None  # assertion repeated from validate() to keep mypy happy
         short_year = self.year % 100 if self.year is not None else None
-        ssyb_bytes = [
-            self.pack_type,
-            (
-                (0x01 << 7 if self.daylight_saving_time != DaylightSavingTime.DST else 0x00)
-                | (0x01 << 6 if not self.time_zone_30_minutes else 0x00)
-                | (
-                    (int(self.time_zone_hours / 10) << 4) | int(self.time_zone_hours % 10)
-                    if self.time_zone_hours is not None
-                    else 0x3F
-                )
-            ),
-            (
-                (self.reserved << 6)
-                | ((int(self.day / 10) << 4) | int(self.day % 10) if self.day is not None else 0x3F)
-            ),
-            (
-                (int(self.week) << 5 if self.week is not None else 0xE0)
-                | (
-                    (int(self.month / 10) << 4) | int(self.month % 10)
-                    if self.month is not None
-                    else 0x1F
-                )
-            ),
-            (
-                (int(short_year / 10) << 4) | int(short_year % 10)
-                if short_year is not None
-                else 0xFF
-            ),
-        ]
-        return bytes(ssyb_bytes)
+        struct = self._BinaryFields(
+            ds=0x1 if self.daylight_saving_time != DaylightSavingTime.DST else 0x0,
+            tm=0x1 if not self.time_zone_30_minutes else 0x00,
+            tz_tens=int(self.time_zone_hours / 10) if self.time_zone_hours is not None else 0x3,
+            tz_units=self.time_zone_hours % 10 if self.time_zone_hours is not None else 0xF,
+            reserved=self.reserved,
+            day_tens=int(self.day / 10) if self.day is not None else 0x3,
+            day_units=self.day % 10 if self.day is not None else 0xF,
+            week=int(self.week) if self.week is not None else 0x7,
+            month_tens=int(self.month / 10) if self.month is not None else 0x1,
+            month_units=self.month % 10 if self.month is not None else 0xF,
+            year_tens=int(short_year / 10) if short_year is not None else 0xF,
+            year_units=short_year % 10 if short_year is not None else 0xF,
+        )
+        return bytes([self.pack_type, *bytes(struct)])
 
 
 # Title timecode
