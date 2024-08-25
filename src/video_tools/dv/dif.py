@@ -5,10 +5,13 @@ from __future__ import annotations
 import datetime
 import itertools
 import re
+from abc import ABC, abstractmethod
 from collections import defaultdict
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from enum import IntEnum
+from typing import Any, ClassVar, NamedTuple, cast
 
+import video_tools.dv.data_util as du
 import video_tools.dv.file_info as dv_file_info
 
 
@@ -51,8 +54,9 @@ def calculate_dif_block_numbers() -> list[int]:
 DIF_BLOCK_NUMBER = calculate_dif_block_numbers()
 
 
-# Subcode pack types
-class SSYBPackType(IntEnum):
+# Pack types
+# IEC 61834-4:1998
+class PackType(IntEnum):
     # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
     # IEC 61834-4:1998 4.4 Time Code
     SMPTE_TC = 0x13
@@ -72,6 +76,123 @@ class SSYBPackType(IntEnum):
 # NOTE:  Pack fields are often ultimately all required to be valid, but we allow them to
 # be missing during intermediate transformations / in CSV files.  Validity checks are done
 # when serializing to/from pack binary blobs.
+
+
+CSVFieldMap = dict[str | None, type[NamedTuple]]
+
+
+@dataclass(frozen=True, kw_only=True)
+class Pack(ABC):
+    @abstractmethod
+    def valid(self, system: dv_file_info.DVSystem) -> bool:
+        """Indicate whether the contents of the pack are fully valid.
+
+        A fully valid pack can be safely written to a binary DV file.  When reading a binary
+        DV file, this function is used to throw out corrupted packs.
+        """
+        pass
+
+    # Abstract functions for converting subsets of pack values to/from strings suitable for use
+    # in a CSV file or other configuration files.  Pack value subsets are a NamedTuple whose
+    # field values must match the field values defined in the main dataclass.
+
+    # Dict of text field names used when saving the pack to a CSV file.
+    # The dictionary values are NamedTuple types for the subset of pack values that go into it.
+    #
+    # Special: if the text field name is None, then it's considered the default/main value for the
+    # pack.  This affects prefixes that are prepended to the final CSV field name:
+    #     field name of None --> sc_smpte_timecode
+    #     field name of 'blank_flag' --> sc_smpte_timecode_blank_flag
+    text_fields: ClassVar[CSVFieldMap]
+
+    @classmethod
+    @abstractmethod
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
+        """Parse the value for a CSV text field name into a tuple of dataclass field values.
+
+        The returned keys must match with keyword arguments in the initializer.
+        """
+        pass
+
+    @classmethod
+    @abstractmethod
+    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+        """Convert a subset of the pack field values to a single CSV text field value.
+
+        The value_subset is what is returned by value_subset_for_text_field."""
+        pass
+
+    def value_subset_for_text_field(self, text_field: str | None) -> NamedTuple:
+        """Returns a subset of dataclass field values that are used by the given text_field.
+
+        The returned keys must match with keyword arguments in the initializer."""
+        typ = self.text_fields[text_field]
+        full_dict = asdict(self)
+        subset_dict = {field_name: full_dict[field_name] for field_name in typ._fields}
+        # For some reason, I can't figure out how to get mypy to think I'm invoking the type
+        # initializer, rather than the NamedType builtin function itself...
+        return cast(NamedTuple, typ(**subset_dict))  # type: ignore[call-overload]
+
+    # Functions for converting all pack values to/from multiple CSV file fields.
+
+    @classmethod
+    def parse_text_values(cls, text_field_values: dict[str | None, str]) -> Pack:
+        """Create a new instance of the pack by parsing text values.
+
+        Any missing field values will be assumed to have a value of the empty string.
+        """
+        parsed_values: dict[str, Any] = {}
+        for text_field, text_value in text_field_values.items():
+            parsed_values |= cls.parse_text_value(text_field, text_value)._asdict()
+        return cls(**parsed_values)
+
+    def to_text_values(self) -> dict[str | None, str]:
+        """Convert the pack field values to text fields."""
+        result = {}
+        for text_field in self.text_fields.keys():
+            result[text_field] = self.to_text_value(
+                text_field, self.value_subset_for_text_field(text_field)
+            )
+        return result
+
+    # Functions for going to/from binary packs
+
+    # Binary byte value for the pack type header.
+    pack_type: ClassVar[PackType]
+
+    @classmethod
+    @abstractmethod
+    def _do_parse_binary(cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem) -> Pack | None:
+        """The derived class should parse the bytes into a new Pack object.
+
+        It does not need to assert the length of ssyb_bytes or assert that the pack type is indeed
+        correct.  It also does not need to call pack.valid() and return None if it's invalid.  The
+        main parse_binary function does those common tasks for you.
+        """
+
+    @classmethod
+    def parse_binary(cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem) -> Pack | None:
+        """Create a new instance of the pack by parsing a binary blob from a DV file.
+
+        The input byte array is expected to be 5 bytes: pack type byte followed by 4 data bytes.
+        """
+        assert len(ssyb_bytes) == 5
+        assert ssyb_bytes[0] == cls.pack_type
+        pack = cls._do_parse_binary(ssyb_bytes, system)
+        return pack if pack is not None and pack.valid(system) else None
+
+    @abstractmethod
+    def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
+        """Convert this pack to binary; the pack can be assumed to be valid."""
+        pass
+
+    def to_binary(self, system: dv_file_info.DVSystem) -> bytes:
+        """Convert this pack to the 5 byte binary format."""
+        assert self.valid(system)
+        b = self._do_to_binary(system)
+        assert len(b) == 5
+        assert b[0] == self.pack_type
+        return b
 
 
 # Color frame
@@ -106,7 +227,7 @@ smpte_time_pattern = re.compile(
 # IEC 61834-4:1998 4.4 Time Code
 # Also see SMPTE 12M
 @dataclass(frozen=True, kw_only=True)
-class SMPTETimecode:
+class SMPTETimecode(Pack):
     hour: int | None = None
     minute: int | None = None
     second: int | None = None
@@ -123,6 +244,33 @@ class SMPTETimecode:
     # fields from SMPTE that don't overlap are always set to the highest bit
     # values possible.
     blank_flag: BlankFlag | None = None  # overlaps with color_frame in SMPTE 306M
+
+    class MainFields(NamedTuple):
+        hour: int | None
+        minute: int | None
+        second: int | None
+        frame: int | None
+        drop_frame: int | None
+
+    class ColorFrameFields(NamedTuple):
+        color_frame: ColorFrame | None
+
+    class PolarityCorrectionFields(NamedTuple):
+        polarity_correction: PolarityCorrection | None
+
+    class BinaryGroupFlagsFields(NamedTuple):
+        binary_group_flags: int | None
+
+    class BlankFlagFields(NamedTuple):
+        blank_flag: BlankFlag | None
+
+    text_fields: ClassVar[CSVFieldMap] = {
+        None: MainFields,
+        "color_frame": ColorFrameFields,
+        "polarity_correction": PolarityCorrectionFields,
+        "binary_group_flags": BinaryGroupFlagsFields,
+        "blank_flag": BlankFlagFields,
+    }
 
     def valid(self, system: dv_file_info.DVSystem) -> bool:
         if (
@@ -157,54 +305,88 @@ class SMPTETimecode:
 
         return True
 
-    def format_time_str(self) -> str:
-        return (
-            (
-                f"{self.hour:02}:{self.minute:02}:{self.second:02};{self.frame:02}"
-                if self.drop_frame
-                else f"{self.hour:02}:{self.minute:02}:{self.second:02}:{self.frame:02}"
-            )
-            if self.hour is not None
-            else ""
-        )
+    @classmethod
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
+        match text_field:
+            case None:
+                match = None
+                if text_value:
+                    match = smpte_time_pattern.match(text_value)
+                    if not match:
+                        raise ValueError(f"Parsing error while reading timecode {text_value}.")
+                return cls.MainFields(
+                    hour=int(match.group("hour")) if match else None,
+                    minute=int(match.group("minute")) if match else None,
+                    second=int(match.group("second")) if match else None,
+                    frame=int(match.group("frame")) if match else None,
+                    drop_frame=(match.group("frame_separator") == ";") if match else None,
+                )
+            case "color_frame":
+                return cls.ColorFrameFields(
+                    color_frame=ColorFrame[text_value] if text_value else None,
+                )
+            case "polarity_correction":
+                return cls.PolarityCorrectionFields(
+                    polarity_correction=PolarityCorrection[text_value] if text_value else None,
+                )
+            case "binary_group_flags":
+                return cls.BinaryGroupFlagsFields(
+                    binary_group_flags=int(text_value, 0) if text_value else None,
+                )
+            case "blank_flag":
+                return cls.BlankFlagFields(
+                    blank_flag=BlankFlag[text_value] if text_value else None,
+                )
+            case _:
+                raise ValueError(f"{text_field} is not a valid field name.")
 
     @classmethod
-    def parse_all(
-        cls,
-        time: str = "",
-        color_frame: str = "",
-        polarity_correction: str = "",
-        binary_group_flags: str = "",
-        blank_flag: str = "",
-    ) -> SMPTETimecode:
-        match = None
-        if time:
-            match = smpte_time_pattern.match(time)
-            if not match:
-                raise ValueError(f"Parsing error while reading SMPTE timecode {time}.")
-        return cls(
-            hour=int(match.group("hour")) if match else None,
-            minute=int(match.group("minute")) if match else None,
-            second=int(match.group("second")) if match else None,
-            frame=int(match.group("frame")) if match else None,
-            drop_frame=(match.group("frame_separator") == ";") if match else None,
-            color_frame=ColorFrame[color_frame] if color_frame else None,
-            polarity_correction=(
-                PolarityCorrection[polarity_correction] if polarity_correction else None
-            ),
-            binary_group_flags=(int(binary_group_flags, 0) if binary_group_flags else None),
-            blank_flag=BlankFlag[blank_flag] if blank_flag else None,
-        )
+    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+        match text_field:
+            case None:
+                assert isinstance(value_subset, cls.MainFields)
+                v = value_subset
+                return (
+                    (
+                        f"{v.hour:02}:{v.minute:02}:{v.second:02};{v.frame:02}"
+                        if v.drop_frame
+                        else f"{v.hour:02}:{v.minute:02}:{v.second:02}:{v.frame:02}"
+                    )
+                    if v.hour is not None
+                    else ""
+                )
+            case "color_frame":
+                assert isinstance(value_subset, cls.ColorFrameFields)
+                return value_subset.color_frame.name if value_subset.color_frame is not None else ""
+            case "polarity_correction":
+                assert isinstance(value_subset, cls.PolarityCorrectionFields)
+                return (
+                    value_subset.polarity_correction.name
+                    if value_subset.polarity_correction is not None
+                    else ""
+                )
+            case "binary_group_flags":
+                assert isinstance(value_subset, cls.BinaryGroupFlagsFields)
+                return (
+                    du.hex_int(value_subset.binary_group_flags, 1)
+                    if value_subset.binary_group_flags is not None
+                    else ""
+                )
+            case "blank_flag":
+                assert isinstance(value_subset, cls.BlankFlagFields)
+                return value_subset.blank_flag.name if value_subset.blank_flag is not None else ""
+            case _:
+                raise ValueError(f"{text_field} is not a valid field name.")
+
+    pack_type = PackType.SMPTE_TC
 
     @classmethod
-    def parse_ssyb_pack(
+    def _do_parse_binary(
         cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem
     ) -> SMPTETimecode | None:
         # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
         # IEC 61834-4:1998 4.4 Time Code
         # Also see SMPTE 12M
-        assert len(ssyb_bytes) == 5
-        assert ssyb_bytes[0] == SSYBPackType.SMPTE_TC
 
         # Unpack fields from bytes and validate them.  Validation failures are
         # common due to tape dropouts.
@@ -254,7 +436,7 @@ class SMPTETimecode:
         if hour_units > 9:
             return None
 
-        pack = cls(
+        return cls(
             hour=hour_tens * 10 + hour_units,
             minute=minute_tens * 10 + minute_units,
             second=second_tens * 10 + second_units,
@@ -266,13 +448,10 @@ class SMPTETimecode:
             blank_flag=BlankFlag.CONTINUOUS if cf == 1 else BlankFlag.DISCONTINUOUS,
         )
 
-        return pack if pack.valid(system) else None
-
-    def to_ssyb_pack(self, system: dv_file_info.DVSystem) -> bytes:
+    def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
         # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
         # IEC 61834-4:1998 4.4 Time Code
         # Also see SMPTE 12M
-        assert self.valid(system)
         assert (  # assertion repeated from valid() to keep mypy happy
             self.hour is not None
             and self.minute is not None
@@ -285,7 +464,7 @@ class SMPTETimecode:
             and self.blank_flag is not None
         )
         ssyb_bytes = [
-            SSYBPackType.SMPTE_TC,
+            self.pack_type,
             # NOTE: self.valid() asserts that color_frame == blank_flag, which
             # both overlap with the MSB here.
             (
@@ -361,33 +540,44 @@ class SMPTETimecode:
 # IEC 61834-4:1998 4.5 Binary Group
 # Also see SMPTE 12M
 @dataclass(frozen=True, kw_only=True)
-class SMPTEBinaryGroup:
+class SMPTEBinaryGroup(Pack):
     # this will always be 4 bytes
     value: bytes | None = None
 
-    def valid(self) -> bool:
+    class MainFields(NamedTuple):
+        value: bytes | None  # Formats as 8 hex digits
+
+    text_fields: ClassVar[CSVFieldMap] = {None: MainFields}
+
+    def valid(self, system: dv_file_info.DVSystem) -> bool:
         return self.value is not None and len(self.value) == 4
 
     @classmethod
-    def parse_all(cls, value: str = "") -> SMPTEBinaryGroup:
-        val = cls(
-            value=bytes.fromhex(value.removeprefix("0x")) if value else None,
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
+        assert text_field is None
+        return cls.MainFields(
+            value=bytes.fromhex(text_value.removeprefix("0x")) if text_value else None
         )
-        return val
 
     @classmethod
-    def parse_ssyb_pack(cls, ssyb_bytes: bytes) -> SMPTEBinaryGroup | None:
-        assert len(ssyb_bytes) == 5
-        assert ssyb_bytes[0] == SSYBPackType.SMPTE_BG
-        pack = SMPTEBinaryGroup(value=bytes(ssyb_bytes[1:]))
-        return pack if pack.valid() else None
+    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+        assert text_field is None
+        assert isinstance(value_subset, cls.MainFields)
+        return du.hex_bytes(value_subset.value) if value_subset.value is not None else ""
 
-    def to_ssyb_pack(self) -> bytes:
-        assert self.valid()
+    pack_type = PackType.SMPTE_BG
+
+    @classmethod
+    def _do_parse_binary(
+        cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem
+    ) -> SMPTEBinaryGroup | None:
+        return SMPTEBinaryGroup(value=bytes(ssyb_bytes[1:]))
+
+    def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
         assert self.value is not None  # assertion repeated from valid() to keep mypy happy
         return bytes(
             [
-                SSYBPackType.SMPTE_BG,
+                self.pack_type,
                 self.value[0],
                 self.value[1],
                 self.value[2],
@@ -418,7 +608,7 @@ class DaylightSavingTime(IntEnum):
 # Recording date from subcode pack
 # IEC 61834-4:1998 9.3 Rec Date (Recording date)
 @dataclass(frozen=True, kw_only=True)
-class SubcodeRecordingDate:
+class SubcodeRecordingDate(Pack):
     # The year field is a regular 4-digit field for ease of use.
     # However, the subcode only encodes a 2-digit year; we use 75 as the Y2K rollover threshold:
     # https://github.com/MediaArea/MediaInfoLib/blob/abdbb218b07f6cc0d4504c863ac5b42ecfab6fc6/Source/MediaInfo/Multiple/File_DvDif_Analysis.cpp#L1225
@@ -435,7 +625,33 @@ class SubcodeRecordingDate:
     # Reserved bits (normally 0x3)
     reserved: int | None = None
 
-    def valid(self) -> bool:
+    class MainFields(NamedTuple):  # Formats as yyyy/mm/dd
+        year: int | None
+        month: int | None
+        day: int | None
+
+    class WeekFields(NamedTuple):
+        week: Week | None
+
+    class TimeZoneFields(NamedTuple):  # Formats as hh:mm
+        time_zone_hours: int | None
+        time_zone_30_minutes: bool | None
+
+    class DaylightSavingTimeFields(NamedTuple):
+        daylight_saving_time: DaylightSavingTime | None
+
+    class ReservedFields(NamedTuple):
+        reserved: int | None
+
+    text_fields: ClassVar[CSVFieldMap] = {
+        None: MainFields,
+        "week": WeekFields,
+        "tz": TimeZoneFields,
+        "dst": DaylightSavingTimeFields,
+        "reserved": ReservedFields,
+    }
+
+    def valid(self, system: dv_file_info.DVSystem) -> bool:
         # Date must be fully present or fully absent
         date_present = self.year is not None and self.month is not None and self.day is not None
         date_absent = self.year is None and self.month is None and self.day is None
@@ -477,57 +693,87 @@ class SubcodeRecordingDate:
 
         return True
 
-    def format_date_str(self) -> str:
-        return f"{self.year:02}-{self.month:02}-{self.day:02}" if self.year is not None else ""
-
-    def format_time_zone_str(self) -> str:
-        return f"{self.time_zone_hours:02}:{00 if not self.time_zone_30_minutes else 30}"
+    @classmethod
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
+        match text_field:
+            case None:
+                match = None
+                if text_value:
+                    match = recording_date_pattern.match(text_value)
+                    if not match:
+                        raise ValueError(f"Parsing error while reading date {text_value}.")
+                return cls.MainFields(
+                    year=int(match.group("year")) if match else None,
+                    month=int(match.group("month")) if match else None,
+                    day=int(match.group("day")) if match else None,
+                )
+            case "week":
+                return cls.WeekFields(
+                    week=Week[text_value] if text_value else None,
+                )
+            case "tz":
+                tz_hours = None
+                tz_30_minutes = None
+                if text_value:
+                    match = time_zone_pattern.match(text_value)
+                    if not match:
+                        raise ValueError(f"Parsing error while reading time zone {text_value}.")
+                    if match.group("minutes") != "30" and match.group("minutes") != 00:
+                        raise ValueError("Minutes portion of time zone must be 30 or 00.")
+                    tz_hours = int(match.group("hour"))
+                    tz_30_minutes = match.group("minute") == "30"
+                return cls.TimeZoneFields(
+                    time_zone_hours=tz_hours,
+                    time_zone_30_minutes=tz_30_minutes,
+                )
+            case "dst":
+                return cls.DaylightSavingTimeFields(
+                    daylight_saving_time=DaylightSavingTime[text_value] if text_value else None,
+                )
+            case "reserved":
+                return cls.ReservedFields(
+                    reserved=int(text_value, 0) if text_value else None,
+                )
+            case _:
+                raise ValueError(f"{text_field} is not a valid field name.")
 
     @classmethod
-    def parse_all(
-        cls,
-        date: str = "",
-        week: str = "",
-        time_zone: str = "",
-        daylight_saving_time: str = "",
-        reserved: str = "",
-    ) -> SubcodeRecordingDate:
-        date_match = None
-        if date:
-            date_match = recording_date_pattern.match(date)
-            if not date_match:
-                raise ValueError(f"Parsing error while reading recording date {date}.")
+    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+        match text_field:
+            case None:
+                assert isinstance(value_subset, cls.MainFields)
+                mv = value_subset
+                return f"{mv.year:02}-{mv.month:02}-{mv.day:02}" if mv.year is not None else ""
+            case "week":
+                assert isinstance(value_subset, cls.WeekFields)
+                return value_subset.week.name if value_subset.week is not None else ""
+            case "tz":
+                assert isinstance(value_subset, cls.TimeZoneFields)
+                tzv = value_subset
+                return f"{tzv.time_zone_hours:02}:{00 if not tzv.time_zone_30_minutes else 30}"
+            case "dst":
+                assert isinstance(value_subset, cls.DaylightSavingTimeFields)
+                return (
+                    value_subset.daylight_saving_time.name
+                    if value_subset.daylight_saving_time is not None
+                    else ""
+                )
+            case "reserved":
+                assert isinstance(value_subset, cls.ReservedFields)
+                return (
+                    du.hex_int(value_subset.reserved, 1)
+                    if value_subset.reserved is not None
+                    else ""
+                )
+            case _:
+                raise ValueError(f"{text_field} is not a valid field name.")
 
-        tz_match = None
-        tz_hours = None
-        tz_30_minutes = None
-        if time_zone:
-            tz_match = time_zone_pattern.match(time_zone)
-            if not tz_match:
-                raise ValueError(f"Parsing error while reading time zone {time_zone}.")
-            if tz_match.group("minutes") != "30" and tz_match.group("minutes") != 00:
-                raise ValueError("Minutes portion of time zone must be 30 or 00.")
-            tz_hours = int(tz_match.group("hour"))
-            tz_30_minutes = tz_match.group("minute") == "30"
-
-        return cls(
-            year=int(date_match.group("year")) if date_match else None,
-            month=int(date_match.group("month")) if date_match else None,
-            day=int(date_match.group("day")) if date_match else None,
-            week=Week[week] if week else None,
-            time_zone_hours=tz_hours,
-            time_zone_30_minutes=tz_30_minutes,
-            daylight_saving_time=(
-                DaylightSavingTime[daylight_saving_time] if daylight_saving_time else None
-            ),
-            reserved=int(reserved, 0) if reserved else None,
-        )
+    pack_type = PackType.RECORDING_DATE
 
     @classmethod
-    def parse_ssyb_pack(cls, ssyb_bytes: bytes) -> SubcodeRecordingDate | None:
-        assert len(ssyb_bytes) == 5
-        assert ssyb_bytes[0] == SSYBPackType.RECORDING_DATE
-
+    def _do_parse_binary(
+        cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem
+    ) -> SubcodeRecordingDate | None:
         # The pack can be present, but all fields absent when the recording date is unknown.
 
         # Unpack fields from bytes and validate them.  Validation failures are
@@ -579,7 +825,7 @@ class SubcodeRecordingDate:
                 return None
             year_prefix = 20 if year_tens < 75 else 19
 
-        pack = cls(
+        return cls(
             year=(
                 year_prefix * 100 + year_tens * 10 + year_units
                 if year_prefix is not None and year_tens is not None and year_units is not None
@@ -604,14 +850,11 @@ class SubcodeRecordingDate:
             reserved=reserved,
         )
 
-        return pack if pack.valid() else None
-
-    def to_ssyb_pack(self) -> bytes:
-        assert self.valid()
+    def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
         assert self.reserved is not None  # assertion repeated from valid() to keep mypy happy
         short_year = self.year % 100 if self.year is not None else None
         ssyb_bytes = [
-            SSYBPackType.RECORDING_DATE,
+            self.pack_type,
             (
                 (0x01 << 7 if self.daylight_saving_time != DaylightSavingTime.DST else 0x00)
                 | (0x01 << 6 if not self.time_zone_30_minutes else 0x00)
@@ -650,7 +893,7 @@ recording_time_pattern = re.compile(
 # Recording time from subcode pack
 # I can't find a reference for this definition.
 @dataclass(frozen=True, kw_only=True)
-class SubcodeRecordingTime:
+class SubcodeRecordingTime(Pack):
     hour: int | None = None
     minute: int | None = None
     second: int | None = None
@@ -658,6 +901,20 @@ class SubcodeRecordingTime:
     # this will always be 4 bytes; the bits that the time came from are masked out.
     # it's required for this class to be valid, but we allow absence for intermediate processing.
     reserved: bytes | None = None
+
+    class MainFields(NamedTuple):
+        hour: int | None
+        minute: int | None
+        second: int | None
+        frame: int | None
+
+    class ReservedFields(NamedTuple):
+        reserved: bytes | None
+
+    text_fields: ClassVar[CSVFieldMap] = {
+        None: MainFields,
+        "reserved": ReservedFields,
+    }
 
     def valid(self, system: dv_file_info.DVSystem) -> bool:
         # Main time part must be fully present or fully absent
@@ -688,38 +945,57 @@ class SubcodeRecordingTime:
             return False
         return True
 
-    def format_time_str(self) -> str:
-        if self.hour is not None and self.frame is not None:
-            return f"{self.hour:02}:{self.minute:02}:{self.second:02}:{self.frame:02}"
-        elif self.hour is not None:
-            return f"{self.hour:02}:{self.minute:02}:{self.second:02}"
-        return ""
+    @classmethod
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
+        match text_field:
+            case None:
+                match = None
+                if text_value:
+                    match = recording_time_pattern.match(text_value)
+                    if not match:
+                        raise ValueError(f"Parsing error while reading time {text_value}.")
+                return cls.MainFields(
+                    hour=int(match.group("hour")) if match else None,
+                    minute=int(match.group("minute")) if match else None,
+                    second=int(match.group("second")) if match else None,
+                    frame=(
+                        int(match.group("frame"))
+                        if match and match.group("frame") is not None
+                        else None
+                    ),
+                )
+            case "reserved":
+                return cls.ReservedFields(
+                    reserved=bytes.fromhex(text_value.removeprefix("0x")) if text_value else None,
+                )
+            case _:
+                raise ValueError(f"{text_field} is not a valid field name.")
 
     @classmethod
-    def parse_all(cls, time: str = "", reserved: str = "") -> SubcodeRecordingTime:
-        match = None
-        if time:
-            match = recording_time_pattern.match(time)
-            if not match:
-                raise ValueError(f"Parsing error while reading recording time {time}.")
-        val = cls(
-            hour=int(match.group("hour")) if match else None,
-            minute=int(match.group("minute")) if match else None,
-            second=int(match.group("second")) if match else None,
-            frame=(
-                int(match.group("frame")) if match and match.group("frame") is not None else None
-            ),
-            reserved=bytes.fromhex(reserved.removeprefix("0x")) if reserved else None,
-        )
-        return val
+    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+        match text_field:
+            case None:
+                assert isinstance(value_subset, cls.MainFields)
+                v = value_subset
+                if v.hour is not None and v.frame is not None:
+                    return f"{v.hour:02}:{v.minute:02}:{v.second:02}:{v.frame:02}"
+                elif v.hour is not None:
+                    return f"{v.hour:02}:{v.minute:02}:{v.second:02}"
+                return ""
+            case "reserved":
+                assert isinstance(value_subset, cls.ReservedFields)
+                return (
+                    du.hex_bytes(value_subset.reserved) if value_subset.reserved is not None else ""
+                )
+            case _:
+                raise ValueError(f"{text_field} is not a valid field name.")
+
+    pack_type = PackType.RECORDING_TIME
 
     @classmethod
-    def parse_ssyb_pack(
+    def _do_parse_binary(
         cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem
     ) -> SubcodeRecordingTime | None:
-        assert len(ssyb_bytes) == 5
-        assert ssyb_bytes[0] == SSYBPackType.RECORDING_TIME
-
         # The pack can be present, but all date fields absent.
         # Also, some systems record times without frames
         frame_tens = None
@@ -769,7 +1045,7 @@ class SubcodeRecordingTime:
         reserved_mask = bytes(b"\xc0\x80\x80\xc0")
         reserved = bytes([b & m for b, m in zip(ssyb_bytes[1:], reserved_mask)])
 
-        pack = cls(
+        return cls(
             hour=(
                 hour_tens * 10 + hour_units
                 if hour_tens is not None and hour_units is not None
@@ -793,13 +1069,10 @@ class SubcodeRecordingTime:
             reserved=reserved,
         )
 
-        return pack if pack.valid(system) else None
-
-    def to_ssyb_pack(self, system: dv_file_info.DVSystem) -> bytes:
-        assert self.valid(system)
+    def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
         assert self.reserved is not None  # assertion repeated from valid() to keep mypy happy
         ssyb_bytes = [
-            SSYBPackType.RECORDING_TIME,
+            self.pack_type,
             (
                 (int(self.frame / 10) << 4) | int(self.frame % 10)
                 if self.frame is not None

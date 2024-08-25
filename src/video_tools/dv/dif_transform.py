@@ -6,12 +6,12 @@ import re
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, replace
-from typing import BinaryIO, Iterable
+from typing import BinaryIO, Iterable, NamedTuple, cast
 
 import yaml
 
+import video_tools.dv.data_util as du
 import video_tools.dv.dif as dif
-import video_tools.dv.dif_csv as dif_csv
 
 MOST_COMMON = "MOST_COMMON"
 
@@ -125,9 +125,7 @@ subcode_column_exact_pattern = re.compile(
     r"^sc_pack_types_(?P<channel>\d+)_(?P<dif_sequence>\d+)_(?P<pack>\d+)$"
 )
 
-ConstantValueType = (
-    int | dif.ColorFrame | dif.PolarityCorrection | dif.BlankFlag | bytes | str | None
-)
+ConstantValueType = int | NamedTuple | str | None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -181,20 +179,24 @@ class WriteConstantCommand(Command):
                 # We used full pattern match because this is called before command expansion
                 assert value_str != ""
                 return int(value_str, 0)
-            case "sc_smpte_timecode_color_frame":
-                return dif.ColorFrame[value_str] if value_str != "" else None
-            case "sc_smpte_timecode_polarity_correction":
-                return dif.PolarityCorrection[value_str] if value_str != "" else None
-            case "sc_smpte_timecode_binary_group_flags":
-                return int(value_str, 0) if value_str != "" else None
-            case "sc_smpte_timecode_blank_flag":
-                return dif.BlankFlag[value_str] if value_str != "" else None
-            case "sc_rec_date_reserved":
-                return int(value_str, 0) if value_str != "" else None
-            case "sc_recording_time_reserved":
-                b = bytes.fromhex(value_str.removeprefix("0x")) if value_str != "" else None
-                assert b is None or len(b) == 4
-                return b
+            case _ if du.field_has_prefix(
+                "sc_timecode", column, excluded_prefixes=["sc_timecode_bg"]
+            ):
+                return dif.SMPTETimecode.parse_text_value(
+                    du.remove_field_prefix("sc_timecode", column), value_str
+                )
+            case _ if du.field_has_prefix("sc_timecode_bg", column):
+                return dif.SMPTEBinaryGroup.parse_text_value(
+                    du.remove_field_prefix("sc_timecode_bg", column), value_str
+                )
+            case _ if du.field_has_prefix("sc_rec_date", column):
+                return dif.SubcodeRecordingDate.parse_text_value(
+                    du.remove_field_prefix("sc_rec_date", column), value_str
+                )
+            case _ if du.field_has_prefix("sc_rec_time", column):
+                return dif.SubcodeRecordingTime.parse_text_value(
+                    du.remove_field_prefix("sc_rec_time", column), value_str
+                )
             case _:
                 raise ValueError(f"Unsupported column {column} for write_constant command.")
 
@@ -210,31 +212,32 @@ class WriteConstantCommand(Command):
                 | "sc_subcode_application_id"
             ):
                 assert isinstance(value, int)
-                return dif_csv.hex_int(value, 1)
+                return du.hex_int(value, 1)
             case _ if subcode_column_exact_pattern.match(self.column):
                 assert isinstance(value, int)
-                return dif_csv.hex_int(value, 2)
-            case (
-                "sc_smpte_timecode_color_frame"
-                | "sc_smpte_timecode_polarity_correction"
-                | "sc_smpte_timecode_blank_flag"
+                return du.hex_int(value, 2)
+            case _ if du.field_has_prefix(
+                "sc_timecode", self.column, excluded_prefixes=["sc_timecode_bg"]
             ):
-                assert (
-                    value is None
-                    or isinstance(value, dif.ColorFrame)
-                    or isinstance(value, dif.PolarityCorrection)
-                    or isinstance(value, dif.BlankFlag)
+                assert isinstance(value, NamedTuple)
+                return dif.SMPTETimecode.to_text_value(
+                    du.remove_field_prefix("sc_timecode", self.column), value
                 )
-                return value.name if value is not None else None
-            case "sc_smpte_timecode_binary_group_flags":
-                assert value is None or isinstance(value, int)
-                return dif_csv.hex_int(value, 1) if value is not None else None
-            case "sc_rec_date_reserved":
-                assert value is None or isinstance(value, int)
-                return dif_csv.hex_int(value, 1) if value is not None else None
-            case "sc_recording_time_reserved":
-                assert value is None or isinstance(value, bytes)
-                return dif_csv.hex_bytes(value) if value is not None else None
+            case _ if du.field_has_prefix("sc_timecode_bg", self.column):
+                assert isinstance(value, NamedTuple)
+                return dif.SMPTEBinaryGroup.to_text_value(
+                    du.remove_field_prefix("sc_timecode_bg", self.column), value
+                )
+            case _ if du.field_has_prefix("sc_rec_date", self.column):
+                assert isinstance(value, NamedTuple)
+                return dif.SubcodeRecordingDate.to_text_value(
+                    du.remove_field_prefix("sc_rec_date", self.column), value
+                )
+            case _ if du.field_has_prefix("sc_rec_time", self.column):
+                assert isinstance(value, NamedTuple)
+                return dif.SubcodeRecordingDate.to_text_value(
+                    du.remove_field_prefix("sc_rec_time", self.column), value
+                )
             case _:
                 raise ValueError(f"Unsupported column {self.column} for write_constant command.")
 
@@ -257,18 +260,24 @@ class WriteConstantCommand(Command):
                 return frame_data.subcode_pack_types[int(match.group("channel"))][
                     int(match.group("dif_sequence"))
                 ][int(match.group("pack"))]
-            case "sc_smpte_timecode_color_frame":
-                return frame_data.subcode_smpte_timecode.color_frame
-            case "sc_smpte_timecode_polarity_correction":
-                return frame_data.subcode_smpte_timecode.polarity_correction
-            case "sc_smpte_timecode_binary_group_flags":
-                return frame_data.subcode_smpte_timecode.binary_group_flags
-            case "sc_smpte_timecode_blank_flag":
-                return frame_data.subcode_smpte_timecode.blank_flag
-            case "sc_rec_date_reserved":
-                return frame_data.subcode_recording_date.reserved
-            case "sc_recording_time_reserved":
-                return frame_data.subcode_recording_time.reserved
+            case _ if du.field_has_prefix(
+                "sc_timecode", self.column, excluded_prefixes=["sc_timecode_bg"]
+            ):
+                return frame_data.subcode_smpte_timecode.value_subset_for_text_field(
+                    du.remove_field_prefix("sc_timecode", self.column)
+                )
+            case _ if du.field_has_prefix("sc_timecode_bg", self.column):
+                return frame_data.subcode_smpte_binary_group.value_subset_for_text_field(
+                    du.remove_field_prefix("sc_timecode_bg", self.column)
+                )
+            case _ if du.field_has_prefix("sc_rec_date", self.column):
+                return frame_data.subcode_recording_date.value_subset_for_text_field(
+                    du.remove_field_prefix("sc_rec_date", self.column)
+                )
+            case _ if du.field_has_prefix("sc_rec_time", self.column):
+                return frame_data.subcode_recording_time.value_subset_for_text_field(
+                    du.remove_field_prefix("sc_rec_time", self.column)
+                )
             case _:
                 raise ValueError(f"Unsupported column {self.column} for write_constant command.")
 
@@ -312,46 +321,40 @@ class WriteConstantCommand(Command):
                 new_dif_sequences[dif_sequence] = new_packs
                 new_channels[channel] = new_dif_sequences
                 return replace(frame_data, subcode_pack_types=new_channels)
-            case (
-                "sc_smpte_timecode_color_frame"
-                | "sc_smpte_timecode_polarity_correction"
-                | "sc_smpte_timecode_binary_group_flags"
-                | "sc_smpte_timecode_blank_flag"
+            case _ if du.field_has_prefix(
+                "sc_timecode", self.column, excluded_prefixes=["sc_timecode_bg"]
             ):
-                existing_timecode = frame_data.subcode_smpte_timecode
-                if self.column == "sc_smpte_timecode_color_frame":
-                    # physically overlaps with blank_flag on tape
-                    assert isinstance(value, dif.ColorFrame) or value is None
-                    blank_flag = dif.BlankFlag(value) if value is not None else None
-                    new_timecode = replace(
-                        existing_timecode, color_frame=value, blank_flag=blank_flag
-                    )
-                elif self.column == "sc_smpte_timecode_polarity_correction":
-                    assert isinstance(value, dif.PolarityCorrection) or value is None
-                    new_timecode = replace(existing_timecode, polarity_correction=value)
-                elif self.column == "sc_smpte_timecode_binary_group_flags":
-                    assert isinstance(value, int) or value is None
-                    new_timecode = replace(existing_timecode, binary_group_flags=value)
-                elif self.column == "sc_smpte_timecode_blank_flag":
-                    # physically overlaps with color_frame on tape
-                    assert isinstance(value, dif.BlankFlag) or value is None
-                    color_frame = dif.ColorFrame(value) if value is not None else None
-                    new_timecode = replace(
-                        existing_timecode, color_frame=color_frame, blank_flag=value
-                    )
-                else:
-                    assert False
-                return replace(frame_data, subcode_smpte_timecode=new_timecode)
-            case "sc_rec_date_reserved":
-                assert isinstance(value, int) or value is None
-                existing_recording_date = frame_data.subcode_recording_date
-                new_recording_date = replace(existing_recording_date, reserved=value)
-                return replace(frame_data, subcode_recording_date=new_recording_date)
-            case "sc_recording_time_reserved":
-                assert isinstance(value, bytes) or value is None
-                existing_recording_time = frame_data.subcode_recording_time
-                new_recording_time = replace(existing_recording_time, reserved=value)
-                return replace(frame_data, subcode_recording_time=new_recording_time)
+                assert isinstance(value, NamedTuple)
+                return replace(
+                    frame_data,
+                    subcode_smpte_timecode=replace(
+                        frame_data.subcode_smpte_timecode, **value._asdict()
+                    ),
+                )
+            case _ if du.field_has_prefix("sc_timecode_bg", self.column):
+                assert isinstance(value, NamedTuple)
+                return replace(
+                    frame_data,
+                    subcode_smpte_binary_group=replace(
+                        frame_data.subcode_smpte_binary_group, **value._asdict()
+                    ),
+                )
+            case _ if du.field_has_prefix("sc_rec_date", self.column):
+                assert isinstance(value, NamedTuple)
+                return replace(
+                    frame_data,
+                    subcode_recording_date=replace(
+                        frame_data.subcode_recording_date, **value._asdict()
+                    ),
+                )
+            case _ if du.field_has_prefix("sc_rec_time", self.column):
+                assert isinstance(value, NamedTuple)
+                return replace(
+                    frame_data,
+                    subcode_recording_time=replace(
+                        frame_data.subcode_recording_time, **value._asdict()
+                    ),
+                )
             case _:
                 raise ValueError(f"Unsupported column {self.column} for write_constant command.")
 
@@ -460,7 +463,7 @@ class RenumberArbitraryBits(Command):
             if self.initial_value is not None
             else all_frame_data[self.start_frame].arbitrary_bits
         )
-        print(f"Using starting value {dif_csv.hex_int(next_value, 1)}...")
+        print(f"Using starting value {du.hex_int(next_value, 1)}...")
         # Quick sanity checks
         assert next_value >= self.lower_bound and next_value <= self.upper_bound
         assert self.step <= self.upper_bound - self.lower_bound + 1
@@ -507,7 +510,10 @@ class RenumberSMPTETimecodes(Command):
             else all_frame_data[self.start_frame].subcode_smpte_timecode
         )
         assert next_value is not None
-        print(f"Using starting value {next_value.format_time_str()}...")
+        next_value_str = next_value.to_text_value(
+            None, next_value.value_subset_for_text_field(None)
+        )
+        print(f"Using starting value {next_value_str}...")
         # Update frames with new value
         tracker = FrameChangeTracker()
         for frame in self.frame_range(all_frame_data):
@@ -625,7 +631,12 @@ def load_transformations(transformations_file: BinaryIO) -> Transformations:
                 RenumberSMPTETimecodes(
                     type=command_dict["type"],
                     initial_value=(
-                        dif.SMPTETimecode.parse_all(time=command_dict.get("initial_value", ""))
+                        cast(
+                            dif.SMPTETimecode,
+                            dif.SMPTETimecode.parse_text_values(
+                                {None: command_dict.get("initial_value", "")}
+                            ),
+                        )
                         if command_dict.get("initial_value", None) is not None
                         else None
                     ),
