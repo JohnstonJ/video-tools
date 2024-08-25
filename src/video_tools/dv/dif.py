@@ -9,6 +9,8 @@ from collections import defaultdict
 from dataclasses import dataclass, replace
 from enum import IntEnum
 
+import video_tools.dv.file_info as dv_file_info
+
 
 # DIF block types.  Values are the three section type bits SCT2..0
 class DIFBlockType(IntEnum):
@@ -67,6 +69,11 @@ class SSYBPackType(IntEnum):
     EMPTY = 0xFF  # All pack bytes are 0xFF (probably a dropout)
 
 
+# NOTE:  Pack fields are often ultimately all required to be valid, but we allow them to
+# be missing during intermediate transformations / in CSV files.  Validity checks are done
+# when serializing to/from pack binary blobs.
+
+
 # Color frame
 # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
 class ColorFrame(IntEnum):
@@ -98,31 +105,26 @@ smpte_time_pattern = re.compile(
 # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
 # IEC 61834-4:1998 4.4 Time Code
 # Also see SMPTE 12M
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class SMPTETimecode:
-    # The fields are ultimately all required to be valid, but we allow them
-    # to be missing during intermediate transformations.
-    hour: int | None
-    minute: int | None
-    second: int | None
-    frame: int | None
+    hour: int | None = None
+    minute: int | None = None
+    second: int | None = None
+    frame: int | None = None
 
     # The next four fields are defined as seen in SMPTE 306M-2002.
-    drop_frame: bool | None  # always True in IEC 61834-4
-    color_frame: ColorFrame | None  # overlaps with blank_flag in IEC 61834-4
-    polarity_correction: PolarityCorrection | None  # always 1 in IEC 61834-4
-    binary_group_flags: int | None  # always 0x7 in IEC 61834-4
+    drop_frame: bool | None = None  # always True in IEC 61834-4
+    color_frame: ColorFrame | None = None  # overlaps with blank_flag in IEC 61834-4
+    polarity_correction: PolarityCorrection | None = None  # always 1 in IEC 61834-4
+    binary_group_flags: int | None = None  # always 0x7 in IEC 61834-4
 
     # IEC 61834-4:1998 defines this field instead of the SMPTE fields above
     # when not recording TITLE BINARY pack.  In that scenario, the remaining
     # fields from SMPTE that don't overlap are always set to the highest bit
     # values possible.
-    blank_flag: BlankFlag | None  # overlaps with color_frame in SMPTE 306M
+    blank_flag: BlankFlag | None = None  # overlaps with color_frame in SMPTE 306M
 
-    # used for validation; not stored directly in the subcode:
-    video_frame_dif_sequence_count: int
-
-    def valid(self, allow_incomplete: bool = False) -> bool:
+    def valid(self, system: dv_file_info.DVSystem) -> bool:
         if (
             self.hour is None
             or self.minute is None
@@ -133,60 +135,27 @@ class SMPTETimecode:
             or self.polarity_correction is None
             or self.binary_group_flags is None
             or self.blank_flag is None
-        ) and not allow_incomplete:
-            return False
-
-        assert (
-            self.video_frame_dif_sequence_count == 10 or self.video_frame_dif_sequence_count == 12
-        )
-
-        # These two fields physically overlap for different use cases.
-        if (int(self.blank_flag) if self.blank_flag is not None else None) != (
-            int(self.color_frame) if self.color_frame is not None else None
         ):
             return False
 
-        if self.hour is not None:
-            # The rest of the timecode itself must be all present or all absent
-            assert (
-                self.minute is not None
-                and self.second is not None
-                and self.frame is not None
-                and self.drop_frame is not None
-            )
-            if self.hour >= 24 or self.minute >= 60 or self.second >= 60:
-                return False
-            if self.video_frame_dif_sequence_count == 10 and self.frame >= 30:
-                return False
-            if self.video_frame_dif_sequence_count == 12 and self.frame >= 25:
-                return False
-            if self.drop_frame and self.video_frame_dif_sequence_count == 12:
-                # drop_frame only applies to NTSC
-                return False
-            if self.drop_frame and self.minute % 10 > 0 and self.second == 0 and self.frame < 2:
-                # should have dropped the frame
-                return False
-        else:
-            assert (
-                self.minute is None
-                and self.second is None
-                and self.frame is None
-                and self.drop_frame is None
-            )
-        return True
+        # These two fields physically overlap for different use cases.
+        if int(self.blank_flag) != int(self.color_frame):
+            return False
 
-    def is_empty(self) -> bool:
-        return (
-            self.hour is None
-            and self.minute is None
-            and self.second is None
-            and self.frame is None
-            and self.drop_frame is None
-            and self.color_frame is None
-            and self.polarity_correction is None
-            and self.binary_group_flags is None
-            and self.blank_flag is None
-        )
+        if self.hour >= 24 or self.minute >= 60 or self.second >= 60:
+            return False
+        if system == dv_file_info.DVSystem.SYS_525_60 and self.frame >= 30:
+            return False
+        if system == dv_file_info.DVSystem.SYS_625_50 and self.frame >= 25:
+            return False
+        if self.drop_frame and system == dv_file_info.DVSystem.SYS_625_50:
+            # drop_frame only applies to NTSC
+            return False
+        if self.drop_frame and self.minute % 10 > 0 and self.second == 0 and self.frame < 2:
+            # should have dropped the frame
+            return False
+
+        return True
 
     def format_time_str(self) -> str:
         return (
@@ -202,21 +171,18 @@ class SMPTETimecode:
     @classmethod
     def parse_all(
         cls,
-        time: str,
-        color_frame: str,
-        polarity_correction: str,
-        binary_group_flags: str,
-        blank_flag: str,
-        video_frame_dif_sequence_count: int,
-    ) -> SMPTETimecode | None:
-        if not time and not color_frame and not polarity_correction and not binary_group_flags:
-            return None
+        time: str = "",
+        color_frame: str = "",
+        polarity_correction: str = "",
+        binary_group_flags: str = "",
+        blank_flag: str = "",
+    ) -> SMPTETimecode:
         match = None
         if time:
             match = smpte_time_pattern.match(time)
             if not match:
                 raise ValueError(f"Parsing error while reading SMPTE timecode {time}.")
-        val = cls(
+        return cls(
             hour=int(match.group("hour")) if match else None,
             minute=int(match.group("minute")) if match else None,
             second=int(match.group("second")) if match else None,
@@ -228,22 +194,17 @@ class SMPTETimecode:
             ),
             binary_group_flags=(int(binary_group_flags, 0) if binary_group_flags else None),
             blank_flag=BlankFlag[blank_flag] if blank_flag else None,
-            video_frame_dif_sequence_count=video_frame_dif_sequence_count,
         )
-        if not val.valid(allow_incomplete=True):
-            raise ValueError(f"Parsing error while reading SMPTE timecode {time}.")
-        return val
 
     @classmethod
     def parse_ssyb_pack(
-        cls, ssyb_bytes: bytes, video_frame_dif_sequence_count: int
+        cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem
     ) -> SMPTETimecode | None:
         # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
         # IEC 61834-4:1998 4.4 Time Code
         # Also see SMPTE 12M
         assert len(ssyb_bytes) == 5
         assert ssyb_bytes[0] == SSYBPackType.SMPTE_TC
-        assert video_frame_dif_sequence_count == 10 or video_frame_dif_sequence_count == 12
 
         # Unpack fields from bytes and validate them.  Validation failures are
         # common due to tape dropouts.
@@ -259,9 +220,9 @@ class SMPTETimecode:
         if frame_units > 9:
             return None
 
-        if video_frame_dif_sequence_count == 10:  # 525/60 system
+        if system == dv_file_info.DVSystem.SYS_525_60:
             pc = (ssyb_bytes[2] & 0x80) >> 7
-        elif video_frame_dif_sequence_count == 12:  # 625/50 system
+        elif system == dv_file_info.DVSystem.SYS_625_50:
             bgf0 = (ssyb_bytes[2] & 0x80) >> 7
         second_tens = (ssyb_bytes[2] & 0x70) >> 4
         if second_tens > 5:
@@ -270,9 +231,9 @@ class SMPTETimecode:
         if second_units > 9:
             return None
 
-        if video_frame_dif_sequence_count == 10:  # 525/60 system
+        if system == dv_file_info.DVSystem.SYS_525_60:
             bgf0 = (ssyb_bytes[3] & 0x80) >> 7
-        elif video_frame_dif_sequence_count == 12:  # 625/50 system
+        elif system == dv_file_info.DVSystem.SYS_625_50:
             bgf2 = (ssyb_bytes[3] & 0x80) >> 7
         minute_tens = (ssyb_bytes[3] & 0x70) >> 4
         if minute_tens > 5:
@@ -281,9 +242,9 @@ class SMPTETimecode:
         if minute_units > 9:
             return None
 
-        if video_frame_dif_sequence_count == 10:  # 525/60 system
+        if system == dv_file_info.DVSystem.SYS_525_60:
             bgf2 = (ssyb_bytes[4] & 0x80) >> 7
-        elif video_frame_dif_sequence_count == 12:  # 625/50 system
+        elif system == dv_file_info.DVSystem.SYS_625_50:
             pc = (ssyb_bytes[4] & 0x80) >> 7
         bgf1 = (ssyb_bytes[4] & 0x40) >> 6
         hour_tens = (ssyb_bytes[4] & 0x30) >> 4
@@ -303,16 +264,15 @@ class SMPTETimecode:
             polarity_correction=(PolarityCorrection.ODD if pc == 1 else PolarityCorrection.EVEN),
             binary_group_flags=(bgf2 << 2) | (bgf1 << 1) | bgf0,
             blank_flag=BlankFlag.CONTINUOUS if cf == 1 else BlankFlag.DISCONTINUOUS,
-            video_frame_dif_sequence_count=video_frame_dif_sequence_count,
         )
 
-        return pack if pack.valid() else None
+        return pack if pack.valid(system) else None
 
-    def to_ssyb_pack(self) -> bytes:
+    def to_ssyb_pack(self, system: dv_file_info.DVSystem) -> bytes:
         # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
         # IEC 61834-4:1998 4.4 Time Code
         # Also see SMPTE 12M
-        assert self.valid()
+        assert self.valid(system)
         assert (  # assertion repeated from valid() to keep mypy happy
             self.hour is not None
             and self.minute is not None
@@ -342,20 +302,17 @@ class SMPTETimecode:
         bgf0 = self.binary_group_flags & 0x01
         bgf1 = (self.binary_group_flags & 0x02) >> 1
         bgf2 = (self.binary_group_flags & 0x04) >> 2
-        assert (
-            self.video_frame_dif_sequence_count == 10 or self.video_frame_dif_sequence_count == 12
-        )
-        if self.video_frame_dif_sequence_count == 10:  # 525/60 system
+        if system == dv_file_info.DVSystem.SYS_525_60:
             ssyb_bytes[2] |= pc << 7
             ssyb_bytes[3] |= bgf0 << 7
             ssyb_bytes[4] |= (bgf2 << 7) | (bgf1 << 6)
-        elif self.video_frame_dif_sequence_count == 12:  # 625/50 system
+        elif system == dv_file_info.DVSystem.SYS_625_50:
             ssyb_bytes[2] |= bgf0 << 7
             ssyb_bytes[3] |= bgf2 << 7
             ssyb_bytes[4] |= (pc << 7) | (bgf1 << 6)
         return bytes(ssyb_bytes)
 
-    def increment_frame(self) -> SMPTETimecode:
+    def increment_frame(self, system: dv_file_info.DVSystem) -> SMPTETimecode:
         """Return a copy with frame incremented by 1."""
         # Read current values and make sure they were present.  (Other field
         # values are allowed to be empty.)
@@ -370,17 +327,14 @@ class SMPTETimecode:
             and f is not None
             and self.drop_frame is not None
         )
-        assert (
-            self.video_frame_dif_sequence_count == 10 or self.video_frame_dif_sequence_count == 12
-        )
-        assert not self.drop_frame or self.video_frame_dif_sequence_count == 10
+        assert not self.drop_frame or system == dv_file_info.DVSystem.SYS_525_60
 
         # Increment values as appropriate
         f += 1
-        if self.video_frame_dif_sequence_count == 10 and f == 30:
+        if system == dv_file_info.DVSystem.SYS_525_60 and f == 30:
             s += 1
             f = 0
-        elif self.video_frame_dif_sequence_count == 12 and f == 25:
+        elif system == dv_file_info.DVSystem.SYS_625_50 and f == 25:
             s += 1
             f = 0
         if s == 60:
@@ -406,33 +360,31 @@ class SMPTETimecode:
 # SMPTE 306M-2002 Section 9.2.2 Binary group pack (BG)
 # IEC 61834-4:1998 4.5 Binary Group
 # Also see SMPTE 12M
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class SMPTEBinaryGroup:
     # this will always be 4 bytes
-    value: bytes
+    value: bytes | None = None
 
     def valid(self) -> bool:
-        return len(self.value) == 4
+        return self.value is not None and len(self.value) == 4
 
     @classmethod
-    def parse_all(cls, value: str) -> SMPTEBinaryGroup | None:
-        if not value:
-            return None
+    def parse_all(cls, value: str = "") -> SMPTEBinaryGroup:
         val = cls(
-            value=bytes.fromhex(value.removeprefix("0x")),
+            value=bytes.fromhex(value.removeprefix("0x")) if value else None,
         )
-        if not val.valid():
-            raise ValueError("Parsing error while reading SMPTE binary group.")
         return val
 
     @classmethod
     def parse_ssyb_pack(cls, ssyb_bytes: bytes) -> SMPTEBinaryGroup | None:
         assert len(ssyb_bytes) == 5
         assert ssyb_bytes[0] == SSYBPackType.SMPTE_BG
-        return SMPTEBinaryGroup(value=bytes(ssyb_bytes[1:]))
+        pack = SMPTEBinaryGroup(value=bytes(ssyb_bytes[1:]))
+        return pack if pack.valid() else None
 
     def to_ssyb_pack(self) -> bytes:
         assert self.valid()
+        assert self.value is not None  # assertion repeated from valid() to keep mypy happy
         return bytes(
             [
                 SSYBPackType.SMPTE_BG,
@@ -465,23 +417,23 @@ class DaylightSavingTime(IntEnum):
 
 # Recording date from subcode pack
 # IEC 61834-4:1998 9.3 Rec Date (Recording date)
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class SubcodeRecordingDate:
     # The year field is a regular 4-digit field for ease of use.
     # However, the subcode only encodes a 2-digit year; we use 75 as the Y2K rollover threshold:
     # https://github.com/MediaArea/MediaInfoLib/blob/abdbb218b07f6cc0d4504c863ac5b42ecfab6fc6/Source/MediaInfo/Multiple/File_DvDif_Analysis.cpp#L1225
-    year: int | None
-    month: int | None
-    day: int | None
-    week: Week | None
+    year: int | None = None
+    month: int | None = None
+    day: int | None = None
+    week: Week | None = None
 
     # Time zone information
-    time_zone_hours: int | None
-    time_zone_30_minutes: bool | None
-    daylight_saving_time: DaylightSavingTime | None
+    time_zone_hours: int | None = None
+    time_zone_30_minutes: bool | None = None
+    daylight_saving_time: DaylightSavingTime | None = None
 
     # Reserved bits (normally 0x3)
-    reserved: int | None
+    reserved: int | None = None
 
     def valid(self) -> bool:
         # Date must be fully present or fully absent
@@ -525,9 +477,6 @@ class SubcodeRecordingDate:
 
         return True
 
-    def is_empty(self) -> bool:
-        return self.reserved is None
-
     def format_date_str(self) -> str:
         return f"{self.year:02}-{self.month:02}-{self.day:02}" if self.year is not None else ""
 
@@ -536,7 +485,12 @@ class SubcodeRecordingDate:
 
     @classmethod
     def parse_all(
-        cls, date: str, week: str, time_zone: str, daylight_saving_time: str, reserved: str
+        cls,
+        date: str = "",
+        week: str = "",
+        time_zone: str = "",
+        daylight_saving_time: str = "",
+        reserved: str = "",
     ) -> SubcodeRecordingDate:
         date_match = None
         if date:
@@ -566,7 +520,7 @@ class SubcodeRecordingDate:
             daylight_saving_time=(
                 DaylightSavingTime[daylight_saving_time] if daylight_saving_time else None
             ),
-            reserved=(int(reserved, 0) if reserved else None),
+            reserved=int(reserved, 0) if reserved else None,
         )
 
     @classmethod
@@ -695,20 +649,17 @@ recording_time_pattern = re.compile(
 
 # Recording time from subcode pack
 # I can't find a reference for this definition.
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class SubcodeRecordingTime:
-    hour: int | None
-    minute: int | None
-    second: int | None
-    frame: int | None
+    hour: int | None = None
+    minute: int | None = None
+    second: int | None = None
+    frame: int | None = None
     # this will always be 4 bytes; the bits that the time came from are masked out.
     # it's required for this class to be valid, but we allow absence for intermediate processing.
-    reserved: bytes | None
+    reserved: bytes | None = None
 
-    # used for validation; not stored directly in the subcode:
-    video_frame_dif_sequence_count: int
-
-    def valid(self, allow_incomplete: bool = False) -> bool:
+    def valid(self, system: dv_file_info.DVSystem) -> bool:
         # Main time part must be fully present or fully absent
         time_present = self.hour is not None and self.minute is not None and self.second is not None
         time_absent = self.hour is None and self.minute is None and self.second is None
@@ -727,29 +678,15 @@ class SubcodeRecordingTime:
             except ValueError:
                 return False
 
-        assert (
-            self.video_frame_dif_sequence_count == 10 or self.video_frame_dif_sequence_count == 12
-        )
         if self.frame is not None:
-            if self.video_frame_dif_sequence_count == 10 and self.frame >= 30:
+            if system == dv_file_info.DVSystem.SYS_525_60 and self.frame >= 30:
                 return False
-            if self.video_frame_dif_sequence_count == 12 and self.frame >= 25:
+            if system == dv_file_info.DVSystem.SYS_625_50 and self.frame >= 25:
                 return False
 
-        if not allow_incomplete and self.reserved is None:
-            return False
-        if self.reserved is not None and len(self.reserved) != 4:
+        if self.reserved is None or len(self.reserved) != 4:
             return False
         return True
-
-    def is_empty(self) -> bool:
-        return (
-            self.hour is None
-            and self.minute is None
-            and self.second is None
-            and self.frame is None
-            and self.reserved is None
-        )
 
     def format_time_str(self) -> str:
         if self.hour is not None and self.frame is not None:
@@ -759,11 +696,7 @@ class SubcodeRecordingTime:
         return ""
 
     @classmethod
-    def parse_all(
-        cls, time: str, reserved: str, video_frame_dif_sequence_count: int
-    ) -> SubcodeRecordingTime | None:
-        if not time and not reserved:
-            return None
+    def parse_all(cls, time: str = "", reserved: str = "") -> SubcodeRecordingTime:
         match = None
         if time:
             match = recording_time_pattern.match(time)
@@ -777,15 +710,12 @@ class SubcodeRecordingTime:
                 int(match.group("frame")) if match and match.group("frame") is not None else None
             ),
             reserved=bytes.fromhex(reserved.removeprefix("0x")) if reserved else None,
-            video_frame_dif_sequence_count=video_frame_dif_sequence_count,
         )
-        if not val.valid(allow_incomplete=True):
-            raise ValueError(f"Parsing error while reading recording time {time}.")
         return val
 
     @classmethod
     def parse_ssyb_pack(
-        cls, ssyb_bytes: bytes, video_frame_dif_sequence_count: int
+        cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem
     ) -> SubcodeRecordingTime | None:
         assert len(ssyb_bytes) == 5
         assert ssyb_bytes[0] == SSYBPackType.RECORDING_TIME
@@ -861,13 +791,12 @@ class SubcodeRecordingTime:
                 else None
             ),
             reserved=reserved,
-            video_frame_dif_sequence_count=video_frame_dif_sequence_count,
         )
 
-        return pack if pack.valid() else None
+        return pack if pack.valid(system) else None
 
-    def to_ssyb_pack(self) -> bytes:
-        assert self.valid()
+    def to_ssyb_pack(self, system: dv_file_info.DVSystem) -> bytes:
+        assert self.valid(system)
         assert self.reserved is not None  # assertion repeated from valid() to keep mypy happy
         ssyb_bytes = [
             SSYBPackType.RECORDING_TIME,
@@ -895,7 +824,7 @@ class SubcodeRecordingTime:
         return bytes(ssyb_bytes)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class FrameData:
     """Top-level class containing DV frame metadata."""
 
@@ -915,7 +844,11 @@ class FrameData:
     # value is always the pack header (subcode pack type) when reading a DV file.
     # it may be None when writing if we want to leave the pack unmodified.
     subcode_pack_types: list[list[list[int | None]]]
-    subcode_smpte_timecode: SMPTETimecode | None
-    subcode_smpte_binary_group: SMPTEBinaryGroup | None
-    subcode_recording_date: SubcodeRecordingDate | None
-    subcode_recording_time: SubcodeRecordingTime | None
+    subcode_smpte_timecode: SMPTETimecode
+    subcode_smpte_binary_group: SMPTEBinaryGroup
+    subcode_recording_date: SubcodeRecordingDate
+    subcode_recording_time: SubcodeRecordingTime
+
+    @property
+    def system(self) -> dv_file_info.DVSystem:
+        return dv_file_info.DIF_SEQUENCE_COUNT_TO_SYSTEM[len(self.subcode_pack_types[0])]

@@ -20,7 +20,7 @@ DEFAULT_MAX_CHANGED_PROPORTION = 0.05
 DEFAULT_MAX_CONSECUTIVE_MODIFICATIONS = 3
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class Thresholds:
     """Thresholds used to avoid accidentally making too many changes."""
 
@@ -28,7 +28,7 @@ class Thresholds:
     max_consecutive_modifications: int | None
 
 
-@dataclass
+@dataclass(kw_only=True)
 class FrameChangeTracker:
     """Track changed frame statistics in order to watch Thresholds."""
 
@@ -37,7 +37,7 @@ class FrameChangeTracker:
     last_consecutive_changed_frames: int = 0
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class Command(ABC):
     """Base class for transforming frame data."""
 
@@ -130,7 +130,7 @@ ConstantValueType = (
 )
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class WriteConstantCommand(Command):
     """Writes the same constant value to all specified frames for the given column.
 
@@ -258,41 +258,17 @@ class WriteConstantCommand(Command):
                     int(match.group("dif_sequence"))
                 ][int(match.group("pack"))]
             case "sc_smpte_timecode_color_frame":
-                return (
-                    frame_data.subcode_smpte_timecode.color_frame
-                    if frame_data.subcode_smpte_timecode
-                    else None
-                )
+                return frame_data.subcode_smpte_timecode.color_frame
             case "sc_smpte_timecode_polarity_correction":
-                return (
-                    frame_data.subcode_smpte_timecode.polarity_correction
-                    if frame_data.subcode_smpte_timecode
-                    else None
-                )
+                return frame_data.subcode_smpte_timecode.polarity_correction
             case "sc_smpte_timecode_binary_group_flags":
-                return (
-                    frame_data.subcode_smpte_timecode.binary_group_flags
-                    if frame_data.subcode_smpte_timecode
-                    else None
-                )
+                return frame_data.subcode_smpte_timecode.binary_group_flags
             case "sc_smpte_timecode_blank_flag":
-                return (
-                    frame_data.subcode_smpte_timecode.blank_flag
-                    if frame_data.subcode_smpte_timecode
-                    else None
-                )
+                return frame_data.subcode_smpte_timecode.blank_flag
             case "sc_rec_date_reserved":
-                return (
-                    frame_data.subcode_recording_date.reserved
-                    if frame_data.subcode_recording_date
-                    else None
-                )
+                return frame_data.subcode_recording_date.reserved
             case "sc_recording_time_reserved":
-                return (
-                    frame_data.subcode_recording_time.reserved
-                    if frame_data.subcode_recording_time
-                    else None
-                )
+                return frame_data.subcode_recording_time.reserved
             case _:
                 raise ValueError(f"Unsupported column {self.column} for write_constant command.")
 
@@ -342,22 +318,7 @@ class WriteConstantCommand(Command):
                 | "sc_smpte_timecode_binary_group_flags"
                 | "sc_smpte_timecode_blank_flag"
             ):
-                existing_timecode = (
-                    frame_data.subcode_smpte_timecode
-                    if frame_data.subcode_smpte_timecode is not None
-                    else dif.SMPTETimecode(
-                        hour=None,
-                        minute=None,
-                        second=None,
-                        frame=None,
-                        drop_frame=None,
-                        color_frame=None,
-                        polarity_correction=None,
-                        binary_group_flags=None,
-                        blank_flag=None,
-                        video_frame_dif_sequence_count=len(frame_data.subcode_pack_types[0]),
-                    )
-                )
+                existing_timecode = frame_data.subcode_smpte_timecode
                 if self.column == "sc_smpte_timecode_color_frame":
                     # physically overlaps with blank_flag on tape
                     assert isinstance(value, dif.ColorFrame) or value is None
@@ -380,48 +341,17 @@ class WriteConstantCommand(Command):
                     )
                 else:
                     assert False
-                new_timecode_optional = new_timecode if not new_timecode.is_empty() else None
-                return replace(frame_data, subcode_smpte_timecode=new_timecode_optional)
+                return replace(frame_data, subcode_smpte_timecode=new_timecode)
             case "sc_rec_date_reserved":
                 assert isinstance(value, int) or value is None
-                existing_recording_date = (
-                    frame_data.subcode_recording_date
-                    if frame_data.subcode_recording_date is not None
-                    else dif.SubcodeRecordingDate(
-                        year=None,
-                        month=None,
-                        day=None,
-                        week=None,
-                        time_zone_hours=None,
-                        time_zone_30_minutes=None,
-                        daylight_saving_time=None,
-                        reserved=None,
-                    )
-                )
+                existing_recording_date = frame_data.subcode_recording_date
                 new_recording_date = replace(existing_recording_date, reserved=value)
-                new_recording_date_optional = (
-                    new_recording_date if not new_recording_date.is_empty() else None
-                )
-                return replace(frame_data, subcode_recording_date=new_recording_date_optional)
+                return replace(frame_data, subcode_recording_date=new_recording_date)
             case "sc_recording_time_reserved":
                 assert isinstance(value, bytes) or value is None
-                existing_recording_time = (
-                    frame_data.subcode_recording_time
-                    if frame_data.subcode_recording_time is not None
-                    else dif.SubcodeRecordingTime(
-                        hour=None,
-                        minute=None,
-                        second=None,
-                        frame=None,
-                        reserved=None,
-                        video_frame_dif_sequence_count=len(frame_data.subcode_pack_types[0]),
-                    )
-                )
+                existing_recording_time = frame_data.subcode_recording_time
                 new_recording_time = replace(existing_recording_time, reserved=value)
-                new_recording_time_optional = (
-                    new_recording_time if not new_recording_time.is_empty() else None
-                )
-                return replace(frame_data, subcode_recording_time=new_recording_time_optional)
+                return replace(frame_data, subcode_recording_time=new_recording_time)
             case _:
                 raise ValueError(f"Unsupported column {self.column} for write_constant command.")
 
@@ -502,7 +432,7 @@ class WriteConstantCommand(Command):
         return [self]
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class RenumberArbitraryBits(Command):
     """Renumbers the arbitrary bits according to the given pattern.
 
@@ -553,14 +483,14 @@ class RenumberArbitraryBits(Command):
         return all_frame_data
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class RenumberSMPTETimecodes(Command):
     """Renumbers the SMPTE timecodes.
 
     The initial value will be taken from the first frame if not specified.
     """
 
-    initial_value: str | None
+    initial_value: dif.SMPTETimecode | None
 
     def __str__(self) -> str:
         return (
@@ -572,14 +502,7 @@ class RenumberSMPTETimecodes(Command):
     def run(self, all_frame_data: list[dif.FrameData]) -> list[dif.FrameData]:
         # Determine starting value
         next_value = (
-            dif.SMPTETimecode.parse_all(
-                time=self.initial_value,
-                color_frame="",
-                polarity_correction="",
-                binary_group_flags="",
-                blank_flag="",
-                video_frame_dif_sequence_count=len(all_frame_data[0].subcode_pack_types[0]),
-            )
+            self.initial_value
             if self.initial_value is not None
             else all_frame_data[self.start_frame].subcode_smpte_timecode
         )
@@ -591,43 +514,28 @@ class RenumberSMPTETimecodes(Command):
             # Update timecode in frame, but ONLY the actual time fields
             frame_data = all_frame_data[frame]
 
-            if frame_data.subcode_smpte_timecode is None:
-                new_tc = dif.SMPTETimecode(
-                    hour=next_value.hour,
-                    minute=next_value.minute,
-                    second=next_value.second,
-                    frame=next_value.frame,
-                    drop_frame=next_value.drop_frame,
-                    color_frame=None,
-                    polarity_correction=None,
-                    binary_group_flags=None,
-                    blank_flag=None,
-                    video_frame_dif_sequence_count=next_value.video_frame_dif_sequence_count,
-                )
-            else:
-                new_tc = replace(
-                    frame_data.subcode_smpte_timecode,
-                    hour=next_value.hour,
-                    minute=next_value.minute,
-                    second=next_value.second,
-                    frame=next_value.frame,
-                    drop_frame=next_value.drop_frame,
-                    video_frame_dif_sequence_count=next_value.video_frame_dif_sequence_count,
-                )
+            new_tc = replace(
+                frame_data.subcode_smpte_timecode,
+                hour=next_value.hour,
+                minute=next_value.minute,
+                second=next_value.second,
+                frame=next_value.frame,
+                drop_frame=next_value.drop_frame,
+            )
             new_frame_data = replace(frame_data, subcode_smpte_timecode=new_tc)
 
             all_frame_data[frame] = new_frame_data
             self.track_changed_frame(frame_data, new_frame_data, frame, tracker)
 
             # Calculate next value
-            next_value = next_value.increment_frame()
+            next_value = next_value.increment_frame(frame_data.system)
 
         self.track_final_proportion(tracker)
 
         return all_frame_data
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class Transformations:
     commands: list[Command]
 
@@ -716,7 +624,11 @@ def load_transformations(transformations_file: BinaryIO) -> Transformations:
             commands.append(
                 RenumberSMPTETimecodes(
                     type=command_dict["type"],
-                    initial_value=command_dict.get("initial_value", None),
+                    initial_value=(
+                        dif.SMPTETimecode.parse_all(time=command_dict.get("initial_value", ""))
+                        if command_dict.get("initial_value", None) is not None
+                        else None
+                    ),
                     start_frame=command_dict.get("start_frame", 0),
                     end_frame=command_dict.get("end_frame", None),
                     thresholds=local_thresholds,

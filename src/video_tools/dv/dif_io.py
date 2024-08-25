@@ -135,7 +135,7 @@ def read_frame_data(frame_bytes: bytearray, file_info: DVFileInfo) -> dif.FrameD
                 if subcode_pack_type == dif.SSYBPackType.SMPTE_TC:
                     subcode_smpte_timecode = dif.SMPTETimecode.parse_ssyb_pack(
                         ssyb_bytes[ssyb_num][3:],
-                        file_info.video_frame_dif_sequence_count,
+                        file_info.system,
                     )
                     if subcode_smpte_timecode is not None:
                         subcode_smpte_timecode_hist[subcode_smpte_timecode] += 1
@@ -154,7 +154,7 @@ def read_frame_data(frame_bytes: bytearray, file_info: DVFileInfo) -> dif.FrameD
                 elif subcode_pack_type == dif.SSYBPackType.RECORDING_TIME:
                     subcode_recording_time = dif.SubcodeRecordingTime.parse_ssyb_pack(
                         ssyb_bytes[ssyb_num][3:],
-                        file_info.video_frame_dif_sequence_count,
+                        file_info.system,
                     )
                     if subcode_recording_time is not None:
                         subcode_recording_time_hist[subcode_recording_time] += 1
@@ -188,22 +188,22 @@ def read_frame_data(frame_bytes: bytearray, file_info: DVFileInfo) -> dif.FrameD
         subcode_smpte_timecode=(
             max(subcode_smpte_timecode_hist, key=subcode_smpte_timecode_hist.__getitem__)
             if subcode_smpte_timecode_hist
-            else None
+            else dif.SMPTETimecode()
         ),
         subcode_smpte_binary_group=(
             max(subcode_smpte_binary_group_hist, key=subcode_smpte_binary_group_hist.__getitem__)
             if subcode_smpte_binary_group_hist
-            else None
+            else dif.SMPTEBinaryGroup()
         ),
         subcode_recording_date=(
             max(subcode_recording_date_hist, key=subcode_recording_date_hist.__getitem__)
             if subcode_recording_date_hist
-            else None
+            else dif.SubcodeRecordingDate()
         ),
         subcode_recording_time=(
             max(subcode_recording_time_hist, key=subcode_recording_time_hist.__getitem__)
             if subcode_recording_time_hist
-            else None
+            else dif.SubcodeRecordingTime()
         ),
     )
 
@@ -322,7 +322,7 @@ def write_frame_data(
                     new_pack = bytes([0xFF] * pack_len)
                 elif desired_pack_type == dif.SSYBPackType.SMPTE_TC:
                     assert frame_data.subcode_smpte_timecode is not None
-                    new_pack = frame_data.subcode_smpte_timecode.to_ssyb_pack()
+                    new_pack = frame_data.subcode_smpte_timecode.to_ssyb_pack(frame_data.system)
                 elif desired_pack_type == dif.SSYBPackType.SMPTE_BG:
                     assert frame_data.subcode_smpte_binary_group is not None
                     new_pack = frame_data.subcode_smpte_binary_group.to_ssyb_pack()
@@ -331,7 +331,7 @@ def write_frame_data(
                     new_pack = frame_data.subcode_recording_date.to_ssyb_pack()
                 elif desired_pack_type == dif.SSYBPackType.RECORDING_TIME:
                     assert frame_data.subcode_recording_time is not None
-                    new_pack = frame_data.subcode_recording_time.to_ssyb_pack()
+                    new_pack = frame_data.subcode_recording_time.to_ssyb_pack(frame_data.system)
                 else:
                     raise ValueError(
                         "Unsupported subcode pack type.  Use "

@@ -3,13 +3,28 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum, auto
 from fractions import Fraction
 from typing import BinaryIO
 
 import av.container
 
 
-@dataclass
+class DVSystem(Enum):
+    SYS_525_60 = auto()  # 525 signal lines with 29.97 FPS (NTSC)
+    SYS_625_50 = auto()  # 625 signal lines with 25.00 FPS (PAL/SECAM)
+
+
+# Map of DIF sequence count within a frame to the corresponding DVSystem
+# SMPTE 306M-2002 Section 11.2 Data Structure
+# IEC 61834-2 Section 11.2 Data Structure
+DIF_SEQUENCE_COUNT_TO_SYSTEM = {
+    10: DVSystem.SYS_525_60,
+    12: DVSystem.SYS_625_50,
+}
+
+
+@dataclass(frozen=True, kw_only=True)
 class DVFileInfo:
     """Contains top-level DV file information."""
 
@@ -50,6 +65,10 @@ class DVFileInfo:
         assert self.video_frame_size == other.video_frame_size
         assert self.audio_stereo_channel_count == other.audio_stereo_channel_count
         assert self.audio_sample_rate == other.audio_sample_rate
+
+    @property
+    def system(self) -> DVSystem:
+        return DIF_SEQUENCE_COUNT_TO_SYSTEM[self.video_frame_dif_sequence_count]
 
 
 def read_dv_file_info(file: BinaryIO) -> DVFileInfo:  # type: ignore[return]

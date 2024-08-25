@@ -86,69 +86,65 @@ def write_frame_data_csv(output_file: TextIO, all_frame_data: list[dif.FrameData
             # Subcode DIF block
             "sc_track_application_id": hex_int(frame_data.subcode_track_application_id, 1),
             "sc_subcode_application_id": hex_int(frame_data.subcode_subcode_application_id, 1),
+            # Subcode SMPTE Timecode
+            "sc_smpte_timecode": frame_data.subcode_smpte_timecode.format_time_str(),
+            "sc_smpte_timecode_color_frame": (
+                frame_data.subcode_smpte_timecode.color_frame.name
+                if frame_data.subcode_smpte_timecode.color_frame is not None
+                else ""
+            ),
+            "sc_smpte_timecode_polarity_correction": (
+                frame_data.subcode_smpte_timecode.polarity_correction.name
+                if frame_data.subcode_smpte_timecode.polarity_correction is not None
+                else ""
+            ),
+            "sc_smpte_timecode_binary_group_flags": (
+                hex_int(frame_data.subcode_smpte_timecode.binary_group_flags, 1)
+                if frame_data.subcode_smpte_timecode.binary_group_flags is not None
+                else ""
+            ),
+            "sc_smpte_timecode_blank_flag": (
+                frame_data.subcode_smpte_timecode.blank_flag.name
+                if frame_data.subcode_smpte_timecode.blank_flag is not None
+                else ""
+            ),
+            # Subcode SMPTE Binary Group
+            "sc_smpte_binary_group": (
+                hex_bytes(frame_data.subcode_smpte_binary_group.value)
+                if frame_data.subcode_smpte_binary_group.value is not None
+                else ""
+            ),
+            # Subcode recording date
+            "sc_rec_date": frame_data.subcode_recording_date.format_date_str(),
+            "sc_rec_date_week": (
+                frame_data.subcode_recording_date.week.name
+                if frame_data.subcode_recording_date.week is not None
+                else ""
+            ),
+            "sc_rec_date_tz": frame_data.subcode_recording_date.format_time_zone_str(),
+            "sc_rec_date_dst": (
+                frame_data.subcode_recording_date.daylight_saving_time.name
+                if frame_data.subcode_recording_date.daylight_saving_time is not None
+                else ""
+            ),
+            "sc_rec_date_reserved": (
+                hex_int(frame_data.subcode_recording_date.reserved, 1)
+                if frame_data.subcode_recording_date.reserved is not None
+                else "",
+            ),
+            # Subcode recording time
+            "sc_recording_time": frame_data.subcode_recording_time.format_time_str(),
+            "sc_recording_time_reserved": (
+                hex_bytes(frame_data.subcode_recording_time.reserved)
+                if frame_data.subcode_recording_time.reserved is not None
+                else ""
+            ),
         }
         for channel in range(len(frame_data.subcode_pack_types)):
             for dif_sequence in range(len(frame_data.subcode_pack_types[channel])):
                 field_name = f"sc_pack_types_{channel}_{dif_sequence}"
                 pack_types = frame_data.subcode_pack_types[channel][dif_sequence]
                 row_fields[field_name] = hex_bytes(pack_types, allow_optional=True)
-        if frame_data.subcode_smpte_timecode is not None:
-            row_fields |= {
-                "sc_smpte_timecode": frame_data.subcode_smpte_timecode.format_time_str(),
-                "sc_smpte_timecode_color_frame": (
-                    frame_data.subcode_smpte_timecode.color_frame.name
-                    if frame_data.subcode_smpte_timecode.color_frame is not None
-                    else ""
-                ),
-                "sc_smpte_timecode_polarity_correction": (
-                    frame_data.subcode_smpte_timecode.polarity_correction.name
-                    if frame_data.subcode_smpte_timecode.polarity_correction is not None
-                    else ""
-                ),
-                "sc_smpte_timecode_binary_group_flags": (
-                    hex_int(frame_data.subcode_smpte_timecode.binary_group_flags, 1)
-                    if frame_data.subcode_smpte_timecode.binary_group_flags is not None
-                    else ""
-                ),
-                "sc_smpte_timecode_blank_flag": (
-                    frame_data.subcode_smpte_timecode.blank_flag.name
-                    if frame_data.subcode_smpte_timecode.blank_flag is not None
-                    else ""
-                ),
-            }
-        if frame_data.subcode_smpte_binary_group is not None:
-            row_fields |= {
-                "sc_smpte_binary_group": hex_bytes(frame_data.subcode_smpte_binary_group.value),
-            }
-        if frame_data.subcode_recording_date is not None:
-            row_fields |= {
-                "sc_rec_date": frame_data.subcode_recording_date.format_date_str(),
-                "sc_rec_date_week": (
-                    frame_data.subcode_recording_date.week.name
-                    if frame_data.subcode_recording_date.week is not None
-                    else ""
-                ),
-                "sc_rec_date_tz": frame_data.subcode_recording_date.format_time_zone_str(),
-                "sc_rec_date_dst": (
-                    frame_data.subcode_recording_date.daylight_saving_time.name
-                    if frame_data.subcode_recording_date.daylight_saving_time is not None
-                    else ""
-                ),
-                "sc_rec_date_reserved": (
-                    hex_int(frame_data.subcode_recording_date.reserved, 1)
-                    if frame_data.subcode_recording_date.reserved is not None
-                    else "",
-                ),
-            }
-        if frame_data.subcode_recording_time is not None:
-            row_fields |= {
-                "sc_recording_time": frame_data.subcode_recording_time.format_time_str(),
-                "sc_recording_time_reserved": (
-                    hex_bytes(frame_data.subcode_recording_time.reserved)
-                    if frame_data.subcode_recording_time.reserved is not None
-                    else ""
-                ),
-            }
 
         writer.writerow(row_fields)
 
@@ -205,7 +201,6 @@ def read_frame_data_csv(input_file: Iterator[str]) -> list[dif.FrameData]:
                 polarity_correction=row["sc_smpte_timecode_polarity_correction"],
                 binary_group_flags=row["sc_smpte_timecode_binary_group_flags"],
                 blank_flag=row["sc_smpte_timecode_blank_flag"],
-                video_frame_dif_sequence_count=video_frame_dif_sequence_count,
             ),
             subcode_smpte_binary_group=dif.SMPTEBinaryGroup.parse_all(
                 value=row["sc_smpte_binary_group"],
@@ -220,7 +215,6 @@ def read_frame_data_csv(input_file: Iterator[str]) -> list[dif.FrameData]:
             subcode_recording_time=dif.SubcodeRecordingTime.parse_all(
                 time=row["sc_recording_time"],
                 reserved=row["sc_recording_time_reserved"],
-                video_frame_dif_sequence_count=video_frame_dif_sequence_count,
             ),
         )
         all_frame_data.append(frame_data)
