@@ -328,9 +328,12 @@ class GenericTimecode(Pack):
                     # frames are optional in this regex
                     frame=int(match.group("frame")) if match and match.group("frame") else None,
                     drop_frame=(
-                        (match.group("frame_separator") == ";")
+                        match.group("frame_separator") == ";"
                         if match and match.group("frame_separator")
-                        else None
+                        # If the frames are missing, we'll just set the DF bit since that's how I've
+                        # observed it happening in practice on a VAUX Rec Date pack from my camera.
+                        # This is also the value we'd want to set if the time is missing completely.
+                        else True
                     ),
                 )
             case "color_frame":
@@ -354,15 +357,16 @@ class GenericTimecode(Pack):
             case None:
                 assert isinstance(value_subset, cls.MainFields)
                 v = value_subset
+                if v.hour is None:
+                    return ""
+                if v.frame is None:
+                    return f"{v.hour:02}:{v.minute:02}:{v.second:02}"
                 return (
-                    (
-                        f"{v.hour:02}:{v.minute:02}:{v.second:02};{v.frame:02}"
-                        if v.drop_frame
-                        else f"{v.hour:02}:{v.minute:02}:{v.second:02}:{v.frame:02}"
-                    )
-                    if v.hour is not None
-                    else ""
+                    f"{v.hour:02}:{v.minute:02}:{v.second:02};{v.frame:02}"
+                    if v.drop_frame
+                    else f"{v.hour:02}:{v.minute:02}:{v.second:02}:{v.frame:02}"
                 )
+
             case "color_frame":
                 assert isinstance(value_subset, cls.ColorFrameFields)
                 return value_subset.color_frame.name if value_subset.color_frame is not None else ""
@@ -776,7 +780,7 @@ class GenericDate(Pack):
                         raise PackValidationError(
                             f"Parsing error while reading time zone {text_value}."
                         )
-                    if match.group("minutes") != "30" and match.group("minutes") != 00:
+                    if match.group("minute") != "30" and match.group("minute") != "00":
                         raise PackValidationError("Minutes portion of time zone must be 30 or 00.")
                     tz_hours = int(match.group("hour"))
                     tz_30_minutes = match.group("minute") == "30"
@@ -808,7 +812,11 @@ class GenericDate(Pack):
             case "tz":
                 assert isinstance(value_subset, cls.TimeZoneFields)
                 tzv = value_subset
-                return f"{tzv.time_zone_hours:02}:{00 if not tzv.time_zone_30_minutes else 30}"
+                return (
+                    f"{tzv.time_zone_hours:02}:{0 if not tzv.time_zone_30_minutes else 30:02}"
+                    if tzv.time_zone_hours is not None
+                    else ""
+                )
             case "dst":
                 assert isinstance(value_subset, cls.DaylightSavingTimeFields)
                 return (

@@ -2,7 +2,7 @@ import pytest
 
 import tests.dv.test_dif_pack as test_dif_pack
 import video_tools.dv.dif_pack as pack
-from tests.dv.test_dif_pack import PackBinaryTestCase, PackValidateCase
+from tests.dv.test_dif_pack import PackBinaryTestCase, PackTextSuccessTestCase, PackValidateCase
 
 # ======================== BINARY GROUP PACK TESTS ========================
 
@@ -67,6 +67,26 @@ def test_vaux_binary_group_binary(tc: PackBinaryTestCase) -> None:
 )
 def test_title_binary_group_validate(tc: PackValidateCase) -> None:
     test_dif_pack.run_pack_validate_case(tc)
+
+
+@pytest.mark.parametrize(
+    "tc",
+    [
+        PackTextSuccessTestCase(
+            "basic test",
+            {None: "0x12345678"},
+            pack.TitleBinaryGroup(value=bytes.fromhex("12 34 56 78")),
+        ),
+        PackTextSuccessTestCase(
+            "empty",
+            {None: ""},
+            pack.TitleBinaryGroup(),
+        ),
+    ],
+    ids=lambda tc: tc.name,
+)
+def test_title_binary_group_text_success(tc: PackTextSuccessTestCase) -> None:
+    test_dif_pack.run_pack_text_success_test_case(tc, pack.TitleBinaryGroup)
 
 
 # ======================== NO INFO PACK TESTS ========================

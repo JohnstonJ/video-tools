@@ -6,7 +6,12 @@ import pytest
 import tests.dv.test_dif_pack as test_dif_pack
 import video_tools.dv.dif_pack as pack
 import video_tools.dv.file_info as dv_file_info
-from tests.dv.test_dif_pack import PackBinaryTestCase, PackValidateCase
+from tests.dv.test_dif_pack import (
+    PackBinaryTestCase,
+    PackTextParseFailureTestCase,
+    PackTextSuccessTestCase,
+    PackValidateCase,
+)
 
 NTSC = dv_file_info.DVSystem.SYS_525_60
 PAL = dv_file_info.DVSystem.SYS_625_50
@@ -516,3 +521,103 @@ def test_time_increment_failures(value: str, message: str, system: dv_file_info.
     )
     with pytest.raises(pack.PackValidationError, match=message):
         val.increment_frame(system)
+
+
+@pytest.mark.parametrize(
+    "tc",
+    [
+        PackTextSuccessTestCase(
+            "basic test, drop frame",
+            {
+                None: "12:34:56;12",
+                "color_frame": "SYNCHRONIZED",
+                "polarity_correction": "EVEN",
+                "binary_group_flags": "0x3",
+                "blank_flag": "CONTINUOUS",
+            },
+            pack.TitleTimecode(
+                hour=12,
+                minute=34,
+                second=56,
+                frame=12,
+                drop_frame=True,
+                color_frame=pack.ColorFrame.SYNCHRONIZED,
+                polarity_correction=pack.PolarityCorrection.EVEN,
+                binary_group_flags=0x3,
+                blank_flag=pack.BlankFlag.CONTINUOUS,
+            ),
+        ),
+        PackTextSuccessTestCase(
+            "basic test, no drop frame",
+            {
+                None: "12:34:56:12",
+                "color_frame": "SYNCHRONIZED",
+                "polarity_correction": "EVEN",
+                "binary_group_flags": "0x3",
+                "blank_flag": "CONTINUOUS",
+            },
+            pack.TitleTimecode(
+                hour=12,
+                minute=34,
+                second=56,
+                frame=12,
+                drop_frame=False,
+                color_frame=pack.ColorFrame.SYNCHRONIZED,
+                polarity_correction=pack.PolarityCorrection.EVEN,
+                binary_group_flags=0x3,
+                blank_flag=pack.BlankFlag.CONTINUOUS,
+            ),
+        ),
+        PackTextSuccessTestCase(
+            "basic test, no frame",
+            {
+                None: "12:34:56",
+                "color_frame": "SYNCHRONIZED",
+                "polarity_correction": "EVEN",
+                "binary_group_flags": "0x3",
+                "blank_flag": "CONTINUOUS",
+            },
+            pack.TitleTimecode(
+                hour=12,
+                minute=34,
+                second=56,
+                drop_frame=True,
+                color_frame=pack.ColorFrame.SYNCHRONIZED,
+                polarity_correction=pack.PolarityCorrection.EVEN,
+                binary_group_flags=0x3,
+                blank_flag=pack.BlankFlag.CONTINUOUS,
+            ),
+        ),
+        PackTextSuccessTestCase(
+            "empty",
+            {
+                None: "",
+                "color_frame": "",
+                "polarity_correction": "",
+                "binary_group_flags": "",
+                "blank_flag": "",
+            },
+            pack.TitleTimecode(drop_frame=True),
+        ),
+    ],
+    ids=lambda tc: tc.name,
+)
+def test_title_timecode_text_success(tc: PackTextSuccessTestCase) -> None:
+    test_dif_pack.run_pack_text_success_test_case(tc, pack.TitleTimecode)
+
+
+@pytest.mark.parametrize(
+    "tc",
+    [
+        PackTextParseFailureTestCase(
+            "invalid time pattern",
+            {
+                None: "blah",
+            },
+            "Parsing error while reading timecode blah",
+        ),
+    ],
+    ids=lambda tc: tc.name,
+)
+def test_title_timecode_text_parse_failure(tc: PackTextParseFailureTestCase) -> None:
+    test_dif_pack.run_pack_text_parse_failure_test_case(tc, pack.TitleTimecode)

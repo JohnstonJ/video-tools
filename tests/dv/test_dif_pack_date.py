@@ -6,7 +6,12 @@ import pytest
 
 import tests.dv.test_dif_pack as test_dif_pack
 import video_tools.dv.dif_pack as pack
-from tests.dv.test_dif_pack import PackBinaryTestCase, PackValidateCase
+from tests.dv.test_dif_pack import (
+    PackBinaryTestCase,
+    PackTextParseFailureTestCase,
+    PackTextSuccessTestCase,
+    PackValidateCase,
+)
 
 # Do most heavy testing on the VAUXRecordingDate
 
@@ -335,3 +340,95 @@ ZERO_DATE = pack.VAUXRecordingDate(
 )
 def test_date_validate(tc: PackValidateCase) -> None:
     test_dif_pack.run_pack_validate_case(tc)
+
+
+@pytest.mark.parametrize(
+    "tc",
+    [
+        PackTextSuccessTestCase(
+            "basic test",
+            {
+                None: "2024-04-07",
+                "week": "TUESDAY",
+                "tz": "21:30",
+                "dst": "DST",
+                "reserved": "0x2",
+            },
+            pack.VAUXRecordingDate(
+                year=2024,
+                month=4,
+                day=7,
+                week=pack.Week.TUESDAY,
+                time_zone_hours=21,
+                time_zone_30_minutes=True,
+                daylight_saving_time=pack.DaylightSavingTime.DST,
+                reserved=0x2,
+            ),
+        ),
+        PackTextSuccessTestCase(
+            "time zone not 30 minutes",
+            {
+                None: "2024-04-07",
+                "week": "TUESDAY",
+                "tz": "21:00",
+                "dst": "NORMAL",
+                "reserved": "0x2",
+            },
+            pack.VAUXRecordingDate(
+                year=2024,
+                month=4,
+                day=7,
+                week=pack.Week.TUESDAY,
+                time_zone_hours=21,
+                time_zone_30_minutes=False,
+                daylight_saving_time=pack.DaylightSavingTime.NORMAL,
+                reserved=0x2,
+            ),
+        ),
+        PackTextSuccessTestCase(
+            "empty",
+            {
+                None: "",
+                "week": "",
+                "tz": "",
+                "dst": "",
+                "reserved": "",
+            },
+            pack.VAUXRecordingDate(),
+        ),
+    ],
+    ids=lambda tc: tc.name,
+)
+def test_vaux_recording_date_text_success(tc: PackTextSuccessTestCase) -> None:
+    test_dif_pack.run_pack_text_success_test_case(tc, pack.VAUXRecordingDate)
+
+
+@pytest.mark.parametrize(
+    "tc",
+    [
+        PackTextParseFailureTestCase(
+            "invalid date pattern",
+            {
+                None: "blah",
+            },
+            "Parsing error while reading date blah.",
+        ),
+        PackTextParseFailureTestCase(
+            "invalid time zone",
+            {
+                "tz": "blah",
+            },
+            "Parsing error while reading time zone blah.",
+        ),
+        PackTextParseFailureTestCase(
+            "time zone not on 30 minute increment",
+            {
+                "tz": "21:12",
+            },
+            "Minutes portion of time zone must be 30 or 00.",
+        ),
+    ],
+    ids=lambda tc: tc.name,
+)
+def test_vaux_recording_date_text_parse_failure(tc: PackTextParseFailureTestCase) -> None:
+    test_dif_pack.run_pack_text_parse_failure_test_case(tc, pack.VAUXRecordingDate)
