@@ -102,3 +102,37 @@ def test_title_binary_group_text_success(tc: PackTextSuccessTestCase) -> None:
 )
 def test_no_info_binary(tc: PackBinaryTestCase) -> None:
     test_dif_pack.run_pack_binary_test_case(tc, pack.NoInfo)
+
+
+# ======================== UNKNOWN GROUP PACK TESTS ========================
+
+
+@pytest.mark.parametrize(
+    "tc",
+    [
+        PackBinaryTestCase(
+            "basic test",
+            "12 34 56 78 9A",
+            pack.Unknown(value=bytes.fromhex("12 34 56 78 9A")),
+        ),
+    ],
+    ids=lambda tc: tc.name,
+)
+def test_unknown_binary(tc: PackBinaryTestCase) -> None:
+    test_dif_pack.run_pack_binary_test_case(tc, pack.Unknown)
+
+
+@pytest.mark.parametrize(
+    "tc",
+    [
+        PackValidateCase("no value", pack.Unknown(), "A pack value was not provided."),
+        PackValidateCase(
+            "wrong length",
+            pack.Unknown(value=b"ab"),
+            "The pack value has the wrong length: expected 5 bytes but got 2.",
+        ),
+    ],
+    ids=lambda tc: tc.name,
+)
+def test_unknown_validate(tc: PackValidateCase) -> None:
+    test_dif_pack.run_pack_validate_case(tc)

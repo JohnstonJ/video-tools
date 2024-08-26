@@ -1128,3 +1128,54 @@ class NoInfo(Pack):
 
     def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
         return bytes([self.pack_type, 0xFF, 0xFF, 0xFF, 0xFF])
+
+
+# Unknown pack: holds the bytes for any pack type we don't know about in a particular DIF block.
+# These are not aggregated or written to the CSV, since it isn't known if it's meaningful to do
+# that.  They do show up when parsing DIF blocks so that we can retain the bytes.
+@dataclass(frozen=True, kw_only=True)
+class Unknown(Pack):
+    # this will always be 5 bytes: includes the pack header
+    value: bytes | None = None
+
+    text_fields: ClassVar[CSVFieldMap] = {}
+
+    def validate(self, system: dv_file_info.DVSystem) -> str | None:
+        if self.value is None:
+            return "A pack value was not provided."
+        if len(self.value) != 5:
+            return (
+                "The pack value has the wrong length: expected 5 bytes "
+                f"but got {len(self.value)}."
+            )
+        return None
+
+    @classmethod
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
+        assert False
+
+    @classmethod
+    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+        assert False
+
+    @classmethod
+    def _do_parse_binary(cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem) -> Unknown | None:
+        return cls(value=bytes(ssyb_bytes))
+
+    @classmethod
+    def parse_binary(cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem) -> Pack | None:
+        assert len(ssyb_bytes) == 5
+        pack = cls._do_parse_binary(ssyb_bytes, system)
+        return pack if pack is not None and pack.validate(system) is None else None
+
+    def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
+        assert self.value is not None
+        return self.value
+
+    def to_binary(self, system: dv_file_info.DVSystem) -> bytes:
+        validation_message = self.validate(system)
+        if validation_message is not None:
+            raise PackValidationError(validation_message)
+        b = self._do_to_binary(system)
+        assert len(b) == 5
+        return b
