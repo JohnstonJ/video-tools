@@ -619,8 +619,7 @@ def load_transformations(transformations_file: BinaryIO) -> Transformations:
                         else None
                     ),
                     lower_bound=int(command_dict.get("lower_bound", "0x0"), 0),
-                    # upper_bound has no reasonable default: every tape deck is different
-                    upper_bound=int(command_dict["upper_bound"], 0),
+                    upper_bound=int(command_dict.get["upper_bound", "0xB"], 0),
                     step=int(command_dict.get("step", "0x1"), 0),
                     start_frame=command_dict.get("start_frame", 0),
                     end_frame=command_dict.get("end_frame", None),
