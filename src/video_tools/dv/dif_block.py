@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ctypes
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import IntEnum
 from typing import ClassVar
@@ -14,6 +15,8 @@ import video_tools.dv.file_info as dv_file_info
 class DIFBlockError(ValueError):
     pass
 
+
+DIF_BLOCK_SIZE = 80
 
 # General comment about the accuracy / reliability of block data:  some fields are read from the
 # tape and could be corrupted from read errors from the tape.  Other fields are created by the
@@ -39,30 +42,30 @@ class BlockType(IntEnum):
 # Common DIF block ID which is at the start of every DIF block.
 # SMPTE 306M-2002 Section 11.2.1 ID / Table 51 - ID data in a DIF block
 # IEC 61834-2:1998 Section 11.4.1 ID part / Figure 66 - ID data in a DIF block
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class BlockID:
     # This value is synthesized by the digital interface and should always be accurate.
     type: BlockType
 
     # Sequence number in IEC 61834-2; arbitrary bits in SMPTE 306M
-    #  - IEC 61834-2:1998 Section 3.3.3 ID part (Audio sector).
-    #  - IEC 61834-2:1998 Section 3.4.3 ID part (Video sector).
-    #  - IEC 61834-2:1998 Section 3.5.3 ID part (Subcode sector).
+    #  - IEC 61834-2:1998 Section 3.3.3 - ID part (Audio sector).
+    #  - IEC 61834-2:1998 Section 3.4.3 - ID part (Video sector).
+    #  - IEC 61834-2:1998 Section 3.5.3 - ID part (Subcode sector).
     #  - IEC 61834-2:1998 Tables 5 / 6 - Sequence number (525-60 and 625-50 systems)
     # Important notes:
     #  - The same value is kept throughout an entire frame.
     #  - Valid values are [0x0, 0xB] for both 525-60 and 625-50 systems, and are read from the tape.
     #    There could be read errors from tape.
     #  - Exception: Header and subcode DIF blocks must have sequence values of 0xF.  This value
-    #    is reliably provided by the tape deck's digital interface.
+    #    is reliably provided by the tape deck's digital interface and not subject to tape errors.
     #  - Exception: A value of 0xF shall be used if there is trouble reading from tape.
     sequence: int
 
     # Channel number the DIF block appears in
     # Important notes:
-    #  - IEC 61834-2:1998 Figure 66 specifies that the value is always to be 0.
-    #  - SMPTE 306M-2002 Table 51 specifies that the value is the channel number (0 or 1).
-    #  - We can reasonably assume it is not stored on tape / is exclusive to the digital
+    #  - IEC 61834-2:1998 - Figure 66 specifies that the value is always to be 0.
+    #  - SMPTE 306M-2002 - Table 51 specifies that the value is the channel number (0 or 1).
+    #  - We can reasonably assume it is not stored on tape / it is exclusive to the digital
     #    interface.  Errors are not expected.
     channel: int
 
@@ -71,7 +74,7 @@ class BlockID:
     #  - SMPTE 306M-2002 Tables 53 / 54 - DIF sequence number (525-60 and 625-50 systems)
     # Important notes:
     #  - Range is [0, 9] for 525-60 system (NTSC), and [0, 11] for 625-50 system (PAL/SECAM).
-    #  - Not stored on tape / is exclusive to the digital interface.  Errors are not expected.
+    #  - Not stored on tape / it is exclusive to the digital interface.  Errors are not expected.
     dif_sequence: int
 
     # DIF block number in IEC 61834-2 and SMPTE 306M
@@ -81,7 +84,7 @@ class BlockID:
     #  - The indexing is of only this block type within a single sequence.  That is, each block
     #    type is numbered independently.  The maximum values are 0 for header block, 1 for subcode
     #    block, 2 for VAUX, 8 for audio, and 134 for video.
-    #  - Not stored on tape / is exclusive to the digital interface.  Errors are not expected.
+    #  - Not stored on tape / it is exclusive to the digital interface.  Errors are not expected.
     dif_block: int
 
     class _BinaryFields(ctypes.BigEndianStructure):
@@ -167,3 +170,73 @@ class BlockID:
             dbn=int(self.dif_block),
         )
         return bytes(bin)
+
+
+# Base class for single 80 byte DIF block instances.
+@dataclass(frozen=True, kw_only=True)
+class Block(ABC):
+    block_id: BlockID
+
+    @abstractmethod
+    def validate(self, system: dv_file_info.DVSystem) -> str | None:
+        """Indicate whether the contents of the block are valid and could be written to binary.
+
+        The function must not return validation failures that are the likely result of tape
+        read errors that resulted in data corruption.  Failures should be the result of logic errors
+        on our end / the end-users end, or due to DV data that is normally 100% reliable (i.e. part
+        of the digital interface and not subject to tape errors).
+
+        The return value contains a description of the validation failure.  If the block passes
+        validation, then None is returned.
+        """
+        pass
+
+    # Functions for going to/from binary blocks
+
+    type: ClassVar[BlockType]
+
+    @classmethod
+    @abstractmethod
+    def _do_parse_binary(
+        cls, block_bytes: bytes, block_id: BlockID, system: dv_file_info.DVSystem
+    ) -> Block:
+        """The derived class must parse the bytes into a new Block object.
+
+        It does not need to assert the length of block_bytes or assert that the section type is
+        indeed correct.  It also does not need to call validate, since the base parse_binary
+        function does those common tasks for you.
+        """
+        pass
+
+    @classmethod
+    def parse_binary(cls, block_bytes: bytes, system: dv_file_info.DVSystem) -> Block:
+        """Create a new instance of a block by parsing a binary DIF block from a DV file.
+
+        The input byte array is expected to be an 80 byte DIF block.  The output type will be
+        one of the derived classes, based on the detected block type.
+        """
+        assert len(block_bytes) == DIF_BLOCK_SIZE
+        id = BlockID.parse_binary(block_bytes[0:3], system)
+        assert id.type == cls.type
+
+        block = cls._do_parse_binary(block_bytes, id, system)
+
+        validation_message = block.validate(system)
+        if validation_message is not None:
+            raise DIFBlockError(validation_message)
+        return block
+
+    @abstractmethod
+    def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
+        """Convert this block to binary; the block can be assumed to be valid."""
+        pass
+
+    def to_binary(self, system: dv_file_info.DVSystem) -> bytes:
+        """Convert this block back to binary."""
+        validation_message = self.validate(system)
+        if validation_message is not None:
+            raise DIFBlockError(validation_message)
+
+        b = self._do_to_binary(system)
+        assert len(b) == DIF_BLOCK_SIZE
+        return b
