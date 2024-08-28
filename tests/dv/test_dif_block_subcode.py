@@ -6,8 +6,8 @@ import video_tools.dv.dif_block as dif_block
 import video_tools.dv.dif_block_header as dif_block_header
 import video_tools.dv.dif_block_parser as block_parser
 import video_tools.dv.dif_block_subcode as dif_block_subcode
-import video_tools.dv.dif_pack as pack
 import video_tools.dv.file_info as dv_file_info
+import video_tools.dv.pack as pack
 from tests.dv.util import NTSC_FILE
 
 TRAILER = "".join([" FF"] * 29)

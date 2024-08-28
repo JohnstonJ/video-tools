@@ -201,7 +201,7 @@ class BlankFlag(IntEnum):
     CONTINUOUS = 0x1
 
 
-smpte_time_pattern = re.compile(
+_smpte_time_pattern = re.compile(
     r"^(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})"
     r"((?P<frame_separator>[:;])(?P<frame>\d{2}))?$"
 )
@@ -316,7 +316,7 @@ class GenericTimecode(Pack):
             case None:
                 match = None
                 if text_value:
-                    match = smpte_time_pattern.match(text_value)
+                    match = _smpte_time_pattern.match(text_value)
                     if not match:
                         raise PackValidationError(
                             f"Parsing error while reading timecode {text_value}."
@@ -639,8 +639,8 @@ class GenericBinaryGroup(Pack):
         )
 
 
-generic_date_pattern = re.compile(r"^(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})$")
-time_zone_pattern = re.compile(r"^(?P<hour>\d{2}):(?P<minute>\d{2})$")
+_generic_date_pattern = re.compile(r"^(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})$")
+_time_zone_pattern = re.compile(r"^(?P<hour>\d{2}):(?P<minute>\d{2})$")
 
 
 class Week(IntEnum):
@@ -759,7 +759,7 @@ class GenericDate(Pack):
             case None:
                 match = None
                 if text_value:
-                    match = generic_date_pattern.match(text_value)
+                    match = _generic_date_pattern.match(text_value)
                     if not match:
                         raise PackValidationError(f"Parsing error while reading date {text_value}.")
                 return cls.MainFields(
@@ -775,7 +775,7 @@ class GenericDate(Pack):
                 tz_hours = None
                 tz_30_minutes = None
                 if text_value:
-                    match = time_zone_pattern.match(text_value)
+                    match = _time_zone_pattern.match(text_value)
                     if not match:
                         raise PackValidationError(
                             f"Parsing error while reading time zone {text_value}."

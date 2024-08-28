@@ -12,7 +12,7 @@ import yaml
 
 import video_tools.dv.data_util as du
 import video_tools.dv.dif as dif
-import video_tools.dv.dif_pack as pack
+import video_tools.dv.pack as pack
 
 MOST_COMMON = "MOST_COMMON"
 

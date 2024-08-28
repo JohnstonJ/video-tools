@@ -7,8 +7,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from enum import IntEnum
 
-import video_tools.dv.dif_pack as pack
 import video_tools.dv.file_info as dv_file_info
+import video_tools.dv.pack as pack
 
 
 # DIF block types.  Values are the three section type bits SCT2..0

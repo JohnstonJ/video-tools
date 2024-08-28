@@ -5,7 +5,7 @@ from typing import Iterator, TextIO, cast
 
 import video_tools.dv.data_util as du
 import video_tools.dv.dif as dif
-import video_tools.dv.dif_pack as pack
+import video_tools.dv.pack as pack
 
 
 def write_frame_data_csv(output_file: TextIO, all_frame_data: list[dif.FrameData]) -> None:

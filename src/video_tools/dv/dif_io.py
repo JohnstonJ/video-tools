@@ -4,7 +4,7 @@ from collections import defaultdict
 from typing import BinaryIO, cast
 
 import video_tools.dv.dif as dif
-import video_tools.dv.dif_pack as pack
+import video_tools.dv.pack as pack
 import video_tools.io_util as io_util
 from video_tools.dv.file_info import DVFileInfo
 

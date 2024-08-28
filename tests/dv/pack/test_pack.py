@@ -2,8 +2,8 @@ from dataclasses import dataclass
 
 import pytest
 
-import video_tools.dv.dif_pack as pack
 import video_tools.dv.file_info as dv_file_info
+import video_tools.dv.pack as pack
 
 NTSC = dv_file_info.DVSystem.SYS_525_60
 PAL = dv_file_info.DVSystem.SYS_625_50

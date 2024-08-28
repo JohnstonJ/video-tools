@@ -7,9 +7,8 @@ from typing import ClassVar, cast
 
 import video_tools.dv.dif_block as block
 import video_tools.dv.dif_block_header as block_header
-import video_tools.dv.dif_pack as pack
-import video_tools.dv.dif_pack_parser as pack_parser
 import video_tools.dv.file_info as dv_file_info
+import video_tools.dv.pack as pack
 
 
 # Blank flag: determines whether a discontinuity in the absolute track number exists prior to the
@@ -309,7 +308,7 @@ class Subcode(block.Block):
 
         # Now, read and parse the packs
         for dif_sync_block_number in range(6):
-            packs[dif_sync_block_number] = pack_parser.parse_binary(
+            packs[dif_sync_block_number] = pack.parse_binary(
                 bin.sync_blocks[dif_sync_block_number].data, file_info.system
             )
             pack_types[dif_sync_block_number] = bin.sync_blocks[dif_sync_block_number].data[0]
