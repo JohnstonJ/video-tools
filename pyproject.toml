@@ -14,6 +14,7 @@ license = {file = "LICENSE"}
 requires-python = ">=3.12"
 dependencies = [
     "av~=12.3",
+    "colorama~=0.4.6",
     "numpy~=2.0",
     "PyYAML~=6.0",
     "scikit-video~=1.1",
@@ -23,11 +24,13 @@ dependencies = [
 dev = [
     "pytest~=8.3",
     "pytest-cov~=5.0",
+    "types-colorama~=0.4.15",
     "types-pyyaml~=6.0",
 ]
 
 [project.scripts]
 analyze_virtualdub_timing_log = "video_tools.analyze_virtualdub_timing_log:main"
+dv_dif_dump = "video_tools.dv_dif_dump:main"
 dv_merge = "video_tools.dv_merge:main"
 dv_repair = "video_tools.dv_repair:main"
 dv_resample_audio = "video_tools.dv_resample_audio:main"
