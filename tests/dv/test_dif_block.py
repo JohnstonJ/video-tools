@@ -181,7 +181,7 @@ class BlockIDValidateTestCase:
 )
 def test_block_id_validate_write(tc: BlockIDValidateTestCase) -> None:
     """Test validation failures when writing a block ID to binary."""
-    with pytest.raises(dif_block.DIFBlockError, match=tc.failure):
+    with pytest.raises(dif_block.BlockError, match=tc.failure):
         tc.input.to_binary(tc.file_info)
 
 
@@ -193,10 +193,10 @@ def test_block_id_validate_read() -> None:
     """
 
     failure = "DIF block ID has DIF block number of 3 that is too high for a block type of VAUX."
-    with pytest.raises(dif_block.DIFBlockError, match=failure):
+    with pytest.raises(dif_block.BlockError, match=failure):
         dif_block.BlockID.parse_binary(bytes.fromhex("50 07 03"), NTSC_FILE)
 
     # also check the failure branches in parse_binary
     failure = "Reserved bits in DIF block identifier were unexpectedly cleared."
-    with pytest.raises(dif_block.DIFBlockError, match=failure):
+    with pytest.raises(dif_block.BlockError, match=failure):
         dif_block.BlockID.parse_binary(bytes.fromhex("00 00 00"), NTSC_FILE)

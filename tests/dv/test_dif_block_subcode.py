@@ -675,7 +675,7 @@ class SubcodeBlockValidateTestCase:
 )
 def test_subcode_block_validate_write(tc: SubcodeBlockValidateTestCase) -> None:
     """Test validation failures when writing a subcode block to binary."""
-    with pytest.raises(dif_block.DIFBlockError, match=tc.failure):
+    with pytest.raises(dif_block.BlockError, match=tc.failure):
         tc.input.to_binary(tc.file_info)
 
 
@@ -686,7 +686,7 @@ def test_subcode_block_validate_read() -> None:
     are tested in test_subcode_block_validate_write.
     """
     failure = "Sync block parity byte is not 0xFF for sync block 8."
-    with pytest.raises(dif_block.DIFBlockError, match=failure):
+    with pytest.raises(dif_block.BlockError, match=failure):
         dif_block_subcode.Subcode.parse_binary(
             bytes.fromhex(
                 "3F 57 01 "
@@ -702,7 +702,7 @@ def test_subcode_block_validate_read() -> None:
         )
 
     failure = "Reserved bits in DIF header block are unexpectedly in use."
-    with pytest.raises(dif_block.DIFBlockError, match=failure):
+    with pytest.raises(dif_block.BlockError, match=failure):
         dif_block_subcode.Subcode.parse_binary(
             bytes.fromhex(
                 "3F 57 01 "

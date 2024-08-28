@@ -281,7 +281,7 @@ class HeaderBlockValidateTestCase:
 )
 def test_header_block_validate_write(tc: HeaderBlockValidateTestCase) -> None:
     """Test validation failures when writing a header block to binary."""
-    with pytest.raises(dif_block.DIFBlockError, match=tc.failure):
+    with pytest.raises(dif_block.BlockError, match=tc.failure):
         tc.input.to_binary(tc.file_info)
 
 
@@ -292,62 +292,62 @@ def test_header_block_validate_read() -> None:
     test_header_block_validate_write.
     """
     failure = "DIF header block does not match with expected system SYS_525_60."
-    with pytest.raises(dif_block.DIFBlockError, match=failure):
+    with pytest.raises(dif_block.BlockError, match=failure):
         dif_block_header.Header.parse_binary(
             bytes.fromhex(f"1F 07 00  BF 78 78 78 78 {TRAILER}"), NTSC_FILE
         )
 
     # also check the failure branches in parse_binary
     failure = "Zero bit in DIF header block is unexpectedly not zero."
-    with pytest.raises(dif_block.DIFBlockError, match=failure):
+    with pytest.raises(dif_block.BlockError, match=failure):
         dif_block_header.Header.parse_binary(
             bytes.fromhex(f"1F 07 00  7F 78 78 78 78 {TRAILER}"), NTSC_FILE
         )
 
     failure = "Reserved bits in DIF header block are unexpectedly in use."
-    with pytest.raises(dif_block.DIFBlockError, match=failure):
+    with pytest.raises(dif_block.BlockError, match=failure):
         dif_block_header.Header.parse_binary(
             bytes.fromhex(f"1F 07 00  3F 70 78 78 78 {TRAILER}"), NTSC_FILE
         )
 
     failure = "Reserved bits in DIF header block are unexpectedly in use."
-    with pytest.raises(dif_block.DIFBlockError, match=failure):
+    with pytest.raises(dif_block.BlockError, match=failure):
         dif_block_header.Header.parse_binary(
             bytes.fromhex(f"1F 07 00  3F 78 70 78 78 {TRAILER}"), NTSC_FILE
         )
 
     failure = "Reserved bits in DIF header block are unexpectedly in use."
-    with pytest.raises(dif_block.DIFBlockError, match=failure):
+    with pytest.raises(dif_block.BlockError, match=failure):
         dif_block_header.Header.parse_binary(
             bytes.fromhex(f"1F 07 00  3F 78 78 70 78 {TRAILER}"), NTSC_FILE
         )
 
     failure = "Reserved bits in DIF header block are unexpectedly in use."
-    with pytest.raises(dif_block.DIFBlockError, match=failure):
+    with pytest.raises(dif_block.BlockError, match=failure):
         dif_block_header.Header.parse_binary(
             bytes.fromhex(f"1F 07 00  3F 78 78 78 70 {TRAILER}"), NTSC_FILE
         )
 
     failure = "Unexpected values in the track information area of the DIF header block."
-    with pytest.raises(dif_block.DIFBlockError, match=failure):
+    with pytest.raises(dif_block.BlockError, match=failure):
         dif_block_header.Header.parse_binary(
             bytes.fromhex(f"1F 07 00  3F A8 78 78 78 {TRAILER}"), NTSC_FILE
         )
 
     failure = "Transmitting flags for some DIF blocks are off in the DIF header block."
-    with pytest.raises(dif_block.DIFBlockError, match=failure):
+    with pytest.raises(dif_block.BlockError, match=failure):
         dif_block_header.Header.parse_binary(
             bytes.fromhex(f"1F 07 00  3F 78 F8 78 78 {TRAILER}"), NTSC_FILE
         )
 
     failure = "Transmitting flags for some DIF blocks are off in the DIF header block."
-    with pytest.raises(dif_block.DIFBlockError, match=failure):
+    with pytest.raises(dif_block.BlockError, match=failure):
         dif_block_header.Header.parse_binary(
             bytes.fromhex(f"1F 07 00  3F 78 78 F8 78 {TRAILER}"), NTSC_FILE
         )
 
     failure = "Transmitting flags for some DIF blocks are off in the DIF header block."
-    with pytest.raises(dif_block.DIFBlockError, match=failure):
+    with pytest.raises(dif_block.BlockError, match=failure):
         dif_block_header.Header.parse_binary(
             bytes.fromhex(f"1F 07 00  3F 78 78 78 F8 {TRAILER}"), NTSC_FILE
         )

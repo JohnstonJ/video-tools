@@ -10,7 +10,7 @@ def parse_binary(block_bytes: bytes, file_info: dv_file_info.DVFileInfo) -> bloc
     The input byte array is expected to be an 80 byte DIF block.  The output type will be
     one of the derived classes, based on the detected block type.
     """
-    assert len(block_bytes) == block.DIF_BLOCK_SIZE
+    assert len(block_bytes) == block.BLOCK_SIZE
     id = block.BlockID.parse_binary(block_bytes[0:3], file_info)
     match id.type:
         case block.BlockType.HEADER:

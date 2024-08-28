@@ -87,10 +87,10 @@ def dump_dif_blocks(
                     print(
                         f"{block:3} {frame_bytes[b_start:b_start+3].hex().upper()} "
                         f"{type_color[block_id.type]}"
-                        f"{frame_bytes[b_start+3:b_start+dif_block.DIF_BLOCK_SIZE].hex().upper()}"
+                        f"{frame_bytes[b_start+3:b_start+dif_block.BLOCK_SIZE].hex().upper()}"
                         f"{Style.RESET_ALL}"
                     )
-                b_start += dif_block.DIF_BLOCK_SIZE
+                b_start += dif_block.BLOCK_SIZE
 
 
 def main() -> None:

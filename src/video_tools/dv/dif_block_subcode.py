@@ -269,7 +269,7 @@ class Subcode(block.Block):
 
             # Parity byte is ALWAYS 0xFF on the digital interface
             if id_part.parity != 0xFF:
-                raise block.DIFBlockError(
+                raise block.BlockError(
                     f"Sync block parity byte is not 0xFF for sync block {expected_syb}."
                 )
 
@@ -316,7 +316,7 @@ class Subcode(block.Block):
 
         # Quick check on the trailing reserved bits, which don't come from tape
         if any(r != 0xFF for r in bin.reserved):
-            raise block.DIFBlockError("Reserved bits in DIF header block are unexpectedly in use.")
+            raise block.BlockError("Reserved bits in DIF header block are unexpectedly in use.")
 
         return cls(
             block_id=block_id,

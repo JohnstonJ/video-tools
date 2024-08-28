@@ -203,7 +203,7 @@ class Header(block.Block):
         # we should investigate more to find out why this is.  Note that it's not expected to be
         # a failure due to tape reading errors.
         if bin.zero != 0x0:
-            raise block.DIFBlockError("Zero bit in DIF header block is unexpectedly not zero.")
+            raise block.BlockError("Zero bit in DIF header block is unexpectedly not zero.")
         if (
             bin.reserved_0 != 0x3F
             or bin.reserved_1 != 0x01
@@ -212,13 +212,13 @@ class Header(block.Block):
             or bin.reserved_4 != 0x0F
             or any(r != 0xFF for r in bin.reserved_end)
         ):
-            raise block.DIFBlockError("Reserved bits in DIF header block are unexpectedly in use.")
+            raise block.BlockError("Reserved bits in DIF header block are unexpectedly in use.")
 
         if bin.dftia == 0xF:
             track_pitch = None
             pilot_frame = None
         elif bin.dftia > 0x7:
-            raise block.DIFBlockError(
+            raise block.BlockError(
                 "Unexpected values in the track information area of the DIF header block."
             )
         else:
@@ -229,7 +229,7 @@ class Header(block.Block):
         # ever happen, even during complete frame dropouts.  We need to study an example DV file
         # before can safely remove this assertion and actually do something with these flags.
         if bin.tf1 != 0 or bin.tf2 != 0 or bin.tf3 != 0:
-            raise block.DIFBlockError(
+            raise block.BlockError(
                 "Transmitting flags for some DIF blocks are off in the DIF header block."
             )
 

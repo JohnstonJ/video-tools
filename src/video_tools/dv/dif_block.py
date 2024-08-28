@@ -12,11 +12,11 @@ import video_tools.dv.data_util as du
 import video_tools.dv.file_info as dv_file_info
 
 
-class DIFBlockError(ValueError):
+class BlockError(ValueError):
     pass
 
 
-DIF_BLOCK_SIZE = 80
+BLOCK_SIZE = 80
 
 # General comment about the accuracy / reliability of block data:  some fields are read from the
 # tape and could be corrupted from read errors from the tape.  Other fields are created by the
@@ -141,7 +141,7 @@ class BlockID:
 
         # If this is triggered, we should look into what we're dealing with.
         if bin.reserved_0 != 0x1 or bin.reserved_1 != 0x7:
-            raise DIFBlockError("Reserved bits in DIF block identifier were unexpectedly cleared.")
+            raise BlockError("Reserved bits in DIF block identifier were unexpectedly cleared.")
 
         id = BlockID(
             type=type,
@@ -152,13 +152,13 @@ class BlockID:
         )
         validation_message = id.validate(file_info)
         if validation_message is not None:
-            raise DIFBlockError(validation_message)
+            raise BlockError(validation_message)
         return id
 
     def to_binary(self, file_info: dv_file_info.DVFileInfo) -> bytes:
         validation_message = self.validate(file_info)
         if validation_message is not None:
-            raise DIFBlockError(validation_message)
+            raise BlockError(validation_message)
 
         bin = self._BinaryFields(
             sct=int(self.type),
@@ -215,7 +215,7 @@ class Block(ABC):
         The input byte array is expected to be an 80 byte DIF block.  The output type will be
         one of the derived classes, based on the detected block type.
         """
-        assert len(block_bytes) == DIF_BLOCK_SIZE
+        assert len(block_bytes) == BLOCK_SIZE
         id = BlockID.parse_binary(block_bytes[0:3], file_info)
         assert id.type == cls.type
 
@@ -223,7 +223,7 @@ class Block(ABC):
 
         validation_message = block.validate(file_info)
         if validation_message is not None:
-            raise DIFBlockError(validation_message)
+            raise BlockError(validation_message)
         return block
 
     @abstractmethod
@@ -235,8 +235,8 @@ class Block(ABC):
         """Convert this block back to binary."""
         validation_message = self.validate(file_info)
         if validation_message is not None:
-            raise DIFBlockError(validation_message)
+            raise BlockError(validation_message)
 
         b = self._do_to_binary(file_info)
-        assert len(b) == DIF_BLOCK_SIZE
+        assert len(b) == BLOCK_SIZE
         return b
