@@ -1,5 +1,6 @@
 import video_tools.dv.dif_block as block
 import video_tools.dv.dif_block_header as block_header
+import video_tools.dv.dif_block_subcode as block_subcode
 import video_tools.dv.file_info as dv_file_info
 
 
@@ -14,5 +15,7 @@ def parse_binary(block_bytes: bytes, file_info: dv_file_info.DVFileInfo) -> bloc
     match id.type:
         case block.BlockType.HEADER:
             return block_header.Header.parse_binary(block_bytes, file_info)
+        case block.BlockType.SUBCODE:
+            return block_subcode.Subcode.parse_binary(block_bytes, file_info)
         case _:
             assert False
