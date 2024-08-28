@@ -144,23 +144,23 @@ class Pack(ABC):
 
     @classmethod
     @abstractmethod
-    def _do_parse_binary(cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem) -> Pack | None:
+    def _do_parse_binary(cls, pack_bytes: bytes, system: dv_file_info.DVSystem) -> Pack | None:
         """The derived class should parse the bytes into a new Pack object.
 
-        It does not need to assert the length of ssyb_bytes or assert that the pack type is indeed
+        It does not need to assert the length of pack_bytes or assert that the pack type is indeed
         correct.  It also does not need to call pack.validate() and return None if it's invalid.
         The main parse_binary function does those common tasks for you.
         """
 
     @classmethod
-    def parse_binary(cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem) -> Pack | None:
+    def parse_binary(cls, pack_bytes: bytes, system: dv_file_info.DVSystem) -> Pack | None:
         """Create a new instance of the pack by parsing a binary blob from a DV file.
 
         The input byte array is expected to be 5 bytes: pack type byte followed by 4 data bytes.
         """
-        assert len(ssyb_bytes) == 5
-        assert ssyb_bytes[0] == cls.pack_type
-        pack = cls._do_parse_binary(ssyb_bytes, system)
+        assert len(pack_bytes) == 5
+        assert pack_bytes[0] == cls.pack_type
+        pack = cls._do_parse_binary(pack_bytes, system)
         return pack if pack is not None and pack.validate(system) is None else None
 
     @abstractmethod
@@ -408,7 +408,7 @@ class GenericTimecode(Pack):
 
     @classmethod
     def _do_parse_binary_generic_tc(
-        cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem, **init_kwargs: Any
+        cls, pack_bytes: bytes, system: dv_file_info.DVSystem, **init_kwargs: Any
     ) -> GenericTimecode | None:
         # Good starting points to look at:
         # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
@@ -419,7 +419,7 @@ class GenericTimecode(Pack):
         # Unpack fields from bytes and validate them.  Validation failures are
         # common due to tape dropouts.
 
-        bin = cls._BinaryFields.from_buffer_copy(ssyb_bytes, 1)
+        bin = cls._BinaryFields.from_buffer_copy(pack_bytes, 1)
 
         frame_tens = None
         frame_units = None
@@ -503,9 +503,9 @@ class GenericTimecode(Pack):
 
     @classmethod
     def _do_parse_binary(
-        cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem
+        cls, pack_bytes: bytes, system: dv_file_info.DVSystem
     ) -> GenericTimecode | None:
-        return cls._do_parse_binary_generic_tc(ssyb_bytes, system)
+        return cls._do_parse_binary_generic_tc(pack_bytes, system)
 
     def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
         # Good starting points to look at:
@@ -622,9 +622,9 @@ class GenericBinaryGroup(Pack):
 
     @classmethod
     def _do_parse_binary(
-        cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem
+        cls, pack_bytes: bytes, system: dv_file_info.DVSystem
     ) -> GenericBinaryGroup | None:
-        return cls(value=bytes(ssyb_bytes[1:]))
+        return cls(value=bytes(pack_bytes[1:]))
 
     def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
         assert self.value is not None  # assertion repeated from validate() to keep mypy happy
@@ -853,7 +853,7 @@ class GenericDate(Pack):
 
     @classmethod
     def _do_parse_binary(
-        cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem
+        cls, pack_bytes: bytes, system: dv_file_info.DVSystem
     ) -> GenericDate | None:
         # Good starting points to look at:
         # IEC 61834-4:1998 9.3 Rec Date (Recording date) (VAUX)
@@ -863,7 +863,7 @@ class GenericDate(Pack):
         # Unpack fields from bytes and validate them.  Validation failures are
         # common due to tape dropouts.
 
-        bin = cls._BinaryFields.from_buffer_copy(ssyb_bytes, 1)
+        bin = cls._BinaryFields.from_buffer_copy(pack_bytes, 1)
 
         ds = None
         tm = None
@@ -1018,7 +1018,7 @@ class TitleTimecode(GenericTimecode):
 
     @classmethod
     def _do_parse_binary(
-        cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem
+        cls, pack_bytes: bytes, system: dv_file_info.DVSystem
     ) -> TitleTimecode | None:
         # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
         # IEC 61834-4:1998 4.4 Time Code (TITLE)
@@ -1026,11 +1026,11 @@ class TitleTimecode(GenericTimecode):
 
         # NOTE: CF bit is also BF bit in IEC 61834-4 if not
         # recording TITLE BINARY pack.
-        bf = (ssyb_bytes[1] & 0x80) >> 7
+        bf = (pack_bytes[1] & 0x80) >> 7
         return cast(
             TitleTimecode,
             cls._do_parse_binary_generic_tc(
-                ssyb_bytes,
+                pack_bytes,
                 system,
                 blank_flag=BlankFlag.CONTINUOUS if bf == 1 else BlankFlag.DISCONTINUOUS,
             ),
@@ -1117,8 +1117,8 @@ class NoInfo(Pack):
     pack_type = PackType.NO_INFO
 
     @classmethod
-    def _do_parse_binary(cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem) -> NoInfo | None:
-        # The standard says that ssyb_bytes will always be 0xFFFFFFFFFF.  In practice, you'll also
+    def _do_parse_binary(cls, pack_bytes: bytes, system: dv_file_info.DVSystem) -> NoInfo | None:
+        # The standard says that pack_bytes will always be 0xFFFFFFFFFF.  In practice, you'll also
         # "get" this pack as a result of dropouts from other packs: if the leading pack header is
         # lost and becomes 0xFF (this pack type), but the rest of the pack is not lost, then we'd
         # see other non-0xFF bytes here.  Unfortunately, in such a scenario, since the pack header
@@ -1159,13 +1159,13 @@ class Unknown(Pack):
         assert False
 
     @classmethod
-    def _do_parse_binary(cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem) -> Unknown | None:
-        return cls(value=bytes(ssyb_bytes))
+    def _do_parse_binary(cls, pack_bytes: bytes, system: dv_file_info.DVSystem) -> Unknown | None:
+        return cls(value=bytes(pack_bytes))
 
     @classmethod
-    def parse_binary(cls, ssyb_bytes: bytes, system: dv_file_info.DVSystem) -> Pack | None:
-        assert len(ssyb_bytes) == 5
-        pack = cls._do_parse_binary(ssyb_bytes, system)
+    def parse_binary(cls, pack_bytes: bytes, system: dv_file_info.DVSystem) -> Pack | None:
+        assert len(pack_bytes) == 5
+        pack = cls._do_parse_binary(pack_bytes, system)
         return pack if pack is not None and pack.validate(system) is None else None
 
     def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
