@@ -107,7 +107,7 @@ class BlockID:
         BlockType.VIDEO: 134,
     }
 
-    def validate(self, system: dv_file_info.DVSystem) -> str | None:
+    def validate(self, file_info: dv_file_info.DVFileInfo) -> str | None:
         if (
             self.type == BlockType.HEADER or self.type == BlockType.SUBCODE
         ) and self.sequence != 0xF:
@@ -116,12 +116,12 @@ class BlockID:
                 f"non-0xF sequence number of {du.hex_int(self.sequence, 1)}."
             )
 
-        if (system == dv_file_info.DVSystem.SYS_525_60 and self.dif_sequence >= 10) or (
-            system == dv_file_info.DVSystem.SYS_625_50 and self.dif_sequence >= 12
+        if (file_info.system == dv_file_info.DVSystem.SYS_525_60 and self.dif_sequence >= 10) or (
+            file_info.system == dv_file_info.DVSystem.SYS_625_50 and self.dif_sequence >= 12
         ):
             return (
                 f"DIF block ID has DIF sequence number of {self.dif_sequence} that "
-                f"is too high for system {system.name}."
+                f"is too high for system {file_info.system.name}."
             )
 
         if self.dif_block > self.__max_dbn[self.type]:
@@ -133,7 +133,7 @@ class BlockID:
         return None
 
     @classmethod
-    def parse_binary(cls, id_bytes: bytes, system: dv_file_info.DVSystem) -> BlockID:
+    def parse_binary(cls, id_bytes: bytes, file_info: dv_file_info.DVFileInfo) -> BlockID:
         assert len(id_bytes) == 3
         bin = cls._BinaryFields.from_buffer_copy(id_bytes)
 
@@ -150,13 +150,13 @@ class BlockID:
             dif_sequence=bin.dseq,
             dif_block=bin.dbn,
         )
-        validation_message = id.validate(system)
+        validation_message = id.validate(file_info)
         if validation_message is not None:
             raise DIFBlockError(validation_message)
         return id
 
-    def to_binary(self, system: dv_file_info.DVSystem) -> bytes:
-        validation_message = self.validate(system)
+    def to_binary(self, file_info: dv_file_info.DVFileInfo) -> bytes:
+        validation_message = self.validate(file_info)
         if validation_message is not None:
             raise DIFBlockError(validation_message)
 
@@ -178,7 +178,7 @@ class Block(ABC):
     block_id: BlockID
 
     @abstractmethod
-    def validate(self, system: dv_file_info.DVSystem) -> str | None:
+    def validate(self, file_info: dv_file_info.DVFileInfo) -> str | None:
         """Indicate whether the contents of the block are valid and could be written to binary.
 
         The function must not return validation failures that are the likely result of tape
@@ -198,7 +198,7 @@ class Block(ABC):
     @classmethod
     @abstractmethod
     def _do_parse_binary(
-        cls, block_bytes: bytes, block_id: BlockID, system: dv_file_info.DVSystem
+        cls, block_bytes: bytes, block_id: BlockID, file_info: dv_file_info.DVFileInfo
     ) -> Block:
         """The derived class must parse the bytes into a new Block object.
 
@@ -209,34 +209,34 @@ class Block(ABC):
         pass
 
     @classmethod
-    def parse_binary(cls, block_bytes: bytes, system: dv_file_info.DVSystem) -> Block:
+    def parse_binary(cls, block_bytes: bytes, file_info: dv_file_info.DVFileInfo) -> Block:
         """Create a new instance of a block by parsing a binary DIF block from a DV file.
 
         The input byte array is expected to be an 80 byte DIF block.  The output type will be
         one of the derived classes, based on the detected block type.
         """
         assert len(block_bytes) == DIF_BLOCK_SIZE
-        id = BlockID.parse_binary(block_bytes[0:3], system)
+        id = BlockID.parse_binary(block_bytes[0:3], file_info)
         assert id.type == cls.type
 
-        block = cls._do_parse_binary(block_bytes, id, system)
+        block = cls._do_parse_binary(block_bytes, id, file_info)
 
-        validation_message = block.validate(system)
+        validation_message = block.validate(file_info)
         if validation_message is not None:
             raise DIFBlockError(validation_message)
         return block
 
     @abstractmethod
-    def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
+    def _do_to_binary(self, file_info: dv_file_info.DVFileInfo) -> bytes:
         """Convert this block to binary; the block can be assumed to be valid."""
         pass
 
-    def to_binary(self, system: dv_file_info.DVSystem) -> bytes:
+    def to_binary(self, file_info: dv_file_info.DVFileInfo) -> bytes:
         """Convert this block back to binary."""
-        validation_message = self.validate(system)
+        validation_message = self.validate(file_info)
         if validation_message is not None:
             raise DIFBlockError(validation_message)
 
-        b = self._do_to_binary(system)
+        b = self._do_to_binary(file_info)
         assert len(b) == DIF_BLOCK_SIZE
         return b

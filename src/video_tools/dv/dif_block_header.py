@@ -156,7 +156,7 @@ class Header(block.Block):
     application_id_2: ApplicationID2 | None
     application_id_3: ApplicationID3 | None
 
-    def validate(self, system: dv_file_info.DVSystem) -> str | None:
+    def validate(self, file_info: dv_file_info.DVFileInfo) -> str | None:
         """Indicate whether the contents of the block are valid and could be written to binary.
 
         The function must not return validation failures that are the likely result of tape
@@ -171,11 +171,13 @@ class Header(block.Block):
             return "DIF header block must specify sequence count of 10 or 12."
 
         if (
-            self.video_frame_dif_sequence_count == 10 and system == dv_file_info.DVSystem.SYS_625_50
+            self.video_frame_dif_sequence_count == 10
+            and file_info.system == dv_file_info.DVSystem.SYS_625_50
         ) or (
-            self.video_frame_dif_sequence_count == 12 and system == dv_file_info.DVSystem.SYS_525_60
+            self.video_frame_dif_sequence_count == 12
+            and file_info.system == dv_file_info.DVSystem.SYS_525_60
         ):
-            return f"DIF header block does not match with expected system {system.name}."
+            return f"DIF header block does not match with expected system {file_info.system.name}."
 
         if (self.track_pitch is not None and self.pilot_frame is None) or (
             self.track_pitch is None and self.pilot_frame is not None
@@ -193,7 +195,7 @@ class Header(block.Block):
 
     @classmethod
     def _do_parse_binary(
-        cls, block_bytes: bytes, block_id: block.BlockID, system: dv_file_info.DVSystem
+        cls, block_bytes: bytes, block_id: block.BlockID, file_info: dv_file_info.DVFileInfo
     ) -> Header:
         bin = _BinaryFields.from_buffer_copy(block_bytes[3:])
 
@@ -242,7 +244,7 @@ class Header(block.Block):
             application_id_3=ApplicationID3(bin.ap3) if bin.ap3 != 0x7 else None,
         )
 
-    def _do_to_binary(self, system: dv_file_info.DVSystem) -> bytes:
+    def _do_to_binary(self, file_info: dv_file_info.DVFileInfo) -> bytes:
         bin = _BinaryFields(
             dsf=0x1 if self.video_frame_dif_sequence_count == 12 else 0x0,
             zero=0x0,
@@ -265,7 +267,7 @@ class Header(block.Block):
             ap3=self.application_id_3 if self.application_id_3 is not None else 0x7,
             reserved_end=(ctypes.c_uint8 * 72)(*[0xFF] * 72),
         )
-        return bytes([*self.block_id.to_binary(system), *bytes(bin)])
+        return bytes([*self.block_id.to_binary(file_info), *bytes(bin)])
 
 
 class _BinaryFields(ctypes.BigEndianStructure):

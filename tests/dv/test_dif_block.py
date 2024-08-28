@@ -4,10 +4,7 @@ import pytest
 
 import video_tools.dv.dif_block as dif_block
 import video_tools.dv.file_info as dv_file_info
-
-NTSC = dv_file_info.DVSystem.SYS_525_60
-PAL = dv_file_info.DVSystem.SYS_625_50
-
+from tests.dv.util import NTSC_FILE, PAL_FILE
 
 # ======================== DIF BLOCK ID TESTS ========================
 
@@ -17,7 +14,7 @@ class BlockIDBinaryTestCase:
     name: str
     input: str
     parsed: dif_block.BlockID
-    system: dv_file_info.DVSystem
+    file_info: dv_file_info.DVFileInfo
 
 
 @pytest.mark.parametrize(
@@ -33,7 +30,7 @@ class BlockIDBinaryTestCase:
                 dif_sequence=4,
                 dif_block=6,
             ),
-            system=NTSC,
+            file_info=NTSC_FILE,
         ),
         BlockIDBinaryTestCase(
             name="more basic testing",
@@ -45,7 +42,7 @@ class BlockIDBinaryTestCase:
                 dif_sequence=7,
                 dif_block=125,
             ),
-            system=NTSC,
+            file_info=NTSC_FILE,
         ),
         BlockIDBinaryTestCase(
             name="max NTSC DIF sequence number",
@@ -57,7 +54,7 @@ class BlockIDBinaryTestCase:
                 dif_sequence=9,
                 dif_block=0,
             ),
-            system=NTSC,
+            file_info=NTSC_FILE,
         ),
         BlockIDBinaryTestCase(
             name="max PAL DIF sequence number",
@@ -69,7 +66,7 @@ class BlockIDBinaryTestCase:
                 dif_sequence=11,
                 dif_block=0,
             ),
-            system=PAL,
+            file_info=PAL_FILE,
         ),
         BlockIDBinaryTestCase(
             name="max VAUX DIF block number",
@@ -81,15 +78,15 @@ class BlockIDBinaryTestCase:
                 dif_sequence=0,
                 dif_block=2,
             ),
-            system=NTSC,
+            file_info=NTSC_FILE,
         ),
     ],
     ids=lambda tc: tc.name,
 )
 def test_block_id_binary(tc: BlockIDBinaryTestCase) -> None:
-    parsed = dif_block.BlockID.parse_binary(bytes.fromhex(tc.input), tc.system)
+    parsed = dif_block.BlockID.parse_binary(bytes.fromhex(tc.input), tc.file_info)
     assert parsed == tc.parsed
-    updated = parsed.to_binary(tc.system)
+    updated = parsed.to_binary(tc.file_info)
     assert updated == bytes.fromhex(tc.input)
 
 
@@ -98,7 +95,7 @@ class BlockIDValidateTestCase:
     name: str
     input: dif_block.BlockID
     failure: str
-    system: dv_file_info.DVSystem
+    file_info: dv_file_info.DVFileInfo
 
 
 @pytest.mark.parametrize(
@@ -117,7 +114,7 @@ class BlockIDValidateTestCase:
                 "DIF block ID for header or subcode block has unexpected "
                 "non-0xF sequence number of 0x0."
             ),
-            system=NTSC,
+            file_info=NTSC_FILE,
         ),
         BlockIDValidateTestCase(
             name="invalid subcode sequence",
@@ -132,7 +129,7 @@ class BlockIDValidateTestCase:
                 "DIF block ID for header or subcode block has unexpected "
                 "non-0xF sequence number of 0x0."
             ),
-            system=NTSC,
+            file_info=NTSC_FILE,
         ),
         BlockIDValidateTestCase(
             name="invalid DIF sequence sequence",
@@ -147,7 +144,7 @@ class BlockIDValidateTestCase:
                 "DIF block ID has DIF sequence number of 10 that "
                 "is too high for system SYS_525_60."
             ),
-            system=NTSC,
+            file_info=NTSC_FILE,
         ),
         BlockIDValidateTestCase(
             name="invalid DIF sequence sequence",
@@ -162,7 +159,7 @@ class BlockIDValidateTestCase:
                 "DIF block ID has DIF sequence number of 12 that "
                 "is too high for system SYS_625_50."
             ),
-            system=PAL,
+            file_info=PAL_FILE,
         ),
         BlockIDValidateTestCase(
             name="DIF block number too high",
@@ -177,7 +174,7 @@ class BlockIDValidateTestCase:
                 "DIF block ID has DIF block number of 1 that "
                 "is too high for a block type of HEADER."
             ),
-            system=PAL,
+            file_info=PAL_FILE,
         ),
     ],
     ids=lambda tc: tc.name,
@@ -185,7 +182,7 @@ class BlockIDValidateTestCase:
 def test_block_id_validate_write(tc: BlockIDValidateTestCase) -> None:
     """Test validation failures when writing a block ID to binary."""
     with pytest.raises(dif_block.DIFBlockError, match=tc.failure):
-        tc.input.to_binary(tc.system)
+        tc.input.to_binary(tc.file_info)
 
 
 def test_block_id_validate_read() -> None:
@@ -197,9 +194,9 @@ def test_block_id_validate_read() -> None:
 
     failure = "DIF block ID has DIF block number of 3 that is too high for a block type of VAUX."
     with pytest.raises(dif_block.DIFBlockError, match=failure):
-        dif_block.BlockID.parse_binary(bytes.fromhex("50 07 03"), NTSC)
+        dif_block.BlockID.parse_binary(bytes.fromhex("50 07 03"), NTSC_FILE)
 
     # also check the failure branches in parse_binary
     failure = "Reserved bits in DIF block identifier were unexpectedly cleared."
     with pytest.raises(dif_block.DIFBlockError, match=failure):
-        dif_block.BlockID.parse_binary(bytes.fromhex("00 00 00"), NTSC)
+        dif_block.BlockID.parse_binary(bytes.fromhex("00 00 00"), NTSC_FILE)

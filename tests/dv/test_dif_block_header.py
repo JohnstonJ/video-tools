@@ -6,10 +6,7 @@ import video_tools.dv.dif_block as dif_block
 import video_tools.dv.dif_block_header as dif_block_header
 import video_tools.dv.dif_block_parser as block_parser
 import video_tools.dv.file_info as dv_file_info
-
-NTSC = dv_file_info.DVSystem.SYS_525_60
-PAL = dv_file_info.DVSystem.SYS_625_50
-
+from tests.dv.util import NTSC_FILE, PAL_FILE
 
 TRAILER = "".join([" FF"] * 72)
 
@@ -19,7 +16,7 @@ class HeaderBlockBinaryTestCase:
     name: str
     input: str
     parsed: dif_block.Block
-    system: dv_file_info.DVSystem
+    file_info: dv_file_info.DVFileInfo
 
 
 @pytest.mark.parametrize(
@@ -45,7 +42,7 @@ class HeaderBlockBinaryTestCase:
                 application_id_2=dif_block_header.ApplicationID2.RESERVED_4,
                 application_id_3=dif_block_header.ApplicationID3.RESERVED_5,
             ),
-            system=PAL,
+            file_info=PAL_FILE,
         ),
         HeaderBlockBinaryTestCase(
             name="missing stuff",
@@ -66,7 +63,7 @@ class HeaderBlockBinaryTestCase:
                 application_id_2=None,
                 application_id_3=None,
             ),
-            system=NTSC,
+            file_info=NTSC_FILE,
         ),
         # real DIF blocks that I have captured from a Sony DCR-TRV460
         HeaderBlockBinaryTestCase(
@@ -88,7 +85,7 @@ class HeaderBlockBinaryTestCase:
                 application_id_2=dif_block_header.ApplicationID2.CONSUMER_DIGITAL_VCR,
                 application_id_3=dif_block_header.ApplicationID3.CONSUMER_DIGITAL_VCR,
             ),
-            system=NTSC,
+            file_info=NTSC_FILE,
         ),
         HeaderBlockBinaryTestCase(
             name="basic test: standard play, NTSC, consumer format, first header, pilot 0",
@@ -109,7 +106,7 @@ class HeaderBlockBinaryTestCase:
                 application_id_2=dif_block_header.ApplicationID2.CONSUMER_DIGITAL_VCR,
                 application_id_3=dif_block_header.ApplicationID3.CONSUMER_DIGITAL_VCR,
             ),
-            system=NTSC,
+            file_info=NTSC_FILE,
         ),
         HeaderBlockBinaryTestCase(
             name="basic test: long play, NTSC, consumer format, first header, pilot 0",
@@ -130,15 +127,15 @@ class HeaderBlockBinaryTestCase:
                 application_id_2=dif_block_header.ApplicationID2.CONSUMER_DIGITAL_VCR,
                 application_id_3=dif_block_header.ApplicationID3.CONSUMER_DIGITAL_VCR,
             ),
-            system=NTSC,
+            file_info=NTSC_FILE,
         ),
     ],
     ids=lambda tc: tc.name,
 )
 def test_header_block_binary(tc: HeaderBlockBinaryTestCase) -> None:
-    parsed = block_parser.parse_binary(bytes.fromhex(tc.input), tc.system)
+    parsed = block_parser.parse_binary(bytes.fromhex(tc.input), tc.file_info)
     assert parsed == tc.parsed
-    updated = parsed.to_binary(tc.system)
+    updated = parsed.to_binary(tc.file_info)
     assert updated == bytes.fromhex(tc.input)
 
 
@@ -147,7 +144,7 @@ class HeaderBlockValidateTestCase:
     name: str
     input: dif_block_header.Header
     failure: str
-    system: dv_file_info.DVSystem
+    file_info: dv_file_info.DVFileInfo
 
 
 @pytest.mark.parametrize(
@@ -172,7 +169,7 @@ class HeaderBlockValidateTestCase:
                 application_id_3=dif_block_header.ApplicationID3.CONSUMER_DIGITAL_VCR,
             ),
             failure="DIF header block must specify sequence count of 10 or 12.",
-            system=NTSC,
+            file_info=NTSC_FILE,
         ),
         HeaderBlockValidateTestCase(
             name="DIF sequence count does not match system",
@@ -193,7 +190,7 @@ class HeaderBlockValidateTestCase:
                 application_id_3=dif_block_header.ApplicationID3.CONSUMER_DIGITAL_VCR,
             ),
             failure="DIF header block does not match with expected system SYS_525_60.",
-            system=NTSC,
+            file_info=NTSC_FILE,
         ),
         HeaderBlockValidateTestCase(
             name="partial track information: no track pitch",
@@ -214,7 +211,7 @@ class HeaderBlockValidateTestCase:
                 application_id_3=dif_block_header.ApplicationID3.CONSUMER_DIGITAL_VCR,
             ),
             failure="Track pitch and pilot frame must be both present or absent together.",
-            system=NTSC,
+            file_info=NTSC_FILE,
         ),
         HeaderBlockValidateTestCase(
             name="partial track information: no pilot frame",
@@ -235,7 +232,7 @@ class HeaderBlockValidateTestCase:
                 application_id_3=dif_block_header.ApplicationID3.CONSUMER_DIGITAL_VCR,
             ),
             failure="Track pitch and pilot frame must be both present or absent together.",
-            system=NTSC,
+            file_info=NTSC_FILE,
         ),
         HeaderBlockValidateTestCase(
             name="negative pilot frame",
@@ -256,7 +253,7 @@ class HeaderBlockValidateTestCase:
                 application_id_3=dif_block_header.ApplicationID3.CONSUMER_DIGITAL_VCR,
             ),
             failure="DIF header block must specify a pilot frame of 0 or 1.",
-            system=NTSC,
+            file_info=NTSC_FILE,
         ),
         HeaderBlockValidateTestCase(
             name="pilot frame high",
@@ -277,7 +274,7 @@ class HeaderBlockValidateTestCase:
                 application_id_3=dif_block_header.ApplicationID3.CONSUMER_DIGITAL_VCR,
             ),
             failure="DIF header block must specify a pilot frame of 0 or 1.",
-            system=NTSC,
+            file_info=NTSC_FILE,
         ),
     ],
     ids=lambda tc: tc.name,
@@ -285,7 +282,7 @@ class HeaderBlockValidateTestCase:
 def test_header_block_validate_write(tc: HeaderBlockValidateTestCase) -> None:
     """Test validation failures when writing a header block to binary."""
     with pytest.raises(dif_block.DIFBlockError, match=tc.failure):
-        tc.input.to_binary(tc.system)
+        tc.input.to_binary(tc.file_info)
 
 
 def test_header_block_validate_read() -> None:
@@ -297,60 +294,60 @@ def test_header_block_validate_read() -> None:
     failure = "DIF header block does not match with expected system SYS_525_60."
     with pytest.raises(dif_block.DIFBlockError, match=failure):
         dif_block_header.Header.parse_binary(
-            bytes.fromhex(f"1F 07 00  BF 78 78 78 78 {TRAILER}"), NTSC
+            bytes.fromhex(f"1F 07 00  BF 78 78 78 78 {TRAILER}"), NTSC_FILE
         )
 
     # also check the failure branches in parse_binary
     failure = "Zero bit in DIF header block is unexpectedly not zero."
     with pytest.raises(dif_block.DIFBlockError, match=failure):
         dif_block_header.Header.parse_binary(
-            bytes.fromhex(f"1F 07 00  7F 78 78 78 78 {TRAILER}"), NTSC
+            bytes.fromhex(f"1F 07 00  7F 78 78 78 78 {TRAILER}"), NTSC_FILE
         )
 
     failure = "Reserved bits in DIF header block are unexpectedly in use."
     with pytest.raises(dif_block.DIFBlockError, match=failure):
         dif_block_header.Header.parse_binary(
-            bytes.fromhex(f"1F 07 00  3F 70 78 78 78 {TRAILER}"), NTSC
+            bytes.fromhex(f"1F 07 00  3F 70 78 78 78 {TRAILER}"), NTSC_FILE
         )
 
     failure = "Reserved bits in DIF header block are unexpectedly in use."
     with pytest.raises(dif_block.DIFBlockError, match=failure):
         dif_block_header.Header.parse_binary(
-            bytes.fromhex(f"1F 07 00  3F 78 70 78 78 {TRAILER}"), NTSC
+            bytes.fromhex(f"1F 07 00  3F 78 70 78 78 {TRAILER}"), NTSC_FILE
         )
 
     failure = "Reserved bits in DIF header block are unexpectedly in use."
     with pytest.raises(dif_block.DIFBlockError, match=failure):
         dif_block_header.Header.parse_binary(
-            bytes.fromhex(f"1F 07 00  3F 78 78 70 78 {TRAILER}"), NTSC
+            bytes.fromhex(f"1F 07 00  3F 78 78 70 78 {TRAILER}"), NTSC_FILE
         )
 
     failure = "Reserved bits in DIF header block are unexpectedly in use."
     with pytest.raises(dif_block.DIFBlockError, match=failure):
         dif_block_header.Header.parse_binary(
-            bytes.fromhex(f"1F 07 00  3F 78 78 78 70 {TRAILER}"), NTSC
+            bytes.fromhex(f"1F 07 00  3F 78 78 78 70 {TRAILER}"), NTSC_FILE
         )
 
     failure = "Unexpected values in the track information area of the DIF header block."
     with pytest.raises(dif_block.DIFBlockError, match=failure):
         dif_block_header.Header.parse_binary(
-            bytes.fromhex(f"1F 07 00  3F A8 78 78 78 {TRAILER}"), NTSC
+            bytes.fromhex(f"1F 07 00  3F A8 78 78 78 {TRAILER}"), NTSC_FILE
         )
 
     failure = "Transmitting flags for some DIF blocks are off in the DIF header block."
     with pytest.raises(dif_block.DIFBlockError, match=failure):
         dif_block_header.Header.parse_binary(
-            bytes.fromhex(f"1F 07 00  3F 78 F8 78 78 {TRAILER}"), NTSC
+            bytes.fromhex(f"1F 07 00  3F 78 F8 78 78 {TRAILER}"), NTSC_FILE
         )
 
     failure = "Transmitting flags for some DIF blocks are off in the DIF header block."
     with pytest.raises(dif_block.DIFBlockError, match=failure):
         dif_block_header.Header.parse_binary(
-            bytes.fromhex(f"1F 07 00  3F 78 78 F8 78 {TRAILER}"), NTSC
+            bytes.fromhex(f"1F 07 00  3F 78 78 F8 78 {TRAILER}"), NTSC_FILE
         )
 
     failure = "Transmitting flags for some DIF blocks are off in the DIF header block."
     with pytest.raises(dif_block.DIFBlockError, match=failure):
         dif_block_header.Header.parse_binary(
-            bytes.fromhex(f"1F 07 00  3F 78 78 78 F8 {TRAILER}"), NTSC
+            bytes.fromhex(f"1F 07 00  3F 78 78 78 F8 {TRAILER}"), NTSC_FILE
         )
