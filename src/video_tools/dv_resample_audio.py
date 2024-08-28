@@ -85,6 +85,8 @@ def resample_audio_frame(
     Note that the input audio_frame will be modified with the true sample rate.
     """
 
+    assert input_file_info.audio_sample_rate is not None
+
     # This is usually going to be an integer, but might be fractional at the end of the
     # entire video when video_frame_count can't hold an integer number of audio samples.
     expected_sample_count = round(video_frame_count * input_file_info.audio_samples_per_frame())
@@ -267,6 +269,7 @@ def resync_audio(
                 appended_audio_frame = AudioFrame.from_ndarray(
                     appended_frame_data, format="s16", layout="stereo"
                 )
+                assert input_file_info.audio_sample_rate is not None
                 appended_audio_frame.sample_rate = input_file_info.audio_sample_rate
 
                 # Resample that AudioFrame to the correct number of samples.
@@ -318,6 +321,7 @@ def resync_all_audio(  # type: ignore[return]
 ) -> list[AudioStats]:
     with av.container.open(output_filename, "w") as output:
         for s in range(input_file_info.audio_stereo_channel_count):
+            assert input_file_info.audio_sample_rate is not None
             output.add_stream("pcm_s16le", rate=input_file_info.audio_sample_rate)
 
         frames_in_group = input_file_info.audio_samples_per_frame().denominator

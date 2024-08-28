@@ -41,7 +41,7 @@ class DVFileInfo:
     video_frame_dif_sequence_count: int
 
     audio_stereo_channel_count: int
-    audio_sample_rate: int  # Hz
+    audio_sample_rate: int | None  # Hz; only None if audio channel count is 0
 
     def audio_samples_per_frame(self) -> Fraction:
         # We want to resample the audio that was stored with a video frame to the correct
@@ -57,6 +57,8 @@ class DVFileInfo:
         #
         # This function returns a Fraction: the numerator is a number of audio samples, and
         # the denominator is the number of video frames for those audio samples.
+        if self.audio_sample_rate is None:
+            raise ValueError("No audio channels to analyze.")
         return self.audio_sample_rate / self.video_frame_rate
 
     def assert_similar(self, other: DVFileInfo) -> None:
@@ -112,10 +114,21 @@ def read_dv_file_info(file: BinaryIO) -> DVFileInfo:  # type: ignore[return]
 
         # Make sure it's a known audio format
         audio_stereo_channel_count = len(input.streams.audio)
-        assert audio_stereo_channel_count == 1 or audio_stereo_channel_count == 2
-        audio_sample_rate = input.streams.audio[0].sample_rate
         assert (
-            audio_sample_rate == 32000 or audio_sample_rate == 44100 or audio_sample_rate == 48000
+            # DVCPRO50 at https://archive.org/details/SMPTEColorBarsBadTracking has no audio...
+            # So zero audio channels is definitely a thing.
+            audio_stereo_channel_count == 0
+            or audio_stereo_channel_count == 1
+            or audio_stereo_channel_count == 2
+        )
+        audio_sample_rate = (
+            input.streams.audio[0].sample_rate if audio_stereo_channel_count > 0 else None
+        )
+        assert (
+            audio_sample_rate is None
+            or audio_sample_rate == 32000
+            or audio_sample_rate == 44100
+            or audio_sample_rate == 48000
         )
         for audio_stream in input.streams.audio:
             assert audio_stream.sample_rate == audio_sample_rate
