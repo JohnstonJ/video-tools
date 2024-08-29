@@ -127,6 +127,28 @@ class HeaderBlockBinaryTestCase:
             ),
             file_info=NTSC_FILE,
         ),
+        # DVCPRO50 color bars from https://archive.org/details/SMPTEColorBarsBadTracking
+        HeaderBlockBinaryTestCase(
+            name="DVCPRO50 color bars",
+            input=f"1F 4F 00  3F F9 79 79 79 {TRAILER}",
+            parsed=block.Header(
+                block_id=block.BlockID(
+                    type=block.BlockType.HEADER,
+                    sequence=0xF,
+                    channel=1,
+                    dif_sequence=4,
+                    dif_block=0,
+                ),
+                video_frame_dif_sequence_count=10,
+                track_pitch=None,
+                pilot_frame=None,
+                application_id_track=block.ApplicationIDTrack.D7_STANDARD_FORMAT,
+                application_id_1=block.ApplicationID1.D7_STANDARD_FORMAT,
+                application_id_2=block.ApplicationID2.D7_STANDARD_FORMAT,
+                application_id_3=block.ApplicationID3.D7_STANDARD_FORMAT,
+            ),
+            file_info=NTSC_FILE,
+        ),
     ],
     ids=lambda tc: tc.name,
 )
