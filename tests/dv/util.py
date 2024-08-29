@@ -1,9 +1,9 @@
 from dataclasses import replace
 from fractions import Fraction
 
-import video_tools.dv.file_info as dv_file_info
+import video_tools.dv.file.info as dv_file_info
 
-SIMPLE_FILE = dv_file_info.DVFileInfo(
+SIMPLE_FILE = dv_file_info.Info(
     file_size=5 * 10 * 150 * 80,
     video_frame_rate=Fraction(30000, 1001),
     video_duration=Fraction(30000, 1001) / 5,

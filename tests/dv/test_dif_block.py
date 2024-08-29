@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import pytest
 
 import video_tools.dv.dif_block as dif_block
-import video_tools.dv.file_info as dv_file_info
+import video_tools.dv.file.info as dv_file_info
 from tests.dv.util import NTSC_FILE, PAL_FILE
 
 # ======================== DIF BLOCK ID TESTS ========================
@@ -14,7 +14,7 @@ class BlockIDBinaryTestCase:
     name: str
     input: str
     parsed: dif_block.BlockID
-    file_info: dv_file_info.DVFileInfo
+    file_info: dv_file_info.Info
 
 
 @pytest.mark.parametrize(
@@ -95,7 +95,7 @@ class BlockIDValidateTestCase:
     name: str
     input: dif_block.BlockID
     failure: str
-    file_info: dv_file_info.DVFileInfo
+    file_info: dv_file_info.Info
 
 
 @pytest.mark.parametrize(

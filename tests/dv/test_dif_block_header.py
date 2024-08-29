@@ -5,7 +5,7 @@ import pytest
 import video_tools.dv.dif_block as dif_block
 import video_tools.dv.dif_block_header as dif_block_header
 import video_tools.dv.dif_block_parser as block_parser
-import video_tools.dv.file_info as dv_file_info
+import video_tools.dv.file.info as dv_file_info
 from tests.dv.util import NTSC_FILE, PAL_FILE
 
 TRAILER = "".join([" FF"] * 72)
@@ -16,7 +16,7 @@ class HeaderBlockBinaryTestCase:
     name: str
     input: str
     parsed: dif_block.Block
-    file_info: dv_file_info.DVFileInfo
+    file_info: dv_file_info.Info
 
 
 @pytest.mark.parametrize(
@@ -144,7 +144,7 @@ class HeaderBlockValidateTestCase:
     name: str
     input: dif_block_header.Header
     failure: str
-    file_info: dv_file_info.DVFileInfo
+    file_info: dv_file_info.Info
 
 
 @pytest.mark.parametrize(

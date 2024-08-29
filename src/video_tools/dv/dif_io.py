@@ -6,10 +6,10 @@ from typing import BinaryIO, cast
 import video_tools.dv.dif as dif
 import video_tools.dv.pack as pack
 import video_tools.io_util as io_util
-from video_tools.dv.file_info import DVFileInfo
+from video_tools.dv.file.info import Info
 
 
-def read_frame_data(frame_bytes: bytearray, file_info: DVFileInfo) -> dif.FrameData:
+def read_frame_data(frame_bytes: bytearray, file_info: Info) -> dif.FrameData:
     b_start = 0  # current block starting position
 
     # DIF block header
@@ -222,7 +222,7 @@ def read_frame_data(frame_bytes: bytearray, file_info: DVFileInfo) -> dif.FrameD
     )
 
 
-def read_all_frame_data(input_file: BinaryIO, input_file_info: DVFileInfo) -> list[dif.FrameData]:
+def read_all_frame_data(input_file: BinaryIO, input_file_info: Info) -> list[dif.FrameData]:
     all_frame_data = []
     for frame_number in range(input_file_info.video_frame_count):
         if frame_number % 100 == 0:
@@ -240,7 +240,7 @@ def read_all_frame_data(input_file: BinaryIO, input_file_info: DVFileInfo) -> li
 
 
 def write_frame_data(
-    frame_bytes: bytearray, file_info: DVFileInfo, frame_data: dif.FrameData
+    frame_bytes: bytearray, file_info: Info, frame_data: dif.FrameData
 ) -> bytearray:
     """Write frame_data into frame_bytes and return updated frame."""
 
@@ -368,7 +368,7 @@ def write_frame_data(
 
 def write_all_frame_data(
     input_file: BinaryIO,
-    input_file_info: DVFileInfo,
+    input_file_info: Info,
     all_frame_data: list[dif.FrameData],
     output_file: BinaryIO,
 ) -> None:

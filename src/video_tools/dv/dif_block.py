@@ -9,7 +9,7 @@ from enum import IntEnum
 from typing import ClassVar
 
 import video_tools.dv.data_util as du
-import video_tools.dv.file_info as dv_file_info
+import video_tools.dv.file.info as dv_file_info
 
 
 class BlockError(ValueError):
@@ -107,7 +107,7 @@ class BlockID:
         BlockType.VIDEO: 134,
     }
 
-    def validate(self, file_info: dv_file_info.DVFileInfo) -> str | None:
+    def validate(self, file_info: dv_file_info.Info) -> str | None:
         if (
             self.type == BlockType.HEADER or self.type == BlockType.SUBCODE
         ) and self.sequence != 0xF:
@@ -133,7 +133,7 @@ class BlockID:
         return None
 
     @classmethod
-    def parse_binary(cls, id_bytes: bytes, file_info: dv_file_info.DVFileInfo) -> BlockID:
+    def parse_binary(cls, id_bytes: bytes, file_info: dv_file_info.Info) -> BlockID:
         assert len(id_bytes) == 3
         bin = cls._BinaryFields.from_buffer_copy(id_bytes)
 
@@ -155,7 +155,7 @@ class BlockID:
             raise BlockError(validation_message)
         return id
 
-    def to_binary(self, file_info: dv_file_info.DVFileInfo) -> bytes:
+    def to_binary(self, file_info: dv_file_info.Info) -> bytes:
         validation_message = self.validate(file_info)
         if validation_message is not None:
             raise BlockError(validation_message)
@@ -178,7 +178,7 @@ class Block(ABC):
     block_id: BlockID
 
     @abstractmethod
-    def validate(self, file_info: dv_file_info.DVFileInfo) -> str | None:
+    def validate(self, file_info: dv_file_info.Info) -> str | None:
         """Indicate whether the contents of the block are valid and could be written to binary.
 
         The function must not return validation failures that are the likely result of tape
@@ -198,7 +198,7 @@ class Block(ABC):
     @classmethod
     @abstractmethod
     def _do_parse_binary(
-        cls, block_bytes: bytes, block_id: BlockID, file_info: dv_file_info.DVFileInfo
+        cls, block_bytes: bytes, block_id: BlockID, file_info: dv_file_info.Info
     ) -> Block:
         """The derived class must parse the bytes into a new Block object.
 
@@ -209,7 +209,7 @@ class Block(ABC):
         pass
 
     @classmethod
-    def parse_binary(cls, block_bytes: bytes, file_info: dv_file_info.DVFileInfo) -> Block:
+    def parse_binary(cls, block_bytes: bytes, file_info: dv_file_info.Info) -> Block:
         """Create a new instance of a block by parsing a binary DIF block from a DV file.
 
         The input byte array is expected to be an 80 byte DIF block.  The output type will be
@@ -227,11 +227,11 @@ class Block(ABC):
         return block
 
     @abstractmethod
-    def _do_to_binary(self, file_info: dv_file_info.DVFileInfo) -> bytes:
+    def _do_to_binary(self, file_info: dv_file_info.Info) -> bytes:
         """Convert this block to binary; the block can be assumed to be valid."""
         pass
 
-    def to_binary(self, file_info: dv_file_info.DVFileInfo) -> bytes:
+    def to_binary(self, file_info: dv_file_info.Info) -> bytes:
         """Convert this block back to binary."""
         validation_message = self.validate(file_info)
         if validation_message is not None:

@@ -4,7 +4,7 @@ from typing import cast
 import pytest
 
 import tests.dv.pack.test_base as test_base
-import video_tools.dv.file_info as dv_file_info
+import video_tools.dv.file.info as dv_file_info
 import video_tools.dv.pack as pack
 from tests.dv.pack.test_base import (
     PackBinaryTestCase,

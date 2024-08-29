@@ -7,7 +7,7 @@ from typing import ClassVar, cast
 
 import video_tools.dv.dif_block as block
 import video_tools.dv.dif_block_header as block_header
-import video_tools.dv.file_info as dv_file_info
+import video_tools.dv.file.info as dv_file_info
 import video_tools.dv.pack as pack
 
 
@@ -155,7 +155,7 @@ class Subcode(block.Block):
     # failed to be read if the above packs[n] element is None.
     pack_types: list[int]  # 6 per DIF block
 
-    def validate(self, file_info: dv_file_info.DVFileInfo) -> str | None:
+    def validate(self, file_info: dv_file_info.Info) -> str | None:
         if self.block_id.dif_block < 0 or self.block_id.dif_block > 1:
             return "Unexpected number of DIF blocks in DIF sequence; expected 2."
 
@@ -217,7 +217,7 @@ class Subcode(block.Block):
 
     @classmethod
     def _do_parse_binary(
-        cls, block_bytes: bytes, block_id: block.BlockID, file_info: dv_file_info.DVFileInfo
+        cls, block_bytes: bytes, block_id: block.BlockID, file_info: dv_file_info.Info
     ) -> Subcode:
         bin = _BinaryFields.from_buffer_copy(block_bytes[3:])
 
@@ -332,7 +332,7 @@ class Subcode(block.Block):
             pack_types=pack_types,
         )
 
-    def _do_to_binary(self, file_info: dv_file_info.DVFileInfo) -> bytes:
+    def _do_to_binary(self, file_info: dv_file_info.Info) -> bytes:
         # Process ID parts
         id_parts: list[_IDPart] = []
         for dif_sync_block_number in range(6):

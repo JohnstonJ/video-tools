@@ -5,7 +5,7 @@ from colorama import Fore, Style, just_fix_windows_console
 
 import video_tools.dv.dif as dif
 import video_tools.dv.dif_block as dif_block
-import video_tools.dv.file_info as dv_file_info
+import video_tools.dv.file.info as dv_file_info
 import video_tools.io_util as io_util
 
 
@@ -44,9 +44,7 @@ def parse_args() -> DVDIFDumpArgs:
     return parser.parse_args(namespace=DVDIFDumpArgs())
 
 
-def read_frame_bytes(
-    file: BinaryIO, file_info: dv_file_info.DVFileInfo, frame_number: int
-) -> bytes:
+def read_frame_bytes(file: BinaryIO, file_info: dv_file_info.Info, frame_number: int) -> bytes:
     if frame_number < 0 or frame_number >= file_info.video_frame_count:
         raise ValueError("Frame number is out of range for this file.")
 
@@ -59,7 +57,7 @@ def read_frame_bytes(
 
 def dump_dif_blocks(
     frame_bytes: bytes,
-    file_info: dv_file_info.DVFileInfo,
+    file_info: dv_file_info.Info,
     frame_number: int,
     block_type: dif_block.BlockType | None,
 ) -> None:

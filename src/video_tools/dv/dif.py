@@ -7,7 +7,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from enum import IntEnum
 
-import video_tools.dv.file_info as dv_file_info
+import video_tools.dv.file.info as dv_file_info
 import video_tools.dv.pack as pack
 
 

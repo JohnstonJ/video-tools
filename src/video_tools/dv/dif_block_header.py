@@ -8,7 +8,7 @@ from enum import IntEnum
 from typing import ClassVar
 
 import video_tools.dv.dif_block as block
-import video_tools.dv.file_info as dv_file_info
+import video_tools.dv.file.info as dv_file_info
 
 
 # Track pitch
@@ -156,7 +156,7 @@ class Header(block.Block):
     application_id_2: ApplicationID2 | None
     application_id_3: ApplicationID3 | None
 
-    def validate(self, file_info: dv_file_info.DVFileInfo) -> str | None:
+    def validate(self, file_info: dv_file_info.Info) -> str | None:
         """Indicate whether the contents of the block are valid and could be written to binary.
 
         The function must not return validation failures that are the likely result of tape
@@ -195,7 +195,7 @@ class Header(block.Block):
 
     @classmethod
     def _do_parse_binary(
-        cls, block_bytes: bytes, block_id: block.BlockID, file_info: dv_file_info.DVFileInfo
+        cls, block_bytes: bytes, block_id: block.BlockID, file_info: dv_file_info.Info
     ) -> Header:
         bin = _BinaryFields.from_buffer_copy(block_bytes[3:])
 
@@ -244,7 +244,7 @@ class Header(block.Block):
             application_id_3=ApplicationID3(bin.ap3) if bin.ap3 != 0x7 else None,
         )
 
-    def _do_to_binary(self, file_info: dv_file_info.DVFileInfo) -> bytes:
+    def _do_to_binary(self, file_info: dv_file_info.Info) -> bytes:
         bin = _BinaryFields(
             dsf=0x1 if self.video_frame_dif_sequence_count == 12 else 0x0,
             zero=0x0,

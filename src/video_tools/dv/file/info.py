@@ -25,7 +25,7 @@ DIF_SEQUENCE_COUNT_TO_SYSTEM = {
 
 
 @dataclass(frozen=True, kw_only=True)
-class DVFileInfo:
+class Info:
     """Contains top-level DV file information."""
 
     file_size: int  # bytes
@@ -61,7 +61,7 @@ class DVFileInfo:
             raise ValueError("No audio channels to analyze.")
         return self.audio_sample_rate / self.video_frame_rate
 
-    def assert_similar(self, other: DVFileInfo) -> None:
+    def assert_similar(self, other: Info) -> None:
         """Assert that the audio format has not changed."""
         assert self.video_frame_rate == other.video_frame_rate
         assert self.video_frame_size == other.video_frame_size
@@ -73,7 +73,7 @@ class DVFileInfo:
         return DIF_SEQUENCE_COUNT_TO_SYSTEM[self.video_frame_dif_sequence_count]
 
 
-def read_dv_file_info(file: BinaryIO) -> DVFileInfo:  # type: ignore[return]
+def read_dv_file_info(file: BinaryIO) -> Info:  # type: ignore[return]
     # read top-level information
     with av.container.open(file, mode="r", format="dv") as input:
         assert len(input.streams.video) == 1
@@ -137,7 +137,7 @@ def read_dv_file_info(file: BinaryIO) -> DVFileInfo:  # type: ignore[return]
             assert audio_stream.channels == 2
             assert audio_stream.rate == audio_sample_rate
 
-        return DVFileInfo(
+        return Info(
             file_size=file_size,
             video_frame_rate=video_frame_rate,
             video_duration=video_duration,

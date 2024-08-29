@@ -11,9 +11,9 @@ from av.audio.frame import AudioFrame
 from av.container import OutputContainer
 from av.filter import Graph
 
-import video_tools.dv.file_info as dv_file_info
+import video_tools.dv.file.info as dv_file_info
 import video_tools.io_util as io_util
-from video_tools.dv.file_info import DVFileInfo
+from video_tools.dv.file.info import Info
 
 
 class DVResampleAudioArgs(argparse.Namespace):
@@ -75,7 +75,7 @@ class AudioStats:
 
 
 def resample_audio_frame(
-    audio_frame: AudioFrame, video_frame_count: int, input_file_info: DVFileInfo
+    audio_frame: AudioFrame, video_frame_count: int, input_file_info: Info
 ) -> AudioFrame:
     """Resample/resync an audio frame that spans several video frames.
 
@@ -165,7 +165,7 @@ def resample_audio_frame(
 
 def resync_audio(
     input_file: BinaryIO,
-    input_file_info: DVFileInfo,
+    input_file_info: Info,
     output: OutputContainer,
     start_frame_number: int,
     max_frames_in_group: int,
@@ -317,7 +317,7 @@ def resync_audio(
 
 
 def resync_all_audio(  # type: ignore[return]
-    input_file: BinaryIO, input_file_info: DVFileInfo, output_filename: str
+    input_file: BinaryIO, input_file_info: Info, output_filename: str
 ) -> list[AudioStats]:
     with av.container.open(output_filename, "w") as output:
         for s in range(input_file_info.audio_stereo_channel_count):
@@ -346,7 +346,7 @@ def resync_all_audio(  # type: ignore[return]
         return all_audio_stats
 
 
-def write_audio_stats(file: TextIO, file_info: DVFileInfo, all_stats: list[AudioStats]) -> None:
+def write_audio_stats(file: TextIO, file_info: Info, all_stats: list[AudioStats]) -> None:
     fieldnames = [
         "video_start_frame_number",
         "video_frame_count",

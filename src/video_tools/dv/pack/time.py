@@ -10,7 +10,7 @@ from enum import IntEnum
 from typing import Any, ClassVar, NamedTuple, cast
 
 import video_tools.dv.data_util as du
-import video_tools.dv.file_info as dv_file_info
+import video_tools.dv.file.info as dv_file_info
 
 from .base import CSVFieldMap, Pack, Type, ValidationError
 

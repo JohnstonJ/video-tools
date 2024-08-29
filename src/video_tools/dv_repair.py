@@ -3,7 +3,7 @@ import argparse
 import video_tools.dv.dif_csv as dif_csv
 import video_tools.dv.dif_io as dif_io
 import video_tools.dv.dif_transform as dif_transform
-import video_tools.dv.file_info as file_info
+import video_tools.dv.file.info as dv_file_info
 
 
 class DVRepairArgs(argparse.Namespace):
@@ -113,7 +113,7 @@ def read_command(args: DVRepairArgs) -> None:
 
     print(f"Reading frame data from {input_dv_filename}...")
     with open(input_dv_filename, mode="rb") as input_dv_file:
-        info = file_info.read_dv_file_info(input_dv_file)
+        info = dv_file_info.read_dv_file_info(input_dv_file)
 
         frame_data = dif_io.read_all_frame_data(input_dv_file, info)
 
@@ -158,7 +158,7 @@ def write_command(args: DVRepairArgs) -> None:
 
     print(f"Opening input DV file {input_dv_filename}...")
     with open(input_dv_filename, mode="rb") as input_dv_file:
-        info = file_info.read_dv_file_info(input_dv_file)
+        info = dv_file_info.read_dv_file_info(input_dv_file)
         print(f"Opening output DV file {output_dv_filename}...")
         with open(output_dv_filename, mode="wb") as output_dv_file:
             dif_io.write_all_frame_data(input_dv_file, info, frame_data, output_dv_file)
