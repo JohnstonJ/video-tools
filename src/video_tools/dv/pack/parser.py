@@ -1,8 +1,6 @@
 import video_tools.dv.file.info as dv_file_info
 
-from .aaux_source import (
-    AAUXSource,
-)
+from .aaux_source import AAUXSource
 from .base import (
     Pack,
     Type,
@@ -23,9 +21,8 @@ from .time import (
     TitleTimecode,
     VAUXRecordingTime,
 )
-from .vaux_source import (
-    VAUXSource,
-)
+from .vaux_source import VAUXSource
+from .vaux_source_control import VAUXSourceControl
 
 
 def parse_binary(pack_bytes: bytes, system: dv_file_info.DVSystem) -> Pack | None:
@@ -50,6 +47,8 @@ def parse_binary(pack_bytes: bytes, system: dv_file_info.DVSystem) -> Pack | Non
             return AAUXBinaryGroup.parse_binary(pack_bytes, system)
         case Type.VAUX_SOURCE:
             return VAUXSource.parse_binary(pack_bytes, system)
+        case Type.VAUX_SOURCE_CONTROL:
+            return VAUXSourceControl.parse_binary(pack_bytes, system)
         case Type.VAUX_RECORDING_DATE:
             return VAUXRecordingDate.parse_binary(pack_bytes, system)
         case Type.VAUX_RECORDING_TIME:

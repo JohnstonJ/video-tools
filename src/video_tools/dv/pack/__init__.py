@@ -30,6 +30,12 @@ from .misc import (
     VAUXBinaryGroup,
 )
 from .parser import parse_binary
+from .source_control import (
+    CompressionCount,
+    CopyProtection,
+    InputSource,
+    SourceSituation,
+)
 from .time import (
     AAUXRecordingTime,
     BlankFlag,
@@ -46,6 +52,13 @@ from .vaux_source import (
     SourceType,
     VAUXSource,
 )
+from .vaux_source_control import (
+    FrameChange,
+    FrameField,
+    StillFieldPicture,
+    VAUXRecordingMode,
+    VAUXSourceControl,
+)
 
 __all__ = [
     "AAUXBinaryGroup",
@@ -58,12 +71,17 @@ __all__ = [
     "BlankFlag",
     "ColorFrame",
     "ColorFramesID",
+    "CompressionCount",
+    "CopyProtection",
     "CSVFieldMap",
     "DaylightSavingTime",
     "EmphasisTimeConstant",
+    "FrameChange",
+    "FrameField",
     "GenericBinaryGroup",
     "GenericDate",
     "GenericTimecode",
+    "InputSource",
     "LockedMode",
     "NoInfo",
     "Pack",
@@ -72,14 +90,18 @@ __all__ = [
     "parse_binary",
     "PolarityCorrection",
     "SourceCode",
+    "SourceSituation",
     "SourceType",
     "StereoMode",
+    "StillFieldPicture",
     "TitleBinaryGroup",
     "TitleTimecode",
     "Unknown",
     "VAUXBinaryGroup",
     "VAUXRecordingDate",
+    "VAUXRecordingMode",
     "VAUXRecordingTime",
     "VAUXSource",
+    "VAUXSourceControl",
     "Week",
 ]

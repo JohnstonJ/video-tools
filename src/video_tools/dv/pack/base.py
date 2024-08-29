@@ -40,6 +40,9 @@ class Type(IntEnum):
     # IEC 61834-4:1998 9.1 Source (VAUX)
     VAUX_SOURCE = 0x60
 
+    # IEC 61834-4:1998 9.2 Source control (VAUX)
+    VAUX_SOURCE_CONTROL = 0x61
+
     # IEC 61834-4:1998 9.3 Rec Date (Recording date) (VAUX)
     VAUX_RECORDING_DATE = 0x62
 
