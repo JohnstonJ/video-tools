@@ -233,7 +233,7 @@ class Subcode(block.Block):
         absolute_track_number_0: list[int | None] = [None] * 2
         blank_flag: list[BlankFlag | None] = [None] * 2
         packs: list[pack.Pack | None] = [None] * 6
-        pack_types = [int(pack.PackType.NO_INFO)] * 6
+        pack_types = [int(pack.Type.NO_INFO)] * 6
 
         # This is the first half of _each channel_.
         expected_first_half_id = (

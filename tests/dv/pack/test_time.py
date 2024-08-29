@@ -519,7 +519,7 @@ def test_time_increment_failures(value: str, message: str, system: dv_file_info.
     val = replace(
         pack.TitleTimecode(), **pack.TitleTimecode.parse_text_value(None, value)._asdict()
     )
-    with pytest.raises(pack.PackValidationError, match=message):
+    with pytest.raises(pack.ValidationError, match=message):
         val.increment_frame(system)
 
 

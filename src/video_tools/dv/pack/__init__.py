@@ -3,8 +3,8 @@
 from .base import (
     CSVFieldMap,
     Pack,
-    PackType,
-    PackValidationError,
+    Type,
+    ValidationError,
 )
 from .date import (
     AAUXRecordingDate,
@@ -45,8 +45,8 @@ __all__ = [
     "GenericTimecode",
     "NoInfo",
     "Pack",
-    "PackType",
-    "PackValidationError",
+    "Type",
+    "ValidationError",
     "parse_binary",
     "PolarityCorrection",
     "TitleBinaryGroup",

@@ -12,7 +12,7 @@ from typing import Any, ClassVar, NamedTuple, cast
 import video_tools.dv.data_util as du
 import video_tools.dv.file_info as dv_file_info
 
-from .base import CSVFieldMap, Pack, PackType, PackValidationError
+from .base import CSVFieldMap, Pack, Type, ValidationError
 
 
 # Color frame
@@ -154,9 +154,7 @@ class GenericTimecode(Pack):
                 if text_value:
                     match = _smpte_time_pattern.match(text_value)
                     if not match:
-                        raise PackValidationError(
-                            f"Parsing error while reading timecode {text_value}."
-                        )
+                        raise ValidationError(f"Parsing error while reading timecode {text_value}.")
                 return cls.MainFields(
                     hour=int(match.group("hour")) if match else None,
                     minute=int(match.group("minute")) if match else None,
@@ -388,9 +386,9 @@ class GenericTimecode(Pack):
         s = self.second
         f = self.frame
         if h is None or m is None or s is None or f is None or self.drop_frame is None:
-            raise PackValidationError("Cannot increment a time pack with no time in it.")
+            raise ValidationError("Cannot increment a time pack with no time in it.")
         if self.drop_frame and system != dv_file_info.DVSystem.SYS_525_60:
-            raise PackValidationError(
+            raise ValidationError(
                 "Drop frame flag is set on PAL/SECAM video, which probably doesn't make sense."
             )
 
@@ -477,7 +475,7 @@ class TitleTimecode(GenericTimecode):
             return value_subset.blank_flag.name if value_subset.blank_flag is not None else ""
         return super().to_text_value(text_field, value_subset)
 
-    pack_type = PackType.TITLE_TIMECODE
+    pack_type = Type.TITLE_TIMECODE
 
     @classmethod
     def _do_parse_binary(
@@ -508,7 +506,7 @@ class AAUXRecordingTime(GenericTimecode):
     _time_required = False
     _frames_required = False
 
-    pack_type = PackType.AAUX_RECORDING_TIME
+    pack_type = Type.AAUX_RECORDING_TIME
 
 
 # VAUX recording time
@@ -519,4 +517,4 @@ class VAUXRecordingTime(GenericTimecode):
     _time_required = False
     _frames_required = False
 
-    pack_type = PackType.VAUX_RECORDING_TIME
+    pack_type = Type.VAUX_RECORDING_TIME

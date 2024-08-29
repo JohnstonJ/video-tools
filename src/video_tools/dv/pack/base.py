@@ -10,13 +10,13 @@ from typing import Any, ClassVar, NamedTuple, cast
 import video_tools.dv.file_info as dv_file_info
 
 
-class PackValidationError(ValueError):
+class ValidationError(ValueError):
     pass
 
 
 # Pack types
 # IEC 61834-4:1998
-class PackType(IntEnum):
+class Type(IntEnum):
     # SMPTE 306M-2002 Section 9.2.1 Time code pack (TC)
     # IEC 61834-4:1998 4.4 Time Code (TITLE)
     TITLE_TIMECODE = 0x13
@@ -136,7 +136,7 @@ class Pack(ABC):
     # Functions for going to/from binary packs
 
     # Binary byte value for the pack type header.
-    pack_type: ClassVar[PackType]
+    pack_type: ClassVar[Type]
 
     @classmethod
     @abstractmethod
@@ -168,7 +168,7 @@ class Pack(ABC):
         """Convert this pack to the 5 byte binary format."""
         validation_message = self.validate(system)
         if validation_message is not None:
-            raise PackValidationError(validation_message)
+            raise ValidationError(validation_message)
         b = self._do_to_binary(system)
         assert len(b) == 5
         assert b[0] == self.pack_type

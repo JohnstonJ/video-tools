@@ -8,7 +8,7 @@ from typing import ClassVar, NamedTuple
 import video_tools.dv.data_util as du
 import video_tools.dv.file_info as dv_file_info
 
-from .base import CSVFieldMap, Pack, PackType, PackValidationError
+from .base import CSVFieldMap, Pack, Type, ValidationError
 
 
 # Generic SMPTE binary group base class: several pack types reuse the same structure.
@@ -71,21 +71,21 @@ class GenericBinaryGroup(Pack):
 # Also see SMPTE 12M
 @dataclass(frozen=True, kw_only=True)
 class TitleBinaryGroup(GenericBinaryGroup):
-    pack_type = PackType.TITLE_BINARY_GROUP
+    pack_type = Type.TITLE_BINARY_GROUP
 
 
 # AAUX binary group
 # IEC 61834-4:1998 8.5 Binary Group (AAUX)
 @dataclass(frozen=True, kw_only=True)
 class AAUXBinaryGroup(GenericBinaryGroup):
-    pack_type = PackType.AAUX_BINARY_GROUP
+    pack_type = Type.AAUX_BINARY_GROUP
 
 
 # VAUX binary group
 # IEC 61834-4:1998 9.5 Binary Group (VAUX)
 @dataclass(frozen=True, kw_only=True)
 class VAUXBinaryGroup(GenericBinaryGroup):
-    pack_type = PackType.VAUX_BINARY_GROUP
+    pack_type = Type.VAUX_BINARY_GROUP
 
 
 # No Info block
@@ -106,7 +106,7 @@ class NoInfo(Pack):
     def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
         assert False
 
-    pack_type = PackType.NO_INFO
+    pack_type = Type.NO_INFO
 
     @classmethod
     def _do_parse_binary(cls, pack_bytes: bytes, system: dv_file_info.DVSystem) -> NoInfo | None:
@@ -167,7 +167,7 @@ class Unknown(Pack):
     def to_binary(self, system: dv_file_info.DVSystem) -> bytes:
         validation_message = self.validate(system)
         if validation_message is not None:
-            raise PackValidationError(validation_message)
+            raise ValidationError(validation_message)
         b = self._do_to_binary(system)
         assert len(b) == 5
         return b

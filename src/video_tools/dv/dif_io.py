@@ -133,7 +133,7 @@ def read_frame_data(frame_bytes: bytearray, file_info: DVFileInfo) -> dif.FrameD
             for ssyb_num in range(12):
                 subcode_pack_type = ssyb_bytes[ssyb_num][3]
                 subcode_pack_types[channel][sequence][ssyb_num] = subcode_pack_type
-                if subcode_pack_type == pack.PackType.TITLE_TIMECODE:
+                if subcode_pack_type == pack.Type.TITLE_TIMECODE:
                     subcode_title_timecode = cast(
                         pack.TitleTimecode,
                         pack.TitleTimecode.parse_binary(
@@ -143,7 +143,7 @@ def read_frame_data(frame_bytes: bytearray, file_info: DVFileInfo) -> dif.FrameD
                     )
                     if subcode_title_timecode is not None:
                         subcode_title_timecode_hist[subcode_title_timecode] += 1
-                elif subcode_pack_type == pack.PackType.TITLE_BINARY_GROUP:
+                elif subcode_pack_type == pack.Type.TITLE_BINARY_GROUP:
                     subcode_title_binary_group = cast(
                         pack.TitleBinaryGroup,
                         pack.TitleBinaryGroup.parse_binary(
@@ -152,7 +152,7 @@ def read_frame_data(frame_bytes: bytearray, file_info: DVFileInfo) -> dif.FrameD
                     )
                     if subcode_title_binary_group is not None:
                         subcode_title_binary_group_hist[subcode_title_binary_group] += 1
-                elif subcode_pack_type == pack.PackType.VAUX_RECORDING_DATE:
+                elif subcode_pack_type == pack.Type.VAUX_RECORDING_DATE:
                     subcode_vaux_recording_date = cast(
                         pack.VAUXRecordingDate,
                         pack.VAUXRecordingDate.parse_binary(
@@ -161,7 +161,7 @@ def read_frame_data(frame_bytes: bytearray, file_info: DVFileInfo) -> dif.FrameD
                     )
                     if subcode_vaux_recording_date is not None:
                         subcode_vaux_recording_date_hist[subcode_vaux_recording_date] += 1
-                elif subcode_pack_type == pack.PackType.VAUX_RECORDING_TIME:
+                elif subcode_pack_type == pack.Type.VAUX_RECORDING_TIME:
                     subcode_vaux_recording_time = cast(
                         pack.VAUXRecordingTime,
                         pack.VAUXRecordingTime.parse_binary(
@@ -332,15 +332,15 @@ def write_frame_data(
                 if desired_pack_type is None:
                     # User doesn't want to further modify the subcode pack.
                     continue
-                elif desired_pack_type == pack.PackType.TITLE_TIMECODE:
+                elif desired_pack_type == pack.Type.TITLE_TIMECODE:
                     new_pack = frame_data.subcode_title_timecode.to_binary(frame_data.system)
-                elif desired_pack_type == pack.PackType.TITLE_BINARY_GROUP:
+                elif desired_pack_type == pack.Type.TITLE_BINARY_GROUP:
                     new_pack = frame_data.subcode_title_binary_group.to_binary(frame_data.system)
-                elif desired_pack_type == pack.PackType.VAUX_RECORDING_DATE:
+                elif desired_pack_type == pack.Type.VAUX_RECORDING_DATE:
                     new_pack = frame_data.subcode_vaux_recording_date.to_binary(frame_data.system)
-                elif desired_pack_type == pack.PackType.VAUX_RECORDING_TIME:
+                elif desired_pack_type == pack.Type.VAUX_RECORDING_TIME:
                     new_pack = frame_data.subcode_vaux_recording_time.to_binary(frame_data.system)
-                elif desired_pack_type == pack.PackType.NO_INFO:
+                elif desired_pack_type == pack.Type.NO_INFO:
                     new_pack = frame_data.no_info.to_binary(frame_data.system)
                 else:
                     raise ValueError(

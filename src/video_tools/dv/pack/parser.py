@@ -2,7 +2,7 @@ import video_tools.dv.file_info as dv_file_info
 
 from .base import (
     Pack,
-    PackType,
+    Type,
 )
 from .date import (
     AAUXRecordingDate,
@@ -30,23 +30,23 @@ def parse_binary(pack_bytes: bytes, system: dv_file_info.DVSystem) -> Pack | Non
     """
     assert len(pack_bytes) == 5
     match pack_bytes[0]:
-        case PackType.TITLE_TIMECODE:
+        case Type.TITLE_TIMECODE:
             return TitleTimecode.parse_binary(pack_bytes, system)
-        case PackType.TITLE_BINARY_GROUP:
+        case Type.TITLE_BINARY_GROUP:
             return TitleBinaryGroup.parse_binary(pack_bytes, system)
-        case PackType.AAUX_RECORDING_DATE:
+        case Type.AAUX_RECORDING_DATE:
             return AAUXRecordingDate.parse_binary(pack_bytes, system)
-        case PackType.AAUX_RECORDING_TIME:
+        case Type.AAUX_RECORDING_TIME:
             return AAUXRecordingTime.parse_binary(pack_bytes, system)
-        case PackType.AAUX_BINARY_GROUP:
+        case Type.AAUX_BINARY_GROUP:
             return AAUXBinaryGroup.parse_binary(pack_bytes, system)
-        case PackType.VAUX_RECORDING_DATE:
+        case Type.VAUX_RECORDING_DATE:
             return VAUXRecordingDate.parse_binary(pack_bytes, system)
-        case PackType.VAUX_RECORDING_TIME:
+        case Type.VAUX_RECORDING_TIME:
             return VAUXRecordingTime.parse_binary(pack_bytes, system)
-        case PackType.VAUX_BINARY_GROUP:
+        case Type.VAUX_BINARY_GROUP:
             return VAUXBinaryGroup.parse_binary(pack_bytes, system)
-        case PackType.NO_INFO:
+        case Type.NO_INFO:
             return NoInfo.parse_binary(pack_bytes, system)
         case _:
             return Unknown.parse_binary(pack_bytes, system)

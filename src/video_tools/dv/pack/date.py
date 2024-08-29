@@ -12,7 +12,7 @@ from typing import ClassVar, NamedTuple
 import video_tools.dv.data_util as du
 import video_tools.dv.file_info as dv_file_info
 
-from .base import CSVFieldMap, Pack, PackType, PackValidationError
+from .base import CSVFieldMap, Pack, Type, ValidationError
 
 _generic_date_pattern = re.compile(r"^(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})$")
 _time_zone_pattern = re.compile(r"^(?P<hour>\d{2}):(?P<minute>\d{2})$")
@@ -136,7 +136,7 @@ class GenericDate(Pack):
                 if text_value:
                     match = _generic_date_pattern.match(text_value)
                     if not match:
-                        raise PackValidationError(f"Parsing error while reading date {text_value}.")
+                        raise ValidationError(f"Parsing error while reading date {text_value}.")
                 return cls.MainFields(
                     year=int(match.group("year")) if match else None,
                     month=int(match.group("month")) if match else None,
@@ -152,11 +152,11 @@ class GenericDate(Pack):
                 if text_value:
                     match = _time_zone_pattern.match(text_value)
                     if not match:
-                        raise PackValidationError(
+                        raise ValidationError(
                             f"Parsing error while reading time zone {text_value}."
                         )
                     if match.group("minute") != "30" and match.group("minute") != "00":
-                        raise PackValidationError("Minutes portion of time zone must be 30 or 00.")
+                        raise ValidationError("Minutes portion of time zone must be 30 or 00.")
                     tz_hours = int(match.group("hour"))
                     tz_30_minutes = match.group("minute") == "30"
                 return cls.TimeZoneFields(
@@ -337,11 +337,11 @@ class GenericDate(Pack):
 # IEC 61834-4:1998 8.3 Rec Date (AAUX)
 @dataclass(frozen=True, kw_only=True)
 class AAUXRecordingDate(GenericDate):
-    pack_type = PackType.AAUX_RECORDING_DATE
+    pack_type = Type.AAUX_RECORDING_DATE
 
 
 # VAUX recording date
 # IEC 61834-4:1998 9.3 Rec Date (Recording date) (VAUX)
 @dataclass(frozen=True, kw_only=True)
 class VAUXRecordingDate(GenericDate):
-    pack_type = PackType.VAUX_RECORDING_DATE
+    pack_type = Type.VAUX_RECORDING_DATE

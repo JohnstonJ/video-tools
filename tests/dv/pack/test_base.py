@@ -40,7 +40,7 @@ class PackValidateCase:
 
 def run_pack_validate_case(tc: PackValidateCase) -> None:
     """Test validation failures when writing a pack to binary."""
-    with pytest.raises(pack.PackValidationError, match=tc.failure):
+    with pytest.raises(pack.ValidationError, match=tc.failure):
         tc.input.to_binary(tc.system)
 
 
@@ -71,7 +71,7 @@ def run_pack_text_parse_failure_test_case(
     tc: PackTextParseFailureTestCase, cls: type[pack.Pack]
 ) -> None:
     """Test that a text parsing attempt will fail."""
-    with pytest.raises(pack.PackValidationError, match=tc.parse_failure):
+    with pytest.raises(pack.ValidationError, match=tc.parse_failure):
         cls.parse_text_values(tc.input)
 
 
