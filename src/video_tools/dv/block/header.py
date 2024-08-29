@@ -7,8 +7,9 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import ClassVar
 
-import video_tools.dv.dif_block as block
 import video_tools.dv.file.info as dv_file_info
+
+from .base import Block, BlockError, BlockID, BlockType
 
 
 # Track pitch
@@ -112,7 +113,7 @@ class ApplicationID3(IntEnum):
 #  - There is only one header block per DIF sequence/track.
 #  - Values are expected to be the same across all DIF sequences/tracks in the same video frame.
 @dataclass(frozen=True, kw_only=True)
-class Header(block.Block):
+class Header(Block):
     # DIF sequence flag indicating how many DIF sequences in a video frame.  Each sequence is a
     # tape track and the terminology is basically synonymous.
     # Important notes:
@@ -191,11 +192,11 @@ class Header(block.Block):
 
     # Functions for going to/from binary blocks
 
-    type: ClassVar[block.BlockType] = block.BlockType.HEADER
+    type: ClassVar[BlockType] = BlockType.HEADER
 
     @classmethod
     def _do_parse_binary(
-        cls, block_bytes: bytes, block_id: block.BlockID, file_info: dv_file_info.Info
+        cls, block_bytes: bytes, block_id: BlockID, file_info: dv_file_info.Info
     ) -> Header:
         bin = _BinaryFields.from_buffer_copy(block_bytes[3:])
 
@@ -203,7 +204,7 @@ class Header(block.Block):
         # we should investigate more to find out why this is.  Note that it's not expected to be
         # a failure due to tape reading errors.
         if bin.zero != 0x0:
-            raise block.BlockError("Zero bit in DIF header block is unexpectedly not zero.")
+            raise BlockError("Zero bit in DIF header block is unexpectedly not zero.")
         if (
             bin.reserved_0 != 0x3F
             or bin.reserved_1 != 0x01
@@ -212,13 +213,13 @@ class Header(block.Block):
             or bin.reserved_4 != 0x0F
             or any(r != 0xFF for r in bin.reserved_end)
         ):
-            raise block.BlockError("Reserved bits in DIF header block are unexpectedly in use.")
+            raise BlockError("Reserved bits in DIF header block are unexpectedly in use.")
 
         if bin.dftia == 0xF:
             track_pitch = None
             pilot_frame = None
         elif bin.dftia > 0x7:
-            raise block.BlockError(
+            raise BlockError(
                 "Unexpected values in the track information area of the DIF header block."
             )
         else:
@@ -229,7 +230,7 @@ class Header(block.Block):
         # ever happen, even during complete frame dropouts.  We need to study an example DV file
         # before can safely remove this assertion and actually do something with these flags.
         if bin.tf1 != 0 or bin.tf2 != 0 or bin.tf3 != 0:
-            raise block.BlockError(
+            raise BlockError(
                 "Transmitting flags for some DIF blocks are off in the DIF header block."
             )
 

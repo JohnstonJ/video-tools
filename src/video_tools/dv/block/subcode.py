@@ -5,10 +5,11 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import ClassVar, cast
 
-import video_tools.dv.dif_block as block
-import video_tools.dv.dif_block_header as block_header
 import video_tools.dv.file.info as dv_file_info
 import video_tools.dv.pack as pack
+
+from .base import Block, BlockError, BlockID, BlockType
+from .header import ApplicationID3, ApplicationIDTrack
 
 
 # Blank flag: determines whether a discontinuity in the absolute track number exists prior to the
@@ -61,7 +62,7 @@ class BlankFlag(IntEnum):
 #    experimentally observed to have a 100% 0xFF DIF block (apart from the DIF block ID).
 #  - The trailing reserved bytes after the sync blocks are not from tape, so will always be 0xFF.
 @dataclass(frozen=True, kw_only=True)
-class Subcode(block.Block):
+class Subcode(Block):
     # ======================== ID PART ========================
     # List of more specific standards sections that pertain to the ID part of a subcode sync block:
     #  - IEC 61834-2:1998 Section 3.5.3 - ID part (Subcode sector)
@@ -115,8 +116,8 @@ class Subcode(block.Block):
     # DIF subcode blocks.  The track application ID is only physically present in DIF subcode
     # block 1, so it's always None in DIF subcode block 0.  Otherwise, a value of None means there
     # was a read error or dropout.
-    application_id_track: block_header.ApplicationIDTrack | None
-    application_id_3: block_header.ApplicationID3 | None
+    application_id_track: ApplicationIDTrack | None
+    application_id_3: ApplicationID3 | None
 
     # Absolute track number: every tape track is assigned a number from the start of the tape.
     #  - IEC 61834-2:1998 Section 8.4.4 - Absolute track number
@@ -213,11 +214,11 @@ class Subcode(block.Block):
 
     # Functions for going to/from binary blocks
 
-    type: ClassVar[block.BlockType] = block.BlockType.SUBCODE
+    type: ClassVar[BlockType] = BlockType.SUBCODE
 
     @classmethod
     def _do_parse_binary(
-        cls, block_bytes: bytes, block_id: block.BlockID, file_info: dv_file_info.Info
+        cls, block_bytes: bytes, block_id: BlockID, file_info: dv_file_info.Info
     ) -> Subcode:
         bin = _BinaryFields.from_buffer_copy(block_bytes[3:])
 
@@ -268,7 +269,7 @@ class Subcode(block.Block):
 
             # Parity byte is ALWAYS 0xFF on the digital interface
             if id_part.parity != 0xFF:
-                raise block.BlockError(
+                raise BlockError(
                     f"Sync block parity byte is not 0xFF for sync block {expected_syb}."
                 )
 
@@ -276,11 +277,9 @@ class Subcode(block.Block):
 
             # First 4 bits of ID part may hold tag ID or application ID, depending on block number
             if dif_sync_block_number == 0:
-                application_id_3 = block_header.ApplicationID3(
-                    id_part.id0.with_application_id.application_id
-                )
+                application_id_3 = ApplicationID3(id_part.id0.with_application_id.application_id)
             elif block_id.dif_block == 1 and dif_sync_block_number == 5:
-                application_id_track = block_header.ApplicationIDTrack(
+                application_id_track = ApplicationIDTrack(
                     id_part.id0.with_application_id.application_id
                 )
             else:
@@ -315,7 +314,7 @@ class Subcode(block.Block):
 
         # Quick check on the trailing reserved bits, which don't come from tape
         if any(r != 0xFF for r in bin.reserved):
-            raise block.BlockError("Reserved bits in DIF header block are unexpectedly in use.")
+            raise BlockError("Reserved bits in DIF header block are unexpectedly in use.")
 
         return cls(
             block_id=block_id,

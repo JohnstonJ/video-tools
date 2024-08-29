@@ -3,8 +3,8 @@ from typing import BinaryIO
 
 from colorama import Fore, Style, just_fix_windows_console
 
+import video_tools.dv.block as block
 import video_tools.dv.dif as dif
-import video_tools.dv.dif_block as dif_block
 import video_tools.dv.file.info as dv_file_info
 import video_tools.io_util as io_util
 
@@ -36,7 +36,7 @@ def parse_args() -> DVDIFDumpArgs:
     )
     parser.add_argument(
         "--block-type",
-        choices=[type.name for type in dif_block.BlockType],
+        choices=[type.name for type in block.BlockType],
         type=str,
         help="Restrict output to only DIF blocks of a certain type.",
     )
@@ -59,16 +59,16 @@ def dump_dif_blocks(
     frame_bytes: bytes,
     file_info: dv_file_info.Info,
     frame_number: int,
-    block_type: dif_block.BlockType | None,
+    block_type: block.BlockType | None,
 ) -> None:
     b_start = 0  # current block starting position
     type_color = {
         # Colors from DVRescue
-        dif_block.BlockType.HEADER: Fore.MAGENTA,
-        dif_block.BlockType.SUBCODE: Fore.CYAN,
-        dif_block.BlockType.VAUX: Fore.YELLOW,
-        dif_block.BlockType.AUDIO: Fore.GREEN,
-        dif_block.BlockType.VIDEO: Fore.BLUE,
+        block.BlockType.HEADER: Fore.MAGENTA,
+        block.BlockType.SUBCODE: Fore.CYAN,
+        block.BlockType.VAUX: Fore.YELLOW,
+        block.BlockType.AUDIO: Fore.GREEN,
+        block.BlockType.VIDEO: Fore.BLUE,
     }
     for channel in range(file_info.video_frame_channel_count):
         for sequence in range(file_info.video_frame_dif_sequence_count):
@@ -77,18 +77,16 @@ def dump_dif_blocks(
                 f"FRAME {frame_number} CHANNEL {channel} SEQUENCE {sequence} "
                 f"=============================={Style.RESET_ALL}"
             )
-            for block in range(len(dif.DIF_SEQUENCE_TRANSMISSION_ORDER)):
-                block_id = dif_block.BlockID.parse_binary(
-                    frame_bytes[b_start : b_start + 3], file_info
-                )
+            for blk in range(len(dif.DIF_SEQUENCE_TRANSMISSION_ORDER)):
+                block_id = block.BlockID.parse_binary(frame_bytes[b_start : b_start + 3], file_info)
                 if block_type is None or block_type == block_id.type:
                     print(
-                        f"{block:3} {frame_bytes[b_start:b_start+3].hex().upper()} "
+                        f"{blk:3} {frame_bytes[b_start:b_start+3].hex().upper()} "
                         f"{type_color[block_id.type]}"
-                        f"{frame_bytes[b_start+3:b_start+dif_block.BLOCK_SIZE].hex().upper()}"
+                        f"{frame_bytes[b_start+3:b_start+block.BLOCK_SIZE].hex().upper()}"
                         f"{Style.RESET_ALL}"
                     )
-                b_start += dif_block.BLOCK_SIZE
+                b_start += block.BLOCK_SIZE
 
 
 def main() -> None:
@@ -113,7 +111,7 @@ def main() -> None:
                 frame_bytes,
                 info,
                 frame_number,
-                dif_block.BlockType[args.block_type] if args.block_type is not None else None,
+                block.BlockType[args.block_type] if args.block_type is not None else None,
             )
 
 

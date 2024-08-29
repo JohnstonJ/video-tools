@@ -2,10 +2,7 @@ from dataclasses import dataclass
 
 import pytest
 
-import video_tools.dv.dif_block as dif_block
-import video_tools.dv.dif_block_header as dif_block_header
-import video_tools.dv.dif_block_parser as block_parser
-import video_tools.dv.dif_block_subcode as dif_block_subcode
+import video_tools.dv.block as block
 import video_tools.dv.file.info as dv_file_info
 import video_tools.dv.pack as pack
 from tests.dv.util import NTSC_FILE
@@ -17,7 +14,7 @@ TRAILER = "".join([" FF"] * 29)
 class SubcodeBlockBinaryTestCase:
     name: str
     input: str
-    parsed: dif_block.Block
+    parsed: block.Block
     output: str | None = None
     file_info: dv_file_info.Info
 
@@ -45,9 +42,9 @@ class SubcodeBlockBinaryTestCase:
             "FFFF FF 62 FFE3F200 "
             "FFFF FF 62 FFE3F200 "
             f"{TRAILER}",
-            parsed=dif_block_subcode.Subcode(
-                block_id=dif_block.BlockID(
-                    type=dif_block.BlockType.SUBCODE,
+            parsed=block.Subcode(
+                block_id=block.BlockID(
+                    type=block.BlockType.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=5,
@@ -61,7 +58,7 @@ class SubcodeBlockBinaryTestCase:
                 absolute_track_number_0=[None, 0x4B >> 1],  # dropout
                 absolute_track_number_1=[0x06, None],  # dropout
                 absolute_track_number_2=[None, None],  # dropout
-                blank_flag=[None, dif_block_subcode.BlankFlag.CONTINUOUS],  # dropout
+                blank_flag=[None, block.BlankFlag.CONTINUOUS],  # dropout
                 packs=[
                     pack.VAUXRecordingDate(
                         year=2000,
@@ -86,9 +83,9 @@ class SubcodeBlockBinaryTestCase:
             "706A FF FF FFFFFFFF "
             "300B FF FF FFFFFFFF "  # APT is 3
             f"{TRAILER}",
-            parsed=dif_block_subcode.Subcode(
-                block_id=dif_block.BlockID(
-                    type=dif_block.BlockType.SUBCODE,
+            parsed=block.Subcode(
+                block_id=block.BlockID(
+                    type=block.BlockType.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=5,
@@ -97,12 +94,12 @@ class SubcodeBlockBinaryTestCase:
                 index=[False, False, True, False],
                 skip=[False, True, False, False],
                 picture=[True, False, False, False],
-                application_id_track=dif_block_header.ApplicationIDTrack.RESERVED_3,
-                application_id_3=dif_block_header.ApplicationID3.RESERVED_5,
+                application_id_track=block.ApplicationIDTrack.RESERVED_3,
+                application_id_3=block.ApplicationID3.RESERVED_5,
                 absolute_track_number_0=[0x4B >> 1] * 2,
                 absolute_track_number_1=[0x06] * 2,
                 absolute_track_number_2=[0x00] * 2,
-                blank_flag=[dif_block_subcode.BlankFlag.CONTINUOUS] * 2,
+                blank_flag=[block.BlankFlag.CONTINUOUS] * 2,
                 packs=[pack.NoInfo()] * 6,
                 pack_types=[0xFF] * 6,
             ),
@@ -126,9 +123,9 @@ class SubcodeBlockBinaryTestCase:
             "706A FF FF FFFFFFFF "
             "000B FF FF FFFFFFFF "
             f"{TRAILER}",
-            parsed=dif_block_subcode.Subcode(
-                block_id=dif_block.BlockID(
-                    type=dif_block.BlockType.SUBCODE,
+            parsed=block.Subcode(
+                block_id=block.BlockID(
+                    type=block.BlockType.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=5,
@@ -137,12 +134,12 @@ class SubcodeBlockBinaryTestCase:
                 index=[False] * 4,
                 skip=[False] * 4,
                 picture=[False] * 4,
-                application_id_track=dif_block_header.ApplicationIDTrack.CONSUMER_DIGITAL_VCR,
-                application_id_3=dif_block_header.ApplicationID3.CONSUMER_DIGITAL_VCR,
+                application_id_track=block.ApplicationIDTrack.CONSUMER_DIGITAL_VCR,
+                application_id_3=block.ApplicationID3.CONSUMER_DIGITAL_VCR,
                 absolute_track_number_0=[0x4B >> 1] * 2,
                 absolute_track_number_1=[0x06] * 2,
                 absolute_track_number_2=[0x00] * 2,
-                blank_flag=[dif_block_subcode.BlankFlag.CONTINUOUS] * 2,
+                blank_flag=[block.BlankFlag.CONTINUOUS] * 2,
                 packs=[None, *[pack.NoInfo()] * 5],
                 pack_types=[0x13, *[0xFF] * 5],
             ),
@@ -160,9 +157,9 @@ class SubcodeBlockBinaryTestCase:
             "706A FF 62 FFC8E724 "
             "000B FF 63 FFD8D5D9 "
             f"{TRAILER}",
-            parsed=dif_block_subcode.Subcode(
-                block_id=dif_block.BlockID(
-                    type=dif_block.BlockType.SUBCODE,
+            parsed=block.Subcode(
+                block_id=block.BlockID(
+                    type=block.BlockType.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=5,
@@ -171,12 +168,12 @@ class SubcodeBlockBinaryTestCase:
                 index=[False] * 4,
                 skip=[False] * 4,
                 picture=[False] * 4,
-                application_id_track=dif_block_header.ApplicationIDTrack.CONSUMER_DIGITAL_VCR,
-                application_id_3=dif_block_header.ApplicationID3.CONSUMER_DIGITAL_VCR,
+                application_id_track=block.ApplicationIDTrack.CONSUMER_DIGITAL_VCR,
+                application_id_3=block.ApplicationID3.CONSUMER_DIGITAL_VCR,
                 absolute_track_number_0=[0x4B >> 1] * 2,
                 absolute_track_number_1=[0x06] * 2,
                 absolute_track_number_2=[0x00] * 2,
-                blank_flag=[dif_block_subcode.BlankFlag.CONTINUOUS] * 2,
+                blank_flag=[block.BlankFlag.CONTINUOUS] * 2,
                 packs=[
                     pack.TitleTimecode(
                         hour=0,
@@ -221,9 +218,9 @@ class SubcodeBlockBinaryTestCase:
             "F064 FF 13 E08280C0 "
             "F005 FF 13 E08280C0 "
             f"{TRAILER}",
-            parsed=dif_block_subcode.Subcode(
-                block_id=dif_block.BlockID(
-                    type=dif_block.BlockType.SUBCODE,
+            parsed=block.Subcode(
+                block_id=block.BlockID(
+                    type=block.BlockType.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=4,
@@ -233,11 +230,11 @@ class SubcodeBlockBinaryTestCase:
                 skip=[False] * 5,
                 picture=[False] * 5,
                 application_id_track=None,
-                application_id_3=dif_block_header.ApplicationID3.CONSUMER_DIGITAL_VCR,
+                application_id_3=block.ApplicationID3.CONSUMER_DIGITAL_VCR,
                 absolute_track_number_0=[0x49 >> 1] * 2,
                 absolute_track_number_1=[0x06] * 2,
                 absolute_track_number_2=[0x00] * 2,
-                blank_flag=[dif_block_subcode.BlankFlag.CONTINUOUS] * 2,
+                blank_flag=[block.BlankFlag.CONTINUOUS] * 2,
                 packs=[
                     pack.TitleTimecode(
                         hour=0,
@@ -269,9 +266,9 @@ class SubcodeBlockBinaryTestCase:
             "7B0A FF 62 FFE3F200 "
             "FFFF FF FF FFFFFFFF "
             f"{TRAILER}",
-            parsed=dif_block_subcode.Subcode(
-                block_id=dif_block.BlockID(
-                    type=dif_block.BlockType.SUBCODE,
+            parsed=block.Subcode(
+                block_id=block.BlockID(
+                    type=block.BlockType.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=8,
@@ -281,11 +278,11 @@ class SubcodeBlockBinaryTestCase:
                 skip=[False] * 4,
                 picture=[False] * 4,
                 application_id_track=None,  # dropout
-                application_id_3=dif_block_header.ApplicationID3.CONSUMER_DIGITAL_VCR,
+                application_id_3=block.ApplicationID3.CONSUMER_DIGITAL_VCR,
                 absolute_track_number_0=[0xD0 >> 1] * 2,
                 absolute_track_number_1=[0xB0] * 2,
                 absolute_track_number_2=[0x16, None],  # dropout
-                blank_flag=[dif_block_subcode.BlankFlag.DISCONTINUOUS] * 2,
+                blank_flag=[block.BlankFlag.DISCONTINUOUS] * 2,
                 packs=[
                     pack.NoInfo(),
                     pack.VAUXRecordingDate(
@@ -348,9 +345,9 @@ class SubcodeBlockBinaryTestCase:
             "7B04 FF 62 FFE3F200 "
             "FFFF FF FF FFFFFFFF "
             f"{TRAILER}",
-            parsed=dif_block_subcode.Subcode(
-                block_id=dif_block.BlockID(
-                    type=dif_block.BlockType.SUBCODE,
+            parsed=block.Subcode(
+                block_id=block.BlockID(
+                    type=block.BlockType.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=9,
@@ -360,11 +357,11 @@ class SubcodeBlockBinaryTestCase:
                 skip=[*[False] * 4, None],  # dropout
                 picture=[*[False] * 4, None],  # dropout
                 application_id_track=None,  # dropout
-                application_id_3=dif_block_header.ApplicationID3.CONSUMER_DIGITAL_VCR,
+                application_id_3=block.ApplicationID3.CONSUMER_DIGITAL_VCR,
                 absolute_track_number_0=[0xD2 >> 1] * 2,
                 absolute_track_number_1=[0xB0] * 2,
                 absolute_track_number_2=[0x16, None],  # dropout
-                blank_flag=[dif_block_subcode.BlankFlag.DISCONTINUOUS] * 2,
+                blank_flag=[block.BlankFlag.DISCONTINUOUS] * 2,
                 packs=[
                     pack.TitleTimecode(
                         hour=0,
@@ -427,9 +424,9 @@ class SubcodeBlockBinaryTestCase:
             "F004 FF 14 00000000"
             "F005 FF 13 40000000"
             f"{TRAILER}",
-            parsed=dif_block_subcode.Subcode(
-                block_id=dif_block.BlockID(
-                    type=dif_block.BlockType.SUBCODE,
+            parsed=block.Subcode(
+                block_id=block.BlockID(
+                    type=block.BlockType.SUBCODE,
                     sequence=0xF,
                     channel=1,
                     dif_sequence=2,
@@ -439,11 +436,11 @@ class SubcodeBlockBinaryTestCase:
                 skip=[False] * 5,
                 picture=[False] * 5,
                 application_id_track=None,
-                application_id_3=dif_block_header.ApplicationID3.CONSUMER_DIGITAL_VCR,
+                application_id_3=block.ApplicationID3.CONSUMER_DIGITAL_VCR,
                 absolute_track_number_0=[0x00 >> 1] * 2,
                 absolute_track_number_1=[0x00] * 2,
                 absolute_track_number_2=[0x00] * 2,
-                blank_flag=[dif_block_subcode.BlankFlag.DISCONTINUOUS] * 2,
+                blank_flag=[block.BlankFlag.DISCONTINUOUS] * 2,
                 packs=[
                     pack.TitleTimecode(
                         hour=0,
@@ -478,7 +475,7 @@ class SubcodeBlockBinaryTestCase:
     ids=lambda tc: tc.name,
 )
 def test_subcode_block_binary(tc: SubcodeBlockBinaryTestCase) -> None:
-    parsed = block_parser.parse_binary(bytes.fromhex(tc.input), tc.file_info)
+    parsed = block.parse_binary(bytes.fromhex(tc.input), tc.file_info)
     assert parsed == tc.parsed
     updated = parsed.to_binary(tc.file_info)
     assert updated == bytes.fromhex(tc.output if tc.output is not None else tc.input)
@@ -487,7 +484,7 @@ def test_subcode_block_binary(tc: SubcodeBlockBinaryTestCase) -> None:
 @dataclass
 class SubcodeBlockValidateTestCase:
     name: str
-    input: dif_block_subcode.Subcode
+    input: block.Subcode
     failure: str
     file_info: dv_file_info.Info
 
@@ -497,9 +494,9 @@ class SubcodeBlockValidateTestCase:
     [
         SubcodeBlockValidateTestCase(
             name="wrong DIF block number",
-            input=dif_block_subcode.Subcode(
-                block_id=dif_block.BlockID(
-                    type=dif_block.BlockType.SUBCODE,
+            input=block.Subcode(
+                block_id=block.BlockID(
+                    type=block.BlockType.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=0,
@@ -522,9 +519,9 @@ class SubcodeBlockValidateTestCase:
         ),
         SubcodeBlockValidateTestCase(
             name="uneven ID part presence (skip present)",
-            input=dif_block_subcode.Subcode(
-                block_id=dif_block.BlockID(
-                    type=dif_block.BlockType.SUBCODE,
+            input=block.Subcode(
+                block_id=block.BlockID(
+                    type=block.BlockType.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=0,
@@ -547,9 +544,9 @@ class SubcodeBlockValidateTestCase:
         ),
         SubcodeBlockValidateTestCase(
             name="uneven ID part presence (picture present)",
-            input=dif_block_subcode.Subcode(
-                block_id=dif_block.BlockID(
-                    type=dif_block.BlockType.SUBCODE,
+            input=block.Subcode(
+                block_id=block.BlockID(
+                    type=block.BlockType.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=0,
@@ -572,9 +569,9 @@ class SubcodeBlockValidateTestCase:
         ),
         SubcodeBlockValidateTestCase(
             name="uneven ID part presence (ATN0 present)",
-            input=dif_block_subcode.Subcode(
-                block_id=dif_block.BlockID(
-                    type=dif_block.BlockType.SUBCODE,
+            input=block.Subcode(
+                block_id=block.BlockID(
+                    type=block.BlockType.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=0,
@@ -597,9 +594,9 @@ class SubcodeBlockValidateTestCase:
         ),
         SubcodeBlockValidateTestCase(
             name="uneven ID part presence (BF present)",
-            input=dif_block_subcode.Subcode(
-                block_id=dif_block.BlockID(
-                    type=dif_block.BlockType.SUBCODE,
+            input=block.Subcode(
+                block_id=block.BlockID(
+                    type=block.BlockType.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=0,
@@ -613,7 +610,7 @@ class SubcodeBlockValidateTestCase:
                 absolute_track_number_2=[None] * 2,
                 absolute_track_number_1=[None] * 2,
                 absolute_track_number_0=[None] * 2,
-                blank_flag=[dif_block_subcode.BlankFlag.CONTINUOUS, None],  # blank flag is present
+                blank_flag=[block.BlankFlag.CONTINUOUS, None],  # blank flag is present
                 packs=[None] * 6,
                 pack_types=[0xFF] * 6,
             ),
@@ -622,9 +619,9 @@ class SubcodeBlockValidateTestCase:
         ),
         SubcodeBlockValidateTestCase(
             name="uneven ID part presence (ATN1 present)",
-            input=dif_block_subcode.Subcode(
-                block_id=dif_block.BlockID(
-                    type=dif_block.BlockType.SUBCODE,
+            input=block.Subcode(
+                block_id=block.BlockID(
+                    type=block.BlockType.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=0,
@@ -647,9 +644,9 @@ class SubcodeBlockValidateTestCase:
         ),
         SubcodeBlockValidateTestCase(
             name="uneven ID part presence (ATN2 present)",
-            input=dif_block_subcode.Subcode(
-                block_id=dif_block.BlockID(
-                    type=dif_block.BlockType.SUBCODE,
+            input=block.Subcode(
+                block_id=block.BlockID(
+                    type=block.BlockType.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=0,
@@ -675,7 +672,7 @@ class SubcodeBlockValidateTestCase:
 )
 def test_subcode_block_validate_write(tc: SubcodeBlockValidateTestCase) -> None:
     """Test validation failures when writing a subcode block to binary."""
-    with pytest.raises(dif_block.BlockError, match=tc.failure):
+    with pytest.raises(block.BlockError, match=tc.failure):
         tc.input.to_binary(tc.file_info)
 
 
@@ -686,8 +683,8 @@ def test_subcode_block_validate_read() -> None:
     are tested in test_subcode_block_validate_write.
     """
     failure = "Sync block parity byte is not 0xFF for sync block 8."
-    with pytest.raises(dif_block.BlockError, match=failure):
-        dif_block_subcode.Subcode.parse_binary(
+    with pytest.raises(block.BlockError, match=failure):
+        block.Subcode.parse_binary(
             bytes.fromhex(
                 "3F 57 01 "
                 "04B6 FF 13 E08280C0 "
@@ -702,8 +699,8 @@ def test_subcode_block_validate_read() -> None:
         )
 
     failure = "Reserved bits in DIF header block are unexpectedly in use."
-    with pytest.raises(dif_block.BlockError, match=failure):
-        dif_block_subcode.Subcode.parse_binary(
+    with pytest.raises(block.BlockError, match=failure):
+        block.Subcode.parse_binary(
             bytes.fromhex(
                 "3F 57 01 "
                 "04B6 FF 13 E08280C0 "
