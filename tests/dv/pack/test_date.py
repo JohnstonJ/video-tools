@@ -4,9 +4,9 @@ from dataclasses import replace
 
 import pytest
 
-import tests.dv.pack.test_pack as test_pack
+import tests.dv.pack.test_base as test_base
 import video_tools.dv.pack as pack
-from tests.dv.pack.test_pack import (
+from tests.dv.pack.test_base import (
     PackBinaryTestCase,
     PackTextParseFailureTestCase,
     PackTextSuccessTestCase,
@@ -218,7 +218,7 @@ from tests.dv.pack.test_pack import (
     ids=lambda tc: tc.name,
 )
 def test_vaux_recording_date_binary(tc: PackBinaryTestCase) -> None:
-    test_pack.run_pack_binary_test_case(tc, pack.VAUXRecordingDate)
+    test_base.run_pack_binary_test_case(tc, pack.VAUXRecordingDate)
 
 
 # Just a quick test to check that AAUX recording date is also set up right
@@ -245,7 +245,7 @@ def test_vaux_recording_date_binary(tc: PackBinaryTestCase) -> None:
     ids=lambda tc: tc.name,
 )
 def test_aaux_recording_date_binary(tc: PackBinaryTestCase) -> None:
-    test_pack.run_pack_binary_test_case(tc, pack.AAUXRecordingDate)
+    test_base.run_pack_binary_test_case(tc, pack.AAUXRecordingDate)
 
 
 # For validation failures, again, we will only make the test cases against VAUXRecordingDate.
@@ -339,7 +339,7 @@ ZERO_DATE = pack.VAUXRecordingDate(
     ids=lambda tc: tc.name,
 )
 def test_date_validate(tc: PackValidateCase) -> None:
-    test_pack.run_pack_validate_case(tc)
+    test_base.run_pack_validate_case(tc)
 
 
 @pytest.mark.parametrize(
@@ -400,7 +400,7 @@ def test_date_validate(tc: PackValidateCase) -> None:
     ids=lambda tc: tc.name,
 )
 def test_vaux_recording_date_text_success(tc: PackTextSuccessTestCase) -> None:
-    test_pack.run_pack_text_success_test_case(tc, pack.VAUXRecordingDate)
+    test_base.run_pack_text_success_test_case(tc, pack.VAUXRecordingDate)
 
 
 @pytest.mark.parametrize(
@@ -431,4 +431,4 @@ def test_vaux_recording_date_text_success(tc: PackTextSuccessTestCase) -> None:
     ids=lambda tc: tc.name,
 )
 def test_vaux_recording_date_text_parse_failure(tc: PackTextParseFailureTestCase) -> None:
-    test_pack.run_pack_text_parse_failure_test_case(tc, pack.VAUXRecordingDate)
+    test_base.run_pack_text_parse_failure_test_case(tc, pack.VAUXRecordingDate)

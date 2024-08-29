@@ -1,28 +1,36 @@
-from .pack import (
-    AAUXBinaryGroup,
-    AAUXRecordingDate,
-    AAUXRecordingTime,
-    BlankFlag,
-    ColorFrame,
+"""Contains model classes for DIF data packs contained in subcode, audio, and VAUX DIF blocks."""
+
+from .base import (
     CSVFieldMap,
-    DaylightSavingTime,
-    GenericBinaryGroup,
-    GenericDate,
-    GenericTimecode,
-    NoInfo,
     Pack,
     PackType,
     PackValidationError,
-    PolarityCorrection,
-    TitleBinaryGroup,
-    TitleTimecode,
-    Unknown,
-    VAUXBinaryGroup,
+)
+from .date import (
+    AAUXRecordingDate,
+    DaylightSavingTime,
+    GenericDate,
     VAUXRecordingDate,
-    VAUXRecordingTime,
     Week,
 )
+from .misc import (
+    AAUXBinaryGroup,
+    GenericBinaryGroup,
+    NoInfo,
+    TitleBinaryGroup,
+    Unknown,
+    VAUXBinaryGroup,
+)
 from .parser import parse_binary
+from .time import (
+    AAUXRecordingTime,
+    BlankFlag,
+    ColorFrame,
+    GenericTimecode,
+    PolarityCorrection,
+    TitleTimecode,
+    VAUXRecordingTime,
+)
 
 __all__ = [
     "AAUXBinaryGroup",
