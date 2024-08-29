@@ -224,7 +224,7 @@ ZERO_TIMECODE = pack.TitleTimecode(
     ids=lambda tc: tc.name,
 )
 def test_title_timecode_binary(tc: PackBinaryTestCase) -> None:
-    test_base.run_pack_binary_test_case(tc, pack.TitleTimecode)
+    test_base.run_pack_binary_test_case(tc)
 
 
 # Do some testing on the recording time, especially around optional values.
@@ -309,7 +309,7 @@ def test_title_timecode_binary(tc: PackBinaryTestCase) -> None:
     ids=lambda tc: tc.name,
 )
 def test_vaux_recording_time_binary(tc: PackBinaryTestCase) -> None:
-    test_base.run_pack_binary_test_case(tc, pack.VAUXRecordingTime)
+    test_base.run_pack_binary_test_case(tc)
 
 
 @pytest.mark.parametrize(
@@ -349,7 +349,7 @@ def test_vaux_recording_time_binary(tc: PackBinaryTestCase) -> None:
     ids=lambda tc: tc.name,
 )
 def test_aaux_recording_time_binary(tc: PackBinaryTestCase) -> None:
-    test_base.run_pack_binary_test_case(tc, pack.AAUXRecordingTime)
+    test_base.run_pack_binary_test_case(tc)
 
 
 # For validation failures, again, we will make most test cases against TitleTimecode.  But we will

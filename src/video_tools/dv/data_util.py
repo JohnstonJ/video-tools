@@ -20,6 +20,14 @@ def hex_bytes(bytes_value: bytes | list[int | None], allow_optional: bool = Fals
     )
 
 
+def parse_bool(text_value: str) -> bool:
+    if text_value.upper() == "TRUE":
+        return True
+    elif text_value.upper() == "FALSE":
+        return False
+    raise ValueError("Invalid boolean format.")
+
+
 # Add/remove field prefixes from simple field name strings
 
 

@@ -34,6 +34,9 @@ class Type(IntEnum):
     # IEC 61834-4:1998 8.5 Binary Group (AAUX)
     AAUX_BINARY_GROUP = 0x54
 
+    # IEC 61834-4:1998 9.1 Source (VAUX)
+    VAUX_SOURCE = 0x60
+
     # IEC 61834-4:1998 9.3 Rec Date (Recording date) (VAUX)
     VAUX_RECORDING_DATE = 0x62
 

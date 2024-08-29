@@ -23,7 +23,7 @@ from tests.dv.pack.test_base import (
     ids=lambda tc: tc.name,
 )
 def test_title_binary_group_binary(tc: PackBinaryTestCase) -> None:
-    test_base.run_pack_binary_test_case(tc, pack.TitleBinaryGroup)
+    test_base.run_pack_binary_test_case(tc)
 
 
 @pytest.mark.parametrize(
@@ -36,7 +36,7 @@ def test_title_binary_group_binary(tc: PackBinaryTestCase) -> None:
     ids=lambda tc: tc.name,
 )
 def test_aaux_binary_group_binary(tc: PackBinaryTestCase) -> None:
-    test_base.run_pack_binary_test_case(tc, pack.AAUXBinaryGroup)
+    test_base.run_pack_binary_test_case(tc)
 
 
 @pytest.mark.parametrize(
@@ -49,7 +49,7 @@ def test_aaux_binary_group_binary(tc: PackBinaryTestCase) -> None:
     ids=lambda tc: tc.name,
 )
 def test_vaux_binary_group_binary(tc: PackBinaryTestCase) -> None:
-    test_base.run_pack_binary_test_case(tc, pack.VAUXBinaryGroup)
+    test_base.run_pack_binary_test_case(tc)
 
 
 # Only test TitleBinaryGroup, since the others share the same base class.
@@ -105,7 +105,7 @@ def test_title_binary_group_text_success(tc: PackTextSuccessTestCase) -> None:
     ids=lambda tc: tc.name,
 )
 def test_no_info_binary(tc: PackBinaryTestCase) -> None:
-    test_base.run_pack_binary_test_case(tc, pack.NoInfo)
+    test_base.run_pack_binary_test_case(tc)
 
 
 # ======================== UNKNOWN GROUP PACK TESTS ========================
@@ -123,7 +123,7 @@ def test_no_info_binary(tc: PackBinaryTestCase) -> None:
     ids=lambda tc: tc.name,
 )
 def test_unknown_binary(tc: PackBinaryTestCase) -> None:
-    test_base.run_pack_binary_test_case(tc, pack.Unknown)
+    test_base.run_pack_binary_test_case(tc)
 
 
 @pytest.mark.parametrize(

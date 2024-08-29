@@ -20,6 +20,9 @@ from .time import (
     TitleTimecode,
     VAUXRecordingTime,
 )
+from .vaux_source import (
+    VAUXSource,
+)
 
 
 def parse_binary(pack_bytes: bytes, system: dv_file_info.DVSystem) -> Pack | None:
@@ -40,6 +43,8 @@ def parse_binary(pack_bytes: bytes, system: dv_file_info.DVSystem) -> Pack | Non
             return AAUXRecordingTime.parse_binary(pack_bytes, system)
         case Type.AAUX_BINARY_GROUP:
             return AAUXBinaryGroup.parse_binary(pack_bytes, system)
+        case Type.VAUX_SOURCE:
+            return VAUXSource.parse_binary(pack_bytes, system)
         case Type.VAUX_RECORDING_DATE:
             return VAUXRecordingDate.parse_binary(pack_bytes, system)
         case Type.VAUX_RECORDING_TIME:

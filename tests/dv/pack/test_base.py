@@ -20,10 +20,10 @@ class PackBinaryTestCase:
     system: dv_file_info.DVSystem = NTSC
 
 
-def run_pack_binary_test_case(tc: PackBinaryTestCase, cls: type[pack.Pack]) -> None:
+def run_pack_binary_test_case(tc: PackBinaryTestCase) -> None:
     """Test round trip of a pack from binary, to parsed, and then back to binary."""
     input = bytes.fromhex(tc.input)
-    p = cls.parse_binary(input, tc.system)
+    p = pack.parse_binary(input, tc.system)
     assert p == tc.parsed
     if p:
         output = bytes.fromhex(tc.output) if tc.output is not None else input

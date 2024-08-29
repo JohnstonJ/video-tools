@@ -218,7 +218,7 @@ from tests.dv.pack.test_base import (
     ids=lambda tc: tc.name,
 )
 def test_vaux_recording_date_binary(tc: PackBinaryTestCase) -> None:
-    test_base.run_pack_binary_test_case(tc, pack.VAUXRecordingDate)
+    test_base.run_pack_binary_test_case(tc)
 
 
 # Just a quick test to check that AAUX recording date is also set up right
@@ -245,7 +245,7 @@ def test_vaux_recording_date_binary(tc: PackBinaryTestCase) -> None:
     ids=lambda tc: tc.name,
 )
 def test_aaux_recording_date_binary(tc: PackBinaryTestCase) -> None:
-    test_base.run_pack_binary_test_case(tc, pack.AAUXRecordingDate)
+    test_base.run_pack_binary_test_case(tc)
 
 
 # For validation failures, again, we will only make the test cases against VAUXRecordingDate.

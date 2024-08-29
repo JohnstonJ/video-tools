@@ -31,13 +31,22 @@ from .time import (
     TitleTimecode,
     VAUXRecordingTime,
 )
+from .vaux_source import (
+    BlackAndWhiteFlag,
+    ColorFramesID,
+    SourceCode,
+    SourceType,
+    VAUXSource,
+)
 
 __all__ = [
     "AAUXBinaryGroup",
     "AAUXRecordingDate",
     "AAUXRecordingTime",
+    "BlackAndWhiteFlag",
     "BlankFlag",
     "ColorFrame",
+    "ColorFramesID",
     "CSVFieldMap",
     "DaylightSavingTime",
     "GenericBinaryGroup",
@@ -49,11 +58,14 @@ __all__ = [
     "ValidationError",
     "parse_binary",
     "PolarityCorrection",
+    "SourceCode",
+    "SourceType",
     "TitleBinaryGroup",
     "TitleTimecode",
     "Unknown",
     "VAUXBinaryGroup",
     "VAUXRecordingDate",
     "VAUXRecordingTime",
+    "VAUXSource",
     "Week",
 ]
