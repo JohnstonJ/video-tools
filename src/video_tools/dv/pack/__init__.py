@@ -1,5 +1,13 @@
 """Contains model classes for DIF data packs contained in subcode, audio, and VAUX DIF blocks."""
 
+from .aaux_source import (
+    AAUXSource,
+    AudioBlockPairing,
+    AudioQuantization,
+    EmphasisTimeConstant,
+    LockedMode,
+    StereoMode,
+)
 from .base import (
     CSVFieldMap,
     Pack,
@@ -43,15 +51,20 @@ __all__ = [
     "AAUXBinaryGroup",
     "AAUXRecordingDate",
     "AAUXRecordingTime",
+    "AAUXSource",
+    "AudioBlockPairing",
+    "AudioQuantization",
     "BlackAndWhiteFlag",
     "BlankFlag",
     "ColorFrame",
     "ColorFramesID",
     "CSVFieldMap",
     "DaylightSavingTime",
+    "EmphasisTimeConstant",
     "GenericBinaryGroup",
     "GenericDate",
     "GenericTimecode",
+    "LockedMode",
     "NoInfo",
     "Pack",
     "Type",
@@ -60,6 +73,7 @@ __all__ = [
     "PolarityCorrection",
     "SourceCode",
     "SourceType",
+    "StereoMode",
     "TitleBinaryGroup",
     "TitleTimecode",
     "Unknown",

@@ -25,6 +25,9 @@ class Type(IntEnum):
     # IEC 61834-4:1998 4.5 Binary Group
     TITLE_BINARY_GROUP = 0x14
 
+    # IEC 61834-4:1998 8.1 Source (AAUX)
+    AAUX_SOURCE = 0x50
+
     # IEC 61834-4:1998 8.3 Rec Date (AAUX)
     AAUX_RECORDING_DATE = 0x52
 
