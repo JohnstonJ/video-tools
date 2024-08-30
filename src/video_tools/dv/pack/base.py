@@ -61,6 +61,9 @@ class Type(IntEnum):
     # IEC 61834-4:1998 10.2 Consumer Camera 2 (CAMERA)
     CAMERA_CONSUMER_2 = 0x71
 
+    # IEC 61834-4:1998 10.16 Shutter (CAMERA)
+    CAMERA_SHUTTER = 0x7F
+
     # IEC 61834-4:1998 12.16 No Info: No information (SOFT MODE)
     # Also, very commonly a dropout - especially in the subcode DIF block
     NO_INFO = 0xFF

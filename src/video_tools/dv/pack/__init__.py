@@ -36,6 +36,7 @@ from .camera_consumer import (
     WhiteBalance,
     WhiteBalanceMode,
 )
+from .camera_shutter import CameraShutter
 from .date import (
     AAUXRecordingDate,
     DaylightSavingTime,
@@ -96,6 +97,7 @@ __all__ = [
     "BlankFlag",
     "CameraConsumer1",
     "CameraConsumer2",
+    "CameraShutter",
     "ColorFrame",
     "ColorFramesID",
     "CompressionCount",
