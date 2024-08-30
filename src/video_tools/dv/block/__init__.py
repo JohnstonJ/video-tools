@@ -20,20 +20,22 @@ from .subcode import (
     BlankFlag,
     Subcode,
 )
+from .vaux import VAUX
 
 __all__ = [
-    "BLOCK_SIZE",
-    "Block",
-    "BlockError",
-    "BlockID",
-    "BlockType",
     "ApplicationID1",
     "ApplicationID2",
     "ApplicationID3",
     "ApplicationIDTrack",
-    "Header",
-    "TrackPitch",
-    "parse_binary",
     "BlankFlag",
+    "Block",
+    "BlockError",
+    "BlockID",
+    "BlockType",
+    "BLOCK_SIZE",
+    "Header",
+    "parse_binary",
     "Subcode",
+    "TrackPitch",
+    "VAUX",
 ]
