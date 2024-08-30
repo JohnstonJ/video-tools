@@ -1,29 +1,19 @@
-from dataclasses import dataclass
-
 import pytest
 
+import tests.dv.block.test_base as test_base
 import video_tools.dv.block as block
-import video_tools.dv.file.info as dv_file_info
 import video_tools.dv.pack as pack
+from tests.dv.block.test_base import BlockBinaryTestCase, BlockValidateCase
 from tests.dv.util import NTSC_FILE
 
 TRAILER = "".join([" FF"] * 2)
-
-
-@dataclass(kw_only=True)
-class VAUXBlockBinaryTestCase:
-    name: str
-    input: str
-    parsed: block.Block
-    output: str | None = None
-    file_info: dv_file_info.Info
 
 
 @pytest.mark.parametrize(
     "tc",
     [
         # ===== Synthetic DIF blocks / contrived examples =====
-        VAUXBlockBinaryTestCase(
+        BlockBinaryTestCase(
             name="corrupted pack",
             input="5A 57 02 "
             "62 FFC1E10A "  # units position of "year" is 0xA: impossible!
@@ -47,7 +37,7 @@ class VAUXBlockBinaryTestCase:
             file_info=NTSC_FILE,
         ),
         # ===== Real DIF blocks that I have captured from a Sony DCR-TRV460 =====
-        VAUXBlockBinaryTestCase(
+        BlockBinaryTestCase(
             name="sony camcorder: even DIF sequence number",
             # freshly recorded and flawless
             input="5A 27 02 "
@@ -122,7 +112,7 @@ class VAUXBlockBinaryTestCase:
             ),
             file_info=NTSC_FILE,
         ),
-        VAUXBlockBinaryTestCase(
+        BlockBinaryTestCase(
             name="sony camcorder: odd DIF sequence number",
             # freshly recorded and flawless
             input="5A 37 00 "
@@ -195,7 +185,7 @@ class VAUXBlockBinaryTestCase:
             ),
             file_info=NTSC_FILE,
         ),
-        VAUXBlockBinaryTestCase(
+        BlockBinaryTestCase(
             name="sony camcorder: total dropout",
             input=f"5A 37 00 {"".join(["FF FFFFFFFF "]*15)} {TRAILER}",
             parsed=block.VAUX(
@@ -214,25 +204,14 @@ class VAUXBlockBinaryTestCase:
     ],
     ids=lambda tc: tc.name,
 )
-def test_vaux_block_binary(tc: VAUXBlockBinaryTestCase) -> None:
-    parsed = block.parse_binary(bytes.fromhex(tc.input), tc.file_info)
-    assert parsed == tc.parsed
-    updated = parsed.to_binary(tc.file_info)
-    assert updated == bytes.fromhex(tc.output if tc.output is not None else tc.input)
-
-
-@dataclass
-class VAUXBlockValidateTestCase:
-    name: str
-    input: block.VAUX
-    failure: str
-    file_info: dv_file_info.Info
+def test_vaux_block_binary(tc: BlockBinaryTestCase) -> None:
+    test_base.run_block_binary_test_case(tc)
 
 
 @pytest.mark.parametrize(
     "tc",
     [
-        VAUXBlockValidateTestCase(
+        BlockValidateCase(
             name="wrong DIF block number",
             input=block.VAUX(
                 block_id=block.BlockID(
@@ -251,10 +230,8 @@ class VAUXBlockValidateTestCase:
     ],
     ids=lambda tc: tc.name,
 )
-def test_vaux_block_validate_write(tc: VAUXBlockValidateTestCase) -> None:
-    """Test validation failures when writing a VAUX block to binary."""
-    with pytest.raises(block.BlockError, match=tc.failure):
-        tc.input.to_binary(tc.file_info)
+def test_vaux_block_validate_write(tc: BlockValidateCase) -> None:
+    test_base.run_block_validate_case(tc)
 
 
 def test_vaux_block_validate_read() -> None:

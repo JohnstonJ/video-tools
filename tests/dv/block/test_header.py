@@ -1,27 +1,18 @@
-from dataclasses import dataclass
-
 import pytest
 
+import tests.dv.block.test_base as test_base
 import video_tools.dv.block as block
-import video_tools.dv.file.info as dv_file_info
+from tests.dv.block.test_base import BlockBinaryTestCase, BlockValidateCase
 from tests.dv.util import NTSC_FILE, PAL_FILE
 
 TRAILER = "".join([" FF"] * 72)
-
-
-@dataclass
-class HeaderBlockBinaryTestCase:
-    name: str
-    input: str
-    parsed: block.Block
-    file_info: dv_file_info.Info
 
 
 @pytest.mark.parametrize(
     "tc",
     [
         # pedantic DIF blocks to exercise code branches
-        HeaderBlockBinaryTestCase(
+        BlockBinaryTestCase(
             name="variety of values",
             input=f"1F 07 00  BF 2A 7B 7C 7D {TRAILER}",
             parsed=block.Header(
@@ -42,7 +33,7 @@ class HeaderBlockBinaryTestCase:
             ),
             file_info=PAL_FILE,
         ),
-        HeaderBlockBinaryTestCase(
+        BlockBinaryTestCase(
             name="missing stuff",
             input=f"1F 07 00  3F FF 7F 7F 7F {TRAILER}",
             parsed=block.Header(
@@ -64,7 +55,7 @@ class HeaderBlockBinaryTestCase:
             file_info=NTSC_FILE,
         ),
         # real DIF blocks that I have captured from a Sony DCR-TRV460
-        HeaderBlockBinaryTestCase(
+        BlockBinaryTestCase(
             name="basic test: standard play, NTSC, consumer format, first header, pilot 1",
             input=f"1F 07 00  3F 78 78 78 78 {TRAILER}",
             parsed=block.Header(
@@ -85,7 +76,7 @@ class HeaderBlockBinaryTestCase:
             ),
             file_info=NTSC_FILE,
         ),
-        HeaderBlockBinaryTestCase(
+        BlockBinaryTestCase(
             name="basic test: standard play, NTSC, consumer format, first header, pilot 0",
             input=f"1F 07 00  3F 68 78 78 78 {TRAILER}",
             parsed=block.Header(
@@ -106,7 +97,7 @@ class HeaderBlockBinaryTestCase:
             ),
             file_info=NTSC_FILE,
         ),
-        HeaderBlockBinaryTestCase(
+        BlockBinaryTestCase(
             name="basic test: long play, NTSC, consumer format, first header, pilot 0",
             input=f"1F 07 00  3F 48 78 78 78 {TRAILER}",
             parsed=block.Header(
@@ -128,7 +119,7 @@ class HeaderBlockBinaryTestCase:
             file_info=NTSC_FILE,
         ),
         # DVCPRO50 color bars from https://archive.org/details/SMPTEColorBarsBadTracking
-        HeaderBlockBinaryTestCase(
+        BlockBinaryTestCase(
             name="DVCPRO50 color bars",
             input=f"1F 4F 00  3F F9 79 79 79 {TRAILER}",
             parsed=block.Header(
@@ -152,25 +143,14 @@ class HeaderBlockBinaryTestCase:
     ],
     ids=lambda tc: tc.name,
 )
-def test_header_block_binary(tc: HeaderBlockBinaryTestCase) -> None:
-    parsed = block.parse_binary(bytes.fromhex(tc.input), tc.file_info)
-    assert parsed == tc.parsed
-    updated = parsed.to_binary(tc.file_info)
-    assert updated == bytes.fromhex(tc.input)
-
-
-@dataclass
-class HeaderBlockValidateTestCase:
-    name: str
-    input: block.Header
-    failure: str
-    file_info: dv_file_info.Info
+def test_header_block_binary(tc: BlockBinaryTestCase) -> None:
+    test_base.run_block_binary_test_case(tc)
 
 
 @pytest.mark.parametrize(
     "tc",
     [
-        HeaderBlockValidateTestCase(
+        BlockValidateCase(
             name="invalid DIF sequence count",
             input=block.Header(
                 block_id=block.BlockID(
@@ -191,7 +171,7 @@ class HeaderBlockValidateTestCase:
             failure="DIF header block must specify sequence count of 10 or 12.",
             file_info=NTSC_FILE,
         ),
-        HeaderBlockValidateTestCase(
+        BlockValidateCase(
             name="DIF sequence count does not match system",
             input=block.Header(
                 block_id=block.BlockID(
@@ -212,7 +192,7 @@ class HeaderBlockValidateTestCase:
             failure="DIF header block does not match with expected system SYS_525_60.",
             file_info=NTSC_FILE,
         ),
-        HeaderBlockValidateTestCase(
+        BlockValidateCase(
             name="partial track information: no track pitch",
             input=block.Header(
                 block_id=block.BlockID(
@@ -233,7 +213,7 @@ class HeaderBlockValidateTestCase:
             failure="Track pitch and pilot frame must be both present or absent together.",
             file_info=NTSC_FILE,
         ),
-        HeaderBlockValidateTestCase(
+        BlockValidateCase(
             name="partial track information: no pilot frame",
             input=block.Header(
                 block_id=block.BlockID(
@@ -254,7 +234,7 @@ class HeaderBlockValidateTestCase:
             failure="Track pitch and pilot frame must be both present or absent together.",
             file_info=NTSC_FILE,
         ),
-        HeaderBlockValidateTestCase(
+        BlockValidateCase(
             name="negative pilot frame",
             input=block.Header(
                 block_id=block.BlockID(
@@ -275,7 +255,7 @@ class HeaderBlockValidateTestCase:
             failure="DIF header block must specify a pilot frame of 0 or 1.",
             file_info=NTSC_FILE,
         ),
-        HeaderBlockValidateTestCase(
+        BlockValidateCase(
             name="pilot frame high",
             input=block.Header(
                 block_id=block.BlockID(
@@ -299,10 +279,8 @@ class HeaderBlockValidateTestCase:
     ],
     ids=lambda tc: tc.name,
 )
-def test_header_block_validate_write(tc: HeaderBlockValidateTestCase) -> None:
-    """Test validation failures when writing a header block to binary."""
-    with pytest.raises(block.BlockError, match=tc.failure):
-        tc.input.to_binary(tc.file_info)
+def test_header_block_validate_write(tc: BlockValidateCase) -> None:
+    test_base.run_block_validate_case(tc)
 
 
 def test_header_block_validate_read() -> None:

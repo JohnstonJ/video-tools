@@ -6,6 +6,40 @@ import video_tools.dv.block as block
 import video_tools.dv.file.info as dv_file_info
 from tests.dv.util import NTSC_FILE, PAL_FILE
 
+# ======================== REUSABLE TEST CASES ========================
+
+
+@dataclass(kw_only=True)
+class BlockBinaryTestCase:
+    name: str
+    input: str
+    parsed: block.Block
+    output: str | None = None
+    file_info: dv_file_info.Info
+
+
+def run_block_binary_test_case(tc: BlockBinaryTestCase) -> None:
+    """Test round trip of a block from binary, to parsed, and then back to binary."""
+    parsed = block.parse_binary(bytes.fromhex(tc.input), tc.file_info)
+    assert parsed == tc.parsed
+    updated = parsed.to_binary(tc.file_info)
+    assert updated == bytes.fromhex(tc.output if tc.output is not None else tc.input)
+
+
+@dataclass(kw_only=True)
+class BlockValidateCase:
+    name: str
+    input: block.Block
+    failure: str
+    file_info: dv_file_info.Info
+
+
+def run_block_validate_case(tc: BlockValidateCase) -> None:
+    """Test validation failures when writing a block to binary."""
+    with pytest.raises(block.BlockError, match=tc.failure):
+        tc.input.to_binary(tc.file_info)
+
+
 # ======================== DIF BLOCK ID TESTS ========================
 
 

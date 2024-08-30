@@ -1,29 +1,19 @@
-from dataclasses import dataclass
-
 import pytest
 
+import tests.dv.block.test_base as test_base
 import video_tools.dv.block as block
-import video_tools.dv.file.info as dv_file_info
 import video_tools.dv.pack as pack
+from tests.dv.block.test_base import BlockBinaryTestCase, BlockValidateCase
 from tests.dv.util import NTSC_FILE
 
 TRAILER = "".join([" FF"] * 29)
-
-
-@dataclass(kw_only=True)
-class SubcodeBlockBinaryTestCase:
-    name: str
-    input: str
-    parsed: block.Block
-    output: str | None = None
-    file_info: dv_file_info.Info
 
 
 @pytest.mark.parametrize(
     "tc",
     [
         # ===== Synthetic DIF blocks / contrived examples =====
-        SubcodeBlockBinaryTestCase(
+        BlockBinaryTestCase(
             name="ID parts with various invalid bits",
             input="3F 57 01 "
             "74B6 FF 62 FFE3F200 "  # invalid AP3 bits
@@ -72,7 +62,7 @@ class SubcodeBlockBinaryTestCase:
             ),
             file_info=NTSC_FILE,
         ),
-        SubcodeBlockBinaryTestCase(
+        BlockBinaryTestCase(
             name="test tag bits and alternate app IDs",
             # freshly recorded and flawless
             input="3F 57 01 "
@@ -105,7 +95,7 @@ class SubcodeBlockBinaryTestCase:
             ),
             file_info=NTSC_FILE,
         ),
-        SubcodeBlockBinaryTestCase(
+        BlockBinaryTestCase(
             name="corrupted pack",
             input="3F 57 01 "
             "04B6 FF 13 E08280CA "  # units position of "hours" is 0xA: impossible!
@@ -146,7 +136,7 @@ class SubcodeBlockBinaryTestCase:
             file_info=NTSC_FILE,
         ),
         # ===== Real DIF blocks that I have captured from a Sony DCR-TRV460 =====
-        SubcodeBlockBinaryTestCase(
+        BlockBinaryTestCase(
             name="sony camcorder: no errors, back half of frame",
             # freshly recorded and flawless
             input="3F 57 01 "
@@ -207,7 +197,7 @@ class SubcodeBlockBinaryTestCase:
             ),
             file_info=NTSC_FILE,
         ),
-        SubcodeBlockBinaryTestCase(
+        BlockBinaryTestCase(
             name="sony camcorder: no errors, front half of frame",
             # freshly recorded and flawless
             input="3F 47 00 "
@@ -253,7 +243,7 @@ class SubcodeBlockBinaryTestCase:
             ),
             file_info=NTSC_FILE,
         ),
-        SubcodeBlockBinaryTestCase(
+        BlockBinaryTestCase(
             name="sony camcorder: lots of dropouts (1)",
             # from an ancient tape with lots of subcode read errors
             # also as a side note: this also helps us test absolute track numbers
@@ -323,7 +313,7 @@ class SubcodeBlockBinaryTestCase:
             ),
             file_info=NTSC_FILE,
         ),
-        SubcodeBlockBinaryTestCase(
+        BlockBinaryTestCase(
             name="sony camcorder: lots of dropouts (2)",
             # from an ancient tape with lots of subcode read errors
             input="3F 97 00 "
@@ -413,7 +403,7 @@ class SubcodeBlockBinaryTestCase:
             file_info=NTSC_FILE,
         ),
         # DVCPRO50 color bars from https://archive.org/details/SMPTEColorBarsBadTracking
-        SubcodeBlockBinaryTestCase(
+        BlockBinaryTestCase(
             name="DVCPRO50 color bars",
             # from an ancient tape with lots of subcode read errors
             input="3F 2F 00 "
@@ -474,25 +464,14 @@ class SubcodeBlockBinaryTestCase:
     ],
     ids=lambda tc: tc.name,
 )
-def test_subcode_block_binary(tc: SubcodeBlockBinaryTestCase) -> None:
-    parsed = block.parse_binary(bytes.fromhex(tc.input), tc.file_info)
-    assert parsed == tc.parsed
-    updated = parsed.to_binary(tc.file_info)
-    assert updated == bytes.fromhex(tc.output if tc.output is not None else tc.input)
-
-
-@dataclass
-class SubcodeBlockValidateTestCase:
-    name: str
-    input: block.Subcode
-    failure: str
-    file_info: dv_file_info.Info
+def test_subcode_block_binary(tc: BlockBinaryTestCase) -> None:
+    test_base.run_block_binary_test_case(tc)
 
 
 @pytest.mark.parametrize(
     "tc",
     [
-        SubcodeBlockValidateTestCase(
+        BlockValidateCase(
             name="wrong DIF block number",
             input=block.Subcode(
                 block_id=block.BlockID(
@@ -517,7 +496,7 @@ class SubcodeBlockValidateTestCase:
             failure="Unexpected number of DIF blocks in DIF sequence; expected 2.",
             file_info=NTSC_FILE,
         ),
-        SubcodeBlockValidateTestCase(
+        BlockValidateCase(
             name="uneven ID part presence (skip present)",
             input=block.Subcode(
                 block_id=block.BlockID(
@@ -542,7 +521,7 @@ class SubcodeBlockValidateTestCase:
             failure="All parts of sync block 1 must be all present or absent.",
             file_info=NTSC_FILE,
         ),
-        SubcodeBlockValidateTestCase(
+        BlockValidateCase(
             name="uneven ID part presence (picture present)",
             input=block.Subcode(
                 block_id=block.BlockID(
@@ -567,7 +546,7 @@ class SubcodeBlockValidateTestCase:
             failure="All parts of sync block 1 must be all present or absent.",
             file_info=NTSC_FILE,
         ),
-        SubcodeBlockValidateTestCase(
+        BlockValidateCase(
             name="uneven ID part presence (ATN0 present)",
             input=block.Subcode(
                 block_id=block.BlockID(
@@ -592,7 +571,7 @@ class SubcodeBlockValidateTestCase:
             failure="All parts of sync block 0 must be all present or absent.",
             file_info=NTSC_FILE,
         ),
-        SubcodeBlockValidateTestCase(
+        BlockValidateCase(
             name="uneven ID part presence (BF present)",
             input=block.Subcode(
                 block_id=block.BlockID(
@@ -617,7 +596,7 @@ class SubcodeBlockValidateTestCase:
             failure="All parts of sync block 0 must be all present or absent.",
             file_info=NTSC_FILE,
         ),
-        SubcodeBlockValidateTestCase(
+        BlockValidateCase(
             name="uneven ID part presence (ATN1 present)",
             input=block.Subcode(
                 block_id=block.BlockID(
@@ -642,7 +621,7 @@ class SubcodeBlockValidateTestCase:
             failure="All parts of sync block 1 must be all present or absent.",
             file_info=NTSC_FILE,
         ),
-        SubcodeBlockValidateTestCase(
+        BlockValidateCase(
             name="uneven ID part presence (ATN2 present)",
             input=block.Subcode(
                 block_id=block.BlockID(
@@ -670,10 +649,8 @@ class SubcodeBlockValidateTestCase:
     ],
     ids=lambda tc: tc.name,
 )
-def test_subcode_block_validate_write(tc: SubcodeBlockValidateTestCase) -> None:
-    """Test validation failures when writing a subcode block to binary."""
-    with pytest.raises(block.BlockError, match=tc.failure):
-        tc.input.to_binary(tc.file_info)
+def test_subcode_block_validate_write(tc: BlockValidateCase) -> None:
+    test_base.run_block_validate_case(tc)
 
 
 def test_subcode_block_validate_read() -> None:
