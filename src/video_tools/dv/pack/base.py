@@ -55,6 +55,12 @@ class Type(IntEnum):
     # IEC 61834-4:1998 9.5 Binary Group (VAUX)
     VAUX_BINARY_GROUP = 0x64
 
+    # IEC 61834-4:1998 10.1 Consumer Camera 1 (CAMERA)
+    CAMERA_CONSUMER_1 = 0x70
+
+    # IEC 61834-4:1998 10.2 Consumer Camera 2 (CAMERA)
+    CAMERA_CONSUMER_2 = 0x71
+
     # IEC 61834-4:1998 12.16 No Info: No information (SOFT MODE)
     # Also, very commonly a dropout - especially in the subcode DIF block
     NO_INFO = 0xFF

@@ -6,6 +6,10 @@ from .base import (
     Pack,
     Type,
 )
+from .camera_consumer import (
+    CameraConsumer1,
+    CameraConsumer2,
+)
 from .date import (
     AAUXRecordingDate,
     VAUXRecordingDate,
@@ -58,6 +62,10 @@ def parse_binary(pack_bytes: bytes, system: dv_file_info.DVSystem) -> Pack | Non
             return VAUXRecordingTime.parse_binary(pack_bytes, system)
         case Type.VAUX_BINARY_GROUP:
             return VAUXBinaryGroup.parse_binary(pack_bytes, system)
+        case Type.CAMERA_CONSUMER_1:
+            return CameraConsumer1.parse_binary(pack_bytes, system)
+        case Type.CAMERA_CONSUMER_2:
+            return CameraConsumer2.parse_binary(pack_bytes, system)
         case Type.NO_INFO:
             return NoInfo.parse_binary(pack_bytes, system)
         case _:
