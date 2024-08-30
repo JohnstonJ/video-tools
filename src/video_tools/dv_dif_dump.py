@@ -80,6 +80,14 @@ def dump_dif_blocks(
             for blk in range(len(dif.DIF_SEQUENCE_TRANSMISSION_ORDER)):
                 block_id = block.BlockID.parse_binary(frame_bytes[b_start : b_start + 3], file_info)
                 if block_type is None or block_type == block_id.type:
+                    if block_id.channel != channel or block_id.dif_sequence != sequence:
+                        # This probably means we have encountered a more advanced, higher-bandwidth
+                        # video format that we haven't yet added support for.  (Or the file itself
+                        # is badly corrupted - beyond the corruption of tape read/dropout errors.)
+                        print(
+                            f"{Fore.RED}WARNING:  DIF block {blk} does not have the "
+                            f"expected channel or DIF sequence numbers.{Style.RESET_ALL}"
+                        )
                     print(
                         f"{blk:3} {frame_bytes[b_start:b_start+3].hex().upper()} "
                         f"{type_color[block_id.type]}"
