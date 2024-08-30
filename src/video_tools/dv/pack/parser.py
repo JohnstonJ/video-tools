@@ -1,6 +1,7 @@
 import video_tools.dv.file.info as dv_file_info
 
 from .aaux_source import AAUXSource
+from .aaux_source_control import AAUXSourceControl
 from .base import (
     Pack,
     Type,
@@ -39,6 +40,8 @@ def parse_binary(pack_bytes: bytes, system: dv_file_info.DVSystem) -> Pack | Non
             return TitleBinaryGroup.parse_binary(pack_bytes, system)
         case Type.AAUX_SOURCE:
             return AAUXSource.parse_binary(pack_bytes, system)
+        case Type.AAUX_SOURCE_CONTROL:
+            return AAUXSourceControl.parse_binary(pack_bytes, system)
         case Type.AAUX_RECORDING_DATE:
             return AAUXRecordingDate.parse_binary(pack_bytes, system)
         case Type.AAUX_RECORDING_TIME:

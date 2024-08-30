@@ -8,6 +8,13 @@ from .aaux_source import (
     LockedMode,
     StereoMode,
 )
+from .aaux_source_control import (
+    AAUXRecordingMode,
+    AAUXSourceControl,
+    Direction,
+    InsertChannel,
+    ValidPlaybackSpeeds,
+)
 from .base import (
     CSVFieldMap,
     Pack,
@@ -63,8 +70,10 @@ from .vaux_source_control import (
 __all__ = [
     "AAUXBinaryGroup",
     "AAUXRecordingDate",
+    "AAUXRecordingMode",
     "AAUXRecordingTime",
     "AAUXSource",
+    "AAUXSourceControl",
     "AudioBlockPairing",
     "AudioQuantization",
     "BlackAndWhiteFlag",
@@ -75,6 +84,7 @@ __all__ = [
     "CopyProtection",
     "CSVFieldMap",
     "DaylightSavingTime",
+    "Direction",
     "EmphasisTimeConstant",
     "FrameChange",
     "FrameField",
@@ -82,6 +92,7 @@ __all__ = [
     "GenericDate",
     "GenericTimecode",
     "InputSource",
+    "InsertChannel",
     "LockedMode",
     "NoInfo",
     "Pack",
@@ -97,6 +108,7 @@ __all__ = [
     "TitleBinaryGroup",
     "TitleTimecode",
     "Unknown",
+    "ValidPlaybackSpeeds",
     "VAUXBinaryGroup",
     "VAUXRecordingDate",
     "VAUXRecordingMode",

@@ -28,6 +28,9 @@ class Type(IntEnum):
     # IEC 61834-4:1998 8.1 Source (AAUX)
     AAUX_SOURCE = 0x50
 
+    # IEC 61834-4:1998 8.2 Source control (AAUX)
+    AAUX_SOURCE_CONTROL = 0x51
+
     # IEC 61834-4:1998 8.3 Rec Date (AAUX)
     AAUX_RECORDING_DATE = 0x52
 
