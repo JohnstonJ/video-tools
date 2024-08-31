@@ -34,10 +34,9 @@ class VideoBlockBinaryTestCase(BlockBinaryTestCase):
                     dif_sequence=4,
                     dif_block=106,
                 ),
-                status=0x0,
-                quantization_number=0x5,
-                dct_blocks=bytes(
+                video_data=bytes(
                     bytes.fromhex(
+                        "05"
                         "FAEEBFF25CB7F6FBF0EE09FB7EBD31EF7ED19FBAE27B3FC93FC6"
                         "6B9125EEBFB16F67DBBFEB3DBF777F7F3BEEFFB29EEFF19F6760"
                         "7F1BF6F6FEA081C34F4DBCE12E9706B99A4715AA56E10148"
@@ -63,10 +62,9 @@ class VideoBlockBinaryTestCase(BlockBinaryTestCase):
                     dif_sequence=4,
                     dif_block=107,
                 ),
-                status=0xA,
-                quantization_number=0x5,
-                dct_blocks=bytes(
+                video_data=bytes(
                     bytes.fromhex(
+                        "A5"
                         "D12DD8888D6865E73B92AE650C00DD2EBF6A19FB4115F7DF2502"
                         "5314CEA4432C9090A1C803D800000000D4152210035CCE2FD520"
                         "62E30600022C4C0000000000000002B41CD6000000000000"

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ctypes
 from dataclasses import dataclass
 from typing import ClassVar
 
@@ -45,21 +44,15 @@ from .base import Block, BlockID, BlockType
 #      identifying error blocks.
 @dataclass(frozen=True, kw_only=True)
 class Video(Block):
-    status: int
-    quantization_number: int
-    dct_blocks: bytes  # always 76 bytes
+    video_data: bytes  # always 77 bytes
 
     def validate(self, file_info: dv_file_info.Info) -> str | None:
-        # These are not user-editable, so we don't need to bother with friendly error messages.
-        assert self.status >= 0x0 and self.status <= 0xF
-        assert self.quantization_number >= 0x0 and self.quantization_number <= 0xF
-
-        assert len(self.dct_blocks) == 76
+        assert len(self.video_data) == 77
 
         return None
 
     def has_video_errors(self) -> bool:
-        return self.status != 0x0
+        return self.video_data[0] & 0xF0 != 0x00
 
     # Functions for going to/from binary blocks
 
@@ -69,28 +62,10 @@ class Video(Block):
     def _do_parse_binary(
         cls, block_bytes: bytes, block_id: BlockID, file_info: dv_file_info.Info
     ) -> Video:
-        bin = _BinaryFields.from_buffer_copy(block_bytes[3:])
-
         return cls(
             block_id=block_id,
-            status=bin.sta,
-            quantization_number=bin.qno,
-            dct_blocks=bytes(bin.dct_blocks),
+            video_data=block_bytes[3:],
         )
 
     def _do_to_binary(self, file_info: dv_file_info.Info) -> bytes:
-        bin = _BinaryFields(
-            sta=self.status,
-            qno=self.quantization_number,
-            dct_blocks=(ctypes.c_uint8 * 76)(*self.dct_blocks),
-        )
-        return bytes([*self.block_id.to_binary(file_info), *bytes(bin)])
-
-
-class _BinaryFields(ctypes.BigEndianStructure):
-    _pack_ = 1
-    _fields_: ClassVar = [
-        ("sta", ctypes.c_uint8, 4),
-        ("qno", ctypes.c_uint8, 4),
-        ("dct_blocks", ctypes.c_uint8 * 76),
-    ]
+        return bytes([*self.block_id.to_binary(file_info), *self.video_data])
