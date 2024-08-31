@@ -1,5 +1,6 @@
 """Contains model classes for working with entire DIF blocks in a DV file."""
 
+from .audio import Audio
 from .base import (
     BLOCK_SIZE,
     Block,
@@ -27,6 +28,7 @@ __all__ = [
     "ApplicationID2",
     "ApplicationID3",
     "ApplicationIDTrack",
+    "Audio",
     "BlankFlag",
     "Block",
     "BlockError",

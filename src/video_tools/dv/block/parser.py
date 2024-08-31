@@ -1,5 +1,6 @@
 import video_tools.dv.file.info as dv_file_info
 
+from .audio import Audio
 from .base import BLOCK_SIZE, Block, BlockID, BlockType
 from .header import Header
 from .subcode import Subcode
@@ -21,5 +22,7 @@ def parse_binary(block_bytes: bytes, file_info: dv_file_info.Info) -> Block:
             return Subcode.parse_binary(block_bytes, file_info)
         case BlockType.VAUX:
             return VAUX.parse_binary(block_bytes, file_info)
+        case BlockType.AUDIO:
+            return Audio.parse_binary(block_bytes, file_info)
         case _:
             assert False
