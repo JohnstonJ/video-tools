@@ -61,9 +61,6 @@ class VAUX(Block):
     pack_types: list[int]  # 15 per DIF block
 
     def validate(self, file_info: dv_file_info.Info) -> str | None:
-        if self.block_id.dif_block < 0 or self.block_id.dif_block > 2:
-            return "Unexpected number of DIF blocks in DIF sequence; expected 3."
-
         assert len(self.packs) == 15
         assert len(self.pack_types) == 15
 

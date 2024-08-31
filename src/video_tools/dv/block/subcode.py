@@ -157,9 +157,6 @@ class Subcode(Block):
     pack_types: list[int]  # 6 per DIF block
 
     def validate(self, file_info: dv_file_info.Info) -> str | None:
-        if self.block_id.dif_block < 0 or self.block_id.dif_block > 1:
-            return "Unexpected number of DIF blocks in DIF sequence; expected 2."
-
         # Check array lengths; these are simple assertions since the end-user should never be able
         # to trigger these and need pretty validation messages.
         tag_count = 5 if self.block_id.dif_block == 0 else 4

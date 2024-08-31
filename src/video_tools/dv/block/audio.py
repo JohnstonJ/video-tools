@@ -104,9 +104,6 @@ class Audio(Block):
     audio_data: bytes  # always 72 bytes
 
     def validate(self, file_info: dv_file_info.Info) -> str | None:
-        if self.block_id.dif_block < 0 or self.block_id.dif_block > 8:
-            return "Unexpected number of DIF blocks in DIF sequence; expected 9."
-
         assert len(self.audio_data) == 72
 
         return None

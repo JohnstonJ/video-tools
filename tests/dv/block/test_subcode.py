@@ -472,31 +472,6 @@ def test_subcode_block_binary(tc: BlockBinaryTestCase) -> None:
     "tc",
     [
         BlockValidateCase(
-            name="wrong DIF block number",
-            input=block.Subcode(
-                block_id=block.BlockID(
-                    type=block.BlockType.SUBCODE,
-                    sequence=0xF,
-                    channel=0,
-                    dif_sequence=0,
-                    dif_block=2,
-                ),
-                index=[None] * 5,
-                skip=[None] * 5,
-                picture=[None] * 5,
-                application_id_track=None,
-                application_id_3=None,
-                absolute_track_number_2=[None] * 2,
-                absolute_track_number_1=[None] * 2,
-                absolute_track_number_0=[None] * 2,
-                blank_flag=[None] * 2,
-                packs=[None] * 6,
-                pack_types=[0xFF] * 6,
-            ),
-            failure="Unexpected number of DIF blocks in DIF sequence; expected 2.",
-            file_info=NTSC_FILE,
-        ),
-        BlockValidateCase(
             name="uneven ID part presence (skip present)",
             input=block.Subcode(
                 block_id=block.BlockID(

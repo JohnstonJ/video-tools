@@ -3,7 +3,7 @@ import pytest
 import tests.dv.block.test_base as test_base
 import video_tools.dv.block as block
 import video_tools.dv.pack as pack
-from tests.dv.block.test_base import BlockBinaryTestCase, BlockValidateCase
+from tests.dv.block.test_base import BlockBinaryTestCase
 from tests.dv.util import NTSC_FILE
 
 TRAILER = "".join([" FF"] * 2)
@@ -206,32 +206,6 @@ TRAILER = "".join([" FF"] * 2)
 )
 def test_vaux_block_binary(tc: BlockBinaryTestCase) -> None:
     test_base.run_block_binary_test_case(tc)
-
-
-@pytest.mark.parametrize(
-    "tc",
-    [
-        BlockValidateCase(
-            name="wrong DIF block number",
-            input=block.VAUX(
-                block_id=block.BlockID(
-                    type=block.BlockType.VAUX,
-                    sequence=0xA,
-                    channel=0,
-                    dif_sequence=0,
-                    dif_block=3,
-                ),
-                packs=[*[pack.NoInfo()] * 15],
-                pack_types=[*[0xFF] * 15],
-            ),
-            failure="Unexpected number of DIF blocks in DIF sequence; expected 3.",
-            file_info=NTSC_FILE,
-        ),
-    ],
-    ids=lambda tc: tc.name,
-)
-def test_vaux_block_validate_write(tc: BlockValidateCase) -> None:
-    test_base.run_block_validate_case(tc)
 
 
 def test_vaux_block_validate_read() -> None:
