@@ -22,6 +22,7 @@ from .subcode import (
     Subcode,
 )
 from .vaux import VAUX
+from .video import Video
 
 __all__ = [
     "ApplicationID1",
@@ -40,4 +41,5 @@ __all__ = [
     "Subcode",
     "TrackPitch",
     "VAUX",
+    "Video",
 ]
