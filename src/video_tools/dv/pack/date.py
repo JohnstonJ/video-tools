@@ -7,10 +7,11 @@ import datetime
 import re
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import ClassVar, NamedTuple
+from typing import ClassVar
 
 import video_tools.dv.data_util as du
 import video_tools.dv.file.info as dv_file_info
+from video_tools.typing import DataclassInstance
 
 from .base import CSVFieldMap, Pack, Type, ValidationError
 
@@ -54,22 +55,27 @@ class GenericDate(Pack):
     # Reserved bits (normally 0x3)
     reserved: int | None = None
 
-    class MainFields(NamedTuple):  # Formats as yyyy/mm/dd
+    @dataclass(frozen=True, kw_only=True)
+    class MainFields:  # Formats as yyyy/mm/dd
         year: int | None
         month: int | None
         day: int | None
 
-    class WeekFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class WeekFields:
         week: Week | None
 
-    class TimeZoneFields(NamedTuple):  # Formats as hh:mm
+    @dataclass(frozen=True, kw_only=True)
+    class TimeZoneFields:  # Formats as hh:mm
         time_zone_hours: int | None
         time_zone_30_minutes: bool | None
 
-    class DaylightSavingTimeFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class DaylightSavingTimeFields:
         daylight_saving_time: DaylightSavingTime | None
 
-    class ReservedFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class ReservedFields:
         reserved: int | None
 
     text_fields: ClassVar[CSVFieldMap] = {
@@ -129,7 +135,7 @@ class GenericDate(Pack):
         return None
 
     @classmethod
-    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> DataclassInstance:
         match text_field:
             case None:
                 match = None
@@ -175,7 +181,7 @@ class GenericDate(Pack):
                 assert False
 
     @classmethod
-    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+    def to_text_value(cls, text_field: str | None, value_subset: DataclassInstance) -> str:
         match text_field:
             case None:
                 assert isinstance(value_subset, cls.MainFields)

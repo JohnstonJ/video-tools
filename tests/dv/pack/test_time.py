@@ -1,4 +1,4 @@
-from dataclasses import replace
+from dataclasses import asdict, replace
 from typing import cast
 
 import pytest
@@ -495,7 +495,7 @@ def test_time_increment(
     starting_value: str, expectations: list[str], system: dv_file_info.DVSystem
 ) -> None:
     val = replace(
-        pack.TitleTimecode(), **pack.TitleTimecode.parse_text_value(None, starting_value)._asdict()
+        pack.TitleTimecode(), **asdict(pack.TitleTimecode.parse_text_value(None, starting_value))
     )
     results = []
     for i in range(4):
@@ -516,9 +516,7 @@ def test_time_increment(
     ],
 )
 def test_time_increment_failures(value: str, message: str, system: dv_file_info.DVSystem) -> None:
-    val = replace(
-        pack.TitleTimecode(), **pack.TitleTimecode.parse_text_value(None, value)._asdict()
-    )
+    val = replace(pack.TitleTimecode(), **asdict(pack.TitleTimecode.parse_text_value(None, value)))
     with pytest.raises(pack.ValidationError, match=message):
         val.increment_frame(system)
 

@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from enum import IntEnum
-from typing import Any, ClassVar, NamedTuple, cast
+from typing import Any, ClassVar
 
 import video_tools.dv.file.info as dv_file_info
+from video_tools.typing import DataclassInstance
 
 
 class ValidationError(ValueError):
@@ -74,7 +75,7 @@ class Type(IntEnum):
 # when serializing to/from pack binary blobs.
 
 
-CSVFieldMap = dict[str | None, type[NamedTuple]]
+CSVFieldMap = dict[str | None, type[DataclassInstance]]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -92,11 +93,11 @@ class Pack(ABC):
         pass
 
     # Abstract functions for converting subsets of pack values to/from strings suitable for use
-    # in a CSV file or other configuration files.  Pack value subsets are a NamedTuple whose
+    # in a CSV file or other configuration files.  Pack value subsets are a dataclass object whose
     # field values must match the field values defined in the main dataclass.
 
     # Dict of text field names used when saving the pack to a CSV file.
-    # The dictionary values are NamedTuple types for the subset of pack values that go into it.
+    # The dictionary values are dataclass types for the subset of pack values that go into it.
     #
     # Special: if the text field name is None, then it's considered the default/main value for the
     # pack.  This affects prefixes that are prepended to the final CSV field name:
@@ -106,8 +107,8 @@ class Pack(ABC):
 
     @classmethod
     @abstractmethod
-    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
-        """Parse the value for a CSV text field name into a tuple of dataclass field values.
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> DataclassInstance:
+        """Parse the value for a CSV text field name into a subset of dataclass field values.
 
         The returned keys must match with keyword arguments in the initializer.
         """
@@ -115,22 +116,20 @@ class Pack(ABC):
 
     @classmethod
     @abstractmethod
-    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+    def to_text_value(cls, text_field: str | None, value_subset: DataclassInstance) -> str:
         """Convert a subset of the pack field values to a single CSV text field value.
 
         The value_subset is what is returned by value_subset_for_text_field."""
         pass
 
-    def value_subset_for_text_field(self, text_field: str | None) -> NamedTuple:
+    def value_subset_for_text_field(self, text_field: str | None) -> DataclassInstance:
         """Returns a subset of dataclass field values that are used by the given text_field.
 
         The returned keys must match with keyword arguments in the initializer."""
         typ = self.text_fields[text_field]
         full_dict = asdict(self)
-        subset_dict = {field_name: full_dict[field_name] for field_name in typ._fields}
-        # For some reason, I can't figure out how to get mypy to think I'm invoking the type
-        # initializer, rather than the NamedType builtin function itself...
-        return cast(NamedTuple, typ(**subset_dict))  # type: ignore[call-overload]
+        subset_dict = {field.name: full_dict[field.name] for field in fields(typ)}
+        return typ(**subset_dict)
 
     # Functions for converting all pack values to/from multiple CSV file fields.
 
@@ -142,7 +141,7 @@ class Pack(ABC):
         """
         parsed_values: dict[str, Any] = {}
         for text_field, text_value in text_field_values.items():
-            parsed_values |= cls.parse_text_value(text_field, text_value)._asdict()
+            parsed_values |= asdict(cls.parse_text_value(text_field, text_value))
         return cls(**parsed_values)
 
     def to_text_values(self) -> dict[str | None, str]:

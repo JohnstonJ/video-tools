@@ -7,10 +7,11 @@ import datetime
 import re
 from dataclasses import dataclass, replace
 from enum import IntEnum
-from typing import Any, ClassVar, NamedTuple, cast
+from typing import Any, ClassVar, cast
 
 import video_tools.dv.data_util as du
 import video_tools.dv.file.info as dv_file_info
+from video_tools.typing import DataclassInstance
 
 from .base import CSVFieldMap, Pack, Type, ValidationError
 
@@ -67,20 +68,24 @@ class GenericTimecode(Pack):
     # This variable controls the behavior.
     _frames_required: ClassVar[bool]
 
-    class MainFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class MainFields:
         hour: int | None
         minute: int | None
         second: int | None
         frame: int | None
         drop_frame: int | None
 
-    class ColorFrameFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class ColorFrameFields:
         color_frame: ColorFrame | None
 
-    class PolarityCorrectionFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class PolarityCorrectionFields:
         polarity_correction: PolarityCorrection | None
 
-    class BinaryGroupFlagsFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class BinaryGroupFlagsFields:
         binary_group_flags: int | None
 
     text_fields: ClassVar[CSVFieldMap] = {
@@ -147,7 +152,7 @@ class GenericTimecode(Pack):
         return None
 
     @classmethod
-    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> DataclassInstance:
         match text_field:
             case None:
                 match = None
@@ -186,7 +191,7 @@ class GenericTimecode(Pack):
                 assert False
 
     @classmethod
-    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+    def to_text_value(cls, text_field: str | None, value_subset: DataclassInstance) -> str:
         match text_field:
             case None:
                 assert isinstance(value_subset, cls.MainFields)
@@ -434,7 +439,8 @@ class TitleTimecode(GenericTimecode):
     _time_required = True
     _frames_required = True
 
-    class BlankFlagFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class BlankFlagFields:
         blank_flag: BlankFlag | None
 
     text_fields: ClassVar[CSVFieldMap] = {
@@ -461,7 +467,7 @@ class TitleTimecode(GenericTimecode):
         return None
 
     @classmethod
-    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> DataclassInstance:
         if text_field == "blank_flag":
             return cls.BlankFlagFields(
                 blank_flag=BlankFlag[text_value] if text_value else None,
@@ -469,7 +475,7 @@ class TitleTimecode(GenericTimecode):
         return super().parse_text_value(text_field, text_value)
 
     @classmethod
-    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+    def to_text_value(cls, text_field: str | None, value_subset: DataclassInstance) -> str:
         if text_field == "blank_flag":
             assert isinstance(value_subset, cls.BlankFlagFields)
             return value_subset.blank_flag.name if value_subset.blank_flag is not None else ""

@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import ctypes
 from dataclasses import dataclass
-from typing import ClassVar, NamedTuple
+from typing import ClassVar
 
 import video_tools.dv.file.info as dv_file_info
+from video_tools.typing import DataclassInstance
 
 from .base import CSVFieldMap, Pack, Type
 
@@ -19,13 +20,16 @@ class CameraShutter(Pack):
     shutter_speed_professional_upper_line: int | None = None
     shutter_speed_professional_lower_line: int | None = None
 
-    class ShutterSpeedConsumerFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class ShutterSpeedConsumerFields:
         shutter_speed_consumer: int | None
 
-    class ShutterSpeedProfessionalUpperLineFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class ShutterSpeedProfessionalUpperLineFields:
         shutter_speed_professional_upper_line: int | None
 
-    class ShutterSpeedProfessionalLowerLineFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class ShutterSpeedProfessionalLowerLineFields:
         shutter_speed_professional_lower_line: int | None
 
     text_fields: ClassVar[CSVFieldMap] = {
@@ -54,7 +58,7 @@ class CameraShutter(Pack):
         return None
 
     @classmethod
-    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> DataclassInstance:
         match text_field:
             case "shutter_speed_consumer":
                 return cls.ShutterSpeedConsumerFields(
@@ -72,7 +76,7 @@ class CameraShutter(Pack):
                 assert False
 
     @classmethod
-    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+    def to_text_value(cls, text_field: str | None, value_subset: DataclassInstance) -> str:
         match text_field:
             case "shutter_speed_consumer":
                 assert isinstance(value_subset, cls.ShutterSpeedConsumerFields)

@@ -5,14 +5,15 @@ from __future__ import annotations
 import re
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from dataclasses import dataclass, replace
-from typing import BinaryIO, Iterable, NamedTuple, cast
+from dataclasses import asdict, dataclass, is_dataclass, replace
+from typing import BinaryIO, Iterable, cast
 
 import yaml
 
 import video_tools.dv.data_util as du
 import video_tools.dv.dif as dif
 import video_tools.dv.pack as pack
+from video_tools.typing import DataclassInstance
 
 MOST_COMMON = "MOST_COMMON"
 
@@ -126,7 +127,7 @@ subcode_column_exact_pattern = re.compile(
     r"^sc_pack_types_(?P<channel>\d+)_(?P<dif_sequence>\d+)_(?P<pack>\d+)$"
 )
 
-ConstantValueType = int | NamedTuple | str | None
+ConstantValueType = int | DataclassInstance | str | None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -220,24 +221,29 @@ class WriteConstantCommand(Command):
             case _ if du.field_has_prefix(
                 "sc_title_timecode", self.column, excluded_prefixes=["sc_timecode_bg"]
             ):
-                assert isinstance(value, NamedTuple)
+                # assert is_dataclass isinstance(value, DataclassInstance)
+                assert is_dataclass(value)
                 return pack.TitleTimecode.to_text_value(
-                    du.remove_field_prefix("sc_title_timecode", self.column), value
+                    du.remove_field_prefix("sc_title_timecode", self.column),
+                    cast(DataclassInstance, value),
                 )
             case _ if du.field_has_prefix("sc_title_timecode_bg", self.column):
-                assert isinstance(value, NamedTuple)
+                assert is_dataclass(value)
                 return pack.TitleBinaryGroup.to_text_value(
-                    du.remove_field_prefix("sc_title_timecode_bg", self.column), value
+                    du.remove_field_prefix("sc_title_timecode_bg", self.column),
+                    cast(DataclassInstance, value),
                 )
             case _ if du.field_has_prefix("sc_vaux_rec_date", self.column):
-                assert isinstance(value, NamedTuple)
+                assert is_dataclass(value)
                 return pack.VAUXRecordingDate.to_text_value(
-                    du.remove_field_prefix("sc_vaux_rec_date", self.column), value
+                    du.remove_field_prefix("sc_vaux_rec_date", self.column),
+                    cast(DataclassInstance, value),
                 )
             case _ if du.field_has_prefix("sc_vaux_rec_time", self.column):
-                assert isinstance(value, NamedTuple)
+                assert is_dataclass(value)
                 return pack.VAUXRecordingTime.to_text_value(
-                    du.remove_field_prefix("sc_vaux_rec_time", self.column), value
+                    du.remove_field_prefix("sc_vaux_rec_time", self.column),
+                    cast(DataclassInstance, value),
                 )
             case _:
                 raise ValueError(f"Unsupported column {self.column} for write_constant command.")
@@ -325,35 +331,38 @@ class WriteConstantCommand(Command):
             case _ if du.field_has_prefix(
                 "sc_title_timecode", self.column, excluded_prefixes=["sc_timecode_bg"]
             ):
-                assert isinstance(value, NamedTuple)
+                assert is_dataclass(value)
                 return replace(
                     frame_data,
                     subcode_title_timecode=replace(
-                        frame_data.subcode_title_timecode, **value._asdict()
+                        frame_data.subcode_title_timecode, **asdict(cast(DataclassInstance, value))
                     ),
                 )
             case _ if du.field_has_prefix("sc_title_timecode_bg", self.column):
-                assert isinstance(value, NamedTuple)
+                assert is_dataclass(value)
                 return replace(
                     frame_data,
                     subcode_title_binary_group=replace(
-                        frame_data.subcode_title_binary_group, **value._asdict()
+                        frame_data.subcode_title_binary_group,
+                        **asdict(cast(DataclassInstance, value)),
                     ),
                 )
             case _ if du.field_has_prefix("sc_vaux_rec_date", self.column):
-                assert isinstance(value, NamedTuple)
+                assert is_dataclass(value)
                 return replace(
                     frame_data,
                     subcode_vaux_recording_date=replace(
-                        frame_data.subcode_vaux_recording_date, **value._asdict()
+                        frame_data.subcode_vaux_recording_date,
+                        **asdict(cast(DataclassInstance, value)),
                     ),
                 )
             case _ if du.field_has_prefix("sc_vaux_rec_time", self.column):
-                assert isinstance(value, NamedTuple)
+                assert is_dataclass(value)
                 return replace(
                     frame_data,
                     subcode_vaux_recording_time=replace(
-                        frame_data.subcode_vaux_recording_time, **value._asdict()
+                        frame_data.subcode_vaux_recording_time,
+                        **asdict(cast(DataclassInstance, value)),
                     ),
                 )
             case _:

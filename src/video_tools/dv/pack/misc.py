@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import ClassVar, NamedTuple
+from typing import ClassVar
 
 import video_tools.dv.data_util as du
 import video_tools.dv.file.info as dv_file_info
+from video_tools.typing import DataclassInstance
 
 from .base import CSVFieldMap, Pack, Type, ValidationError
 
@@ -18,7 +19,8 @@ class GenericBinaryGroup(Pack):
     # this will always be 4 bytes
     value: bytes | None = None
 
-    class MainFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class MainFields:
         value: bytes | None  # Formats as 8 hex digits
 
     text_fields: ClassVar[CSVFieldMap] = {None: MainFields}
@@ -34,14 +36,14 @@ class GenericBinaryGroup(Pack):
         return None
 
     @classmethod
-    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> DataclassInstance:
         assert text_field is None
         return cls.MainFields(
             value=bytes.fromhex(text_value.removeprefix("0x")) if text_value else None
         )
 
     @classmethod
-    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+    def to_text_value(cls, text_field: str | None, value_subset: DataclassInstance) -> str:
         assert text_field is None
         assert isinstance(value_subset, cls.MainFields)
         return du.hex_bytes(value_subset.value) if value_subset.value is not None else ""
@@ -99,11 +101,11 @@ class NoInfo(Pack):
         return None
 
     @classmethod
-    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> DataclassInstance:
         assert False
 
     @classmethod
-    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+    def to_text_value(cls, text_field: str | None, value_subset: DataclassInstance) -> str:
         assert False
 
     pack_type = Type.NO_INFO
@@ -143,11 +145,11 @@ class Unknown(Pack):
         return None
 
     @classmethod
-    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> DataclassInstance:
         assert False
 
     @classmethod
-    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+    def to_text_value(cls, text_field: str | None, value_subset: DataclassInstance) -> str:
         assert False
 
     @classmethod

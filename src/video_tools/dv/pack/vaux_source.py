@@ -5,10 +5,11 @@ from __future__ import annotations
 import ctypes
 from dataclasses import dataclass
 from enum import Enum, IntEnum, auto
-from typing import ClassVar, NamedTuple
+from typing import ClassVar
 
 import video_tools.dv.data_util as du
 import video_tools.dv.file.info as dv_file_info
+from video_tools.typing import DataclassInstance
 
 from .base import CSVFieldMap, Pack, Type
 
@@ -89,28 +90,36 @@ class VAUXSource(Pack):
     color_frames_id_valid: bool | None = None
     color_frames_id: ColorFramesID | None = None
 
-    class SourceCodeFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class SourceCodeFields:
         source_code: SourceCode | None
 
-    class TVChannelFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class TVChannelFields:
         tv_channel: int | None
 
-    class TunerCategoryFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class TunerCategoryFields:
         tuner_category: int | None
 
-    class SourceTypeFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class SourceTypeFields:
         source_type: SourceType | None
 
-    class FieldCountFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class FieldCountFields:
         field_count: int | None
 
-    class BWFlagFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class BWFlagFields:
         bw_flag: BlackAndWhiteFlag | None
 
-    class ColorFramesIDValidFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class ColorFramesIDValidFields:
         color_frames_id_valid: bool | None
 
-    class ColorFramesIDFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class ColorFramesIDFields:
         color_frames_id: ColorFramesID | None
 
     text_fields: ClassVar[CSVFieldMap] = {
@@ -180,7 +189,7 @@ class VAUXSource(Pack):
         return None
 
     @classmethod
-    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> DataclassInstance:
         match text_field:
             case "source_code":
                 return cls.SourceCodeFields(
@@ -214,7 +223,7 @@ class VAUXSource(Pack):
                 assert False
 
     @classmethod
-    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+    def to_text_value(cls, text_field: str | None, value_subset: DataclassInstance) -> str:
         match text_field:
             case "source_code":
                 assert isinstance(value_subset, cls.SourceCodeFields)

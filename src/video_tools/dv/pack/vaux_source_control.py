@@ -5,10 +5,11 @@ from __future__ import annotations
 import ctypes
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import ClassVar, NamedTuple
+from typing import ClassVar
 
 import video_tools.dv.data_util as du
 import video_tools.dv.file.info as dv_file_info
+from video_tools.typing import DataclassInstance
 
 from .base import CSVFieldMap, Pack, Type
 from .source_control import CompressionCount, CopyProtection, InputSource, SourceSituation
@@ -66,52 +67,68 @@ class VAUXSourceControl(Pack):
 
     reserved: int | None = None  # [0x0, 0x7] range
 
-    class BroadcastSystemFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class BroadcastSystemFields:
         broadcast_system: int | None
 
-    class DisplayModeFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class DisplayModeFields:
         display_mode: int | None
 
-    class FrameFieldFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class FrameFieldFields:
         frame_field: FrameField | None
 
-    class FirstSecondFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class FirstSecondFields:
         first_second: int | None
 
-    class FrameChangeFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class FrameChangeFields:
         frame_change: FrameChange | None
 
-    class InterlacedFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class InterlacedFields:
         interlaced: bool | None
 
-    class StillFieldPictureFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class StillFieldPictureFields:
         still_field_picture: StillFieldPicture | None
 
-    class StillCameraPictureFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class StillCameraPictureFields:
         still_camera_picture: bool | None
 
-    class CopyProtectionFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class CopyProtectionFields:
         copy_protection: CopyProtection | None
 
-    class SourceSituationFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class SourceSituationFields:
         source_situation: SourceSituation | None
 
-    class InputSourceFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class InputSourceFields:
         input_source: InputSource | None
 
-    class CompressionCountFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class CompressionCountFields:
         compression_count: CompressionCount | None
 
-    class RecordingStartPointFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class RecordingStartPointFields:
         recording_start_point: bool | None
 
-    class RecordingModeFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class RecordingModeFields:
         recording_mode: VAUXRecordingMode | None
 
-    class GenreCategoryFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class GenreCategoryFields:
         genre_category: int | None
 
-    class ReservedFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class ReservedFields:
         reserved: int | None
 
     text_fields: ClassVar[CSVFieldMap] = {
@@ -178,7 +195,7 @@ class VAUXSourceControl(Pack):
         return None
 
     @classmethod
-    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> DataclassInstance:
         match text_field:
             case "broadcast_system":
                 return cls.BroadcastSystemFields(
@@ -244,7 +261,7 @@ class VAUXSourceControl(Pack):
                 assert False
 
     @classmethod
-    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+    def to_text_value(cls, text_field: str | None, value_subset: DataclassInstance) -> str:
         match text_field:
             case "broadcast_system":
                 assert isinstance(value_subset, cls.BroadcastSystemFields)

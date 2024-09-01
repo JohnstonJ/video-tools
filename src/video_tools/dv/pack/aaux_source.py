@@ -5,10 +5,11 @@ from __future__ import annotations
 import ctypes
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import ClassVar, NamedTuple
+from typing import ClassVar
 
 import video_tools.dv.data_util as du
 import video_tools.dv.file.info as dv_file_info
+from video_tools.typing import DataclassInstance
 
 from .base import CSVFieldMap, Pack, Type
 from .vaux_source import SourceType
@@ -78,43 +79,56 @@ class AAUXSource(Pack):
     emphasis_on: bool | None = None
     emphasis_time_constant: EmphasisTimeConstant | None = None
 
-    class SampleFrequencyFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class SampleFrequencyFields:
         sample_frequency: int | None
 
-    class QuantizationFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class QuantizationFields:
         quantization: AudioQuantization | None
 
-    class AudioSamplesPerFrameFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class AudioSamplesPerFrameFields:
         audio_samples_per_frame: int | None  # applies to all channels
 
-    class LockedModeFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class LockedModeFields:
         locked_mode: LockedMode | None
 
-    class StereoModeFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class StereoModeFields:
         stereo_mode: StereoMode | None
 
-    class AudioBlockChannelCountFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class AudioBlockChannelCountFields:
         audio_block_channel_count: int | None
 
-    class AudioModeFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class AudioModeFields:
         audio_mode: int | None
 
-    class AudioBlockPairingFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class AudioBlockPairingFields:
         audio_block_pairing: AudioBlockPairing | None
 
-    class MultiLanguageFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class MultiLanguageFields:
         multi_language: bool | None
 
-    class FieldCountFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class FieldCountFields:
         field_count: int | None
 
-    class SourceTypeFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class SourceTypeFields:
         source_type: SourceType | None
 
-    class EmphasisOnFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class EmphasisOnFields:
         emphasis_on: bool | None
 
-    class EmphasisTimeConstantFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class EmphasisTimeConstantFields:
         emphasis_time_constant: EmphasisTimeConstant | None
 
     text_fields: ClassVar[CSVFieldMap] = {
@@ -220,7 +234,7 @@ class AAUXSource(Pack):
         return None
 
     @classmethod
-    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> DataclassInstance:
         match text_field:
             case "sample_frequency":
                 return cls.SampleFrequencyFields(
@@ -274,7 +288,7 @@ class AAUXSource(Pack):
                 assert False
 
     @classmethod
-    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+    def to_text_value(cls, text_field: str | None, value_subset: DataclassInstance) -> str:
         match text_field:
             case "sample_frequency":
                 assert isinstance(value_subset, cls.SampleFrequencyFields)

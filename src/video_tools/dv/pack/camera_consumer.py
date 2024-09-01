@@ -5,10 +5,11 @@ from __future__ import annotations
 import ctypes
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import ClassVar, NamedTuple
+from typing import ClassVar
 
 import video_tools.dv.data_util as du
 import video_tools.dv.file.info as dv_file_info
+from video_tools.typing import DataclassInstance
 
 from .base import CSVFieldMap, Pack, Type
 from .camera import FocusMode, _focus_position_bits_to_length, _focus_position_length_to_bits
@@ -167,25 +168,32 @@ class CameraConsumer1(Pack):
     focus_mode: FocusMode | None = None
     focus_position: int | None = None  # length in centimeters
 
-    class AutoExposureModeFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class AutoExposureModeFields:
         auto_exposure_mode: AutoExposureMode | None
 
-    class IrisFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class IrisFields:
         iris: float | None
 
-    class AutoGainControlFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class AutoGainControlFields:
         auto_gain_control: int | None
 
-    class WhiteBalanceModeFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class WhiteBalanceModeFields:
         white_balance_mode: WhiteBalanceMode | None
 
-    class WhiteBalanceFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class WhiteBalanceFields:
         white_balance: WhiteBalance | None
 
-    class FocusModeFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class FocusModeFields:
         focus_mode: FocusMode | None
 
-    class FocusPositionFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class FocusPositionFields:
         focus_position: int | None
 
     text_fields: ClassVar[CSVFieldMap] = {
@@ -217,7 +225,7 @@ class CameraConsumer1(Pack):
         return None
 
     @classmethod
-    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> DataclassInstance:
         match text_field:
             case "auto_exposure_mode":
                 return cls.AutoExposureModeFields(
@@ -247,7 +255,7 @@ class CameraConsumer1(Pack):
                 assert False
 
     @classmethod
-    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+    def to_text_value(cls, text_field: str | None, value_subset: DataclassInstance) -> str:
         match text_field:
             case "auto_exposure_mode":
                 assert isinstance(value_subset, cls.AutoExposureModeFields)
@@ -366,28 +374,36 @@ class CameraConsumer2(Pack):
     electric_zoom_on: bool | None = None
     electric_zoom_magnification: float | None = None  # magnification factor; 8.0 means >= 8.0
 
-    class VerticalPanningDirectionFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class VerticalPanningDirectionFields:
         vertical_panning_direction: PanningDirection | None
 
-    class VerticalPanningSpeedFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class VerticalPanningSpeedFields:
         vertical_panning_speed: int | None
 
-    class HorizontalPanningDirectionFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class HorizontalPanningDirectionFields:
         horizontal_panning_direction: PanningDirection | None
 
-    class HorizontalPanningSpeedFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class HorizontalPanningSpeedFields:
         horizontal_panning_speed: int | None
 
-    class ImageStabilizerOnFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class ImageStabilizerOnFields:
         image_stabilizer_on: bool | None
 
-    class FocalLengthFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class FocalLengthFields:
         focal_length: int | None
 
-    class ElectricZoomOnFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class ElectricZoomOnFields:
         electric_zoom_on: bool | None
 
-    class ElectricZoomMagnificationFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class ElectricZoomMagnificationFields:
         electric_zoom_magnification: float | None
 
     text_fields: ClassVar[CSVFieldMap] = {
@@ -437,7 +453,7 @@ class CameraConsumer2(Pack):
         return None
 
     @classmethod
-    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> DataclassInstance:
         match text_field:
             case "vertical_panning_direction":
                 return cls.VerticalPanningDirectionFields(
@@ -475,7 +491,7 @@ class CameraConsumer2(Pack):
                 assert False
 
     @classmethod
-    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+    def to_text_value(cls, text_field: str | None, value_subset: DataclassInstance) -> str:
         match text_field:
             case "vertical_panning_direction":
                 assert isinstance(value_subset, cls.VerticalPanningDirectionFields)

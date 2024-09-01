@@ -6,10 +6,11 @@ import ctypes
 from dataclasses import dataclass
 from enum import IntEnum
 from fractions import Fraction
-from typing import ClassVar, NamedTuple
+from typing import ClassVar
 
 import video_tools.dv.data_util as du
 import video_tools.dv.file.info as dv_file_info
+from video_tools.typing import DataclassInstance
 
 from .base import CSVFieldMap, Pack, Type
 from .source_control import CompressionCount, CopyProtection, InputSource, SourceSituation
@@ -108,40 +109,52 @@ class AAUXSourceControl(Pack):
 
     reserved: int | None = None
 
-    class CopyProtectionFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class CopyProtectionFields:
         copy_protection: CopyProtection | None
 
-    class SourceSituationFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class SourceSituationFields:
         source_situation: SourceSituation | None
 
-    class InputSourceFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class InputSourceFields:
         input_source: InputSource | None
 
-    class CompressionCountFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class CompressionCountFields:
         compression_count: CompressionCount | None
 
-    class RecordingStartPointFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class RecordingStartPointFields:
         recording_start_point: bool | None
 
-    class RecordingEndPointFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class RecordingEndPointFields:
         recording_end_point: bool | None
 
-    class RecordingModeFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class RecordingModeFields:
         recording_mode: AAUXRecordingMode | None
 
-    class InsertChannelFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class InsertChannelFields:
         insert_channel: InsertChannel | None
 
-    class GenreCategoryFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class GenreCategoryFields:
         genre_category: int | None
 
-    class DirectionFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class DirectionFields:
         direction: Direction | None
 
-    class PlaybackSpeedFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class PlaybackSpeedFields:
         playback_speed: Fraction | None
 
-    class ReservedFields(NamedTuple):
+    @dataclass(frozen=True, kw_only=True)
+    class ReservedFields:
         reserved: int | None
 
     text_fields: ClassVar[CSVFieldMap] = {
@@ -187,7 +200,7 @@ class AAUXSourceControl(Pack):
         return None
 
     @classmethod
-    def parse_text_value(cls, text_field: str | None, text_value: str) -> NamedTuple:
+    def parse_text_value(cls, text_field: str | None, text_value: str) -> DataclassInstance:
         match text_field:
             case "copy_protection":
                 return cls.CopyProtectionFields(
@@ -237,7 +250,7 @@ class AAUXSourceControl(Pack):
                 assert False
 
     @classmethod
-    def to_text_value(cls, text_field: str | None, value_subset: NamedTuple) -> str:
+    def to_text_value(cls, text_field: str | None, value_subset: DataclassInstance) -> str:
         match text_field:
             case "copy_protection":
                 assert isinstance(value_subset, cls.CopyProtectionFields)
