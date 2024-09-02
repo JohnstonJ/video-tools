@@ -25,7 +25,7 @@ TRAILER = "".join([" FF"] * 2)
             f"{TRAILER}",
             parsed=block.VAUX(
                 block_id=block.BlockID(
-                    type=block.BlockType.VAUX,
+                    type=block.Type.VAUX,
                     sequence=0xA,
                     channel=0,
                     dif_sequence=5,
@@ -50,7 +50,7 @@ TRAILER = "".join([" FF"] * 2)
             f"{TRAILER}",
             parsed=block.VAUX(
                 block_id=block.BlockID(
-                    type=block.BlockType.VAUX,
+                    type=block.Type.VAUX,
                     sequence=0xA,
                     channel=0,
                     dif_sequence=2,
@@ -124,7 +124,7 @@ TRAILER = "".join([" FF"] * 2)
             f"{TRAILER}",
             parsed=block.VAUX(
                 block_id=block.BlockID(
-                    type=block.BlockType.VAUX,
+                    type=block.Type.VAUX,
                     sequence=0xA,
                     channel=0,
                     dif_sequence=3,
@@ -190,7 +190,7 @@ TRAILER = "".join([" FF"] * 2)
             input=f"5A 37 00 {"".join(["FF FFFFFFFF "]*15)} {TRAILER}",
             parsed=block.VAUX(
                 block_id=block.BlockID(
-                    type=block.BlockType.VAUX,
+                    type=block.Type.VAUX,
                     sequence=0xA,
                     channel=0,
                     dif_sequence=3,

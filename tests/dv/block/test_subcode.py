@@ -34,7 +34,7 @@ TRAILER = "".join([" FF"] * 29)
             f"{TRAILER}",
             parsed=block.Subcode(
                 block_id=block.BlockID(
-                    type=block.BlockType.SUBCODE,
+                    type=block.Type.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=5,
@@ -75,7 +75,7 @@ TRAILER = "".join([" FF"] * 29)
             f"{TRAILER}",
             parsed=block.Subcode(
                 block_id=block.BlockID(
-                    type=block.BlockType.SUBCODE,
+                    type=block.Type.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=5,
@@ -115,7 +115,7 @@ TRAILER = "".join([" FF"] * 29)
             f"{TRAILER}",
             parsed=block.Subcode(
                 block_id=block.BlockID(
-                    type=block.BlockType.SUBCODE,
+                    type=block.Type.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=5,
@@ -149,7 +149,7 @@ TRAILER = "".join([" FF"] * 29)
             f"{TRAILER}",
             parsed=block.Subcode(
                 block_id=block.BlockID(
-                    type=block.BlockType.SUBCODE,
+                    type=block.Type.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=5,
@@ -210,7 +210,7 @@ TRAILER = "".join([" FF"] * 29)
             f"{TRAILER}",
             parsed=block.Subcode(
                 block_id=block.BlockID(
-                    type=block.BlockType.SUBCODE,
+                    type=block.Type.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=4,
@@ -258,7 +258,7 @@ TRAILER = "".join([" FF"] * 29)
             f"{TRAILER}",
             parsed=block.Subcode(
                 block_id=block.BlockID(
-                    type=block.BlockType.SUBCODE,
+                    type=block.Type.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=8,
@@ -337,7 +337,7 @@ TRAILER = "".join([" FF"] * 29)
             f"{TRAILER}",
             parsed=block.Subcode(
                 block_id=block.BlockID(
-                    type=block.BlockType.SUBCODE,
+                    type=block.Type.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=9,
@@ -416,7 +416,7 @@ TRAILER = "".join([" FF"] * 29)
             f"{TRAILER}",
             parsed=block.Subcode(
                 block_id=block.BlockID(
-                    type=block.BlockType.SUBCODE,
+                    type=block.Type.SUBCODE,
                     sequence=0xF,
                     channel=1,
                     dif_sequence=2,
@@ -475,7 +475,7 @@ def test_subcode_block_binary(tc: BlockBinaryTestCase) -> None:
             name="uneven ID part presence (skip present)",
             input=block.Subcode(
                 block_id=block.BlockID(
-                    type=block.BlockType.SUBCODE,
+                    type=block.Type.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=0,
@@ -500,7 +500,7 @@ def test_subcode_block_binary(tc: BlockBinaryTestCase) -> None:
             name="uneven ID part presence (picture present)",
             input=block.Subcode(
                 block_id=block.BlockID(
-                    type=block.BlockType.SUBCODE,
+                    type=block.Type.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=0,
@@ -525,7 +525,7 @@ def test_subcode_block_binary(tc: BlockBinaryTestCase) -> None:
             name="uneven ID part presence (ATN0 present)",
             input=block.Subcode(
                 block_id=block.BlockID(
-                    type=block.BlockType.SUBCODE,
+                    type=block.Type.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=0,
@@ -550,7 +550,7 @@ def test_subcode_block_binary(tc: BlockBinaryTestCase) -> None:
             name="uneven ID part presence (BF present)",
             input=block.Subcode(
                 block_id=block.BlockID(
-                    type=block.BlockType.SUBCODE,
+                    type=block.Type.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=0,
@@ -575,7 +575,7 @@ def test_subcode_block_binary(tc: BlockBinaryTestCase) -> None:
             name="uneven ID part presence (ATN1 present)",
             input=block.Subcode(
                 block_id=block.BlockID(
-                    type=block.BlockType.SUBCODE,
+                    type=block.Type.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=0,
@@ -600,7 +600,7 @@ def test_subcode_block_binary(tc: BlockBinaryTestCase) -> None:
             name="uneven ID part presence (ATN2 present)",
             input=block.Subcode(
                 block_id=block.BlockID(
-                    type=block.BlockType.SUBCODE,
+                    type=block.Type.SUBCODE,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=0,

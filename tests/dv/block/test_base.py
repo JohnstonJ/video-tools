@@ -58,7 +58,7 @@ class BlockIDBinaryTestCase:
             name="basic test",
             input="7A 4F 06",
             parsed=block.BlockID(
-                type=block.BlockType.AUDIO,
+                type=block.Type.AUDIO,
                 sequence=0xA,
                 channel=1,
                 dif_sequence=4,
@@ -70,7 +70,7 @@ class BlockIDBinaryTestCase:
             name="more basic testing",
             input="93 77 7D",
             parsed=block.BlockID(
-                type=block.BlockType.VIDEO,
+                type=block.Type.VIDEO,
                 sequence=0x3,
                 channel=0,
                 dif_sequence=7,
@@ -82,7 +82,7 @@ class BlockIDBinaryTestCase:
             name="max NTSC DIF sequence number",
             input="1F 97 00",
             parsed=block.BlockID(
-                type=block.BlockType.HEADER,
+                type=block.Type.HEADER,
                 sequence=0xF,
                 channel=0,
                 dif_sequence=9,
@@ -94,7 +94,7 @@ class BlockIDBinaryTestCase:
             name="max PAL DIF sequence number",
             input="1F B7 00",
             parsed=block.BlockID(
-                type=block.BlockType.HEADER,
+                type=block.Type.HEADER,
                 sequence=0xF,
                 channel=0,
                 dif_sequence=11,
@@ -106,7 +106,7 @@ class BlockIDBinaryTestCase:
             name="max VAUX DIF block number",
             input="50 07 02",
             parsed=block.BlockID(
-                type=block.BlockType.VAUX,
+                type=block.Type.VAUX,
                 sequence=0x0,
                 channel=0,
                 dif_sequence=0,
@@ -138,7 +138,7 @@ class BlockIDValidateTestCase:
         BlockIDValidateTestCase(
             name="invalid header sequence",
             input=block.BlockID(
-                type=block.BlockType.HEADER,
+                type=block.Type.HEADER,
                 sequence=0x0,
                 channel=0,
                 dif_sequence=0,
@@ -153,7 +153,7 @@ class BlockIDValidateTestCase:
         BlockIDValidateTestCase(
             name="invalid subcode sequence",
             input=block.BlockID(
-                type=block.BlockType.SUBCODE,
+                type=block.Type.SUBCODE,
                 sequence=0x0,
                 channel=0,
                 dif_sequence=0,
@@ -168,7 +168,7 @@ class BlockIDValidateTestCase:
         BlockIDValidateTestCase(
             name="invalid DIF sequence sequence",
             input=block.BlockID(
-                type=block.BlockType.HEADER,
+                type=block.Type.HEADER,
                 sequence=0xF,
                 channel=0,
                 dif_sequence=10,
@@ -183,7 +183,7 @@ class BlockIDValidateTestCase:
         BlockIDValidateTestCase(
             name="invalid DIF sequence sequence",
             input=block.BlockID(
-                type=block.BlockType.HEADER,
+                type=block.Type.HEADER,
                 sequence=0xF,
                 channel=0,
                 dif_sequence=12,
@@ -198,7 +198,7 @@ class BlockIDValidateTestCase:
         BlockIDValidateTestCase(
             name="DIF block number too high",
             input=block.BlockID(
-                type=block.BlockType.HEADER,
+                type=block.Type.HEADER,
                 sequence=0xF,
                 channel=0,
                 dif_sequence=0,

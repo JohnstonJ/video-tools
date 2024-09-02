@@ -8,7 +8,7 @@ from typing import ClassVar, cast
 import video_tools.dv.file.info as dv_file_info
 import video_tools.dv.pack as pack
 
-from .base import Block, BlockError, BlockID, BlockType
+from .base import Block, BlockError, BlockID, Type
 from .header import ApplicationID3, ApplicationIDTrack
 
 
@@ -211,7 +211,7 @@ class Subcode(Block):
 
     # Functions for going to/from binary blocks
 
-    type: ClassVar[BlockType] = BlockType.SUBCODE
+    type: ClassVar[Type] = Type.SUBCODE
 
     @classmethod
     def _do_parse_binary(

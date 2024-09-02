@@ -30,7 +30,7 @@ BLOCK_SIZE = 80
 # DIF block types.  Values are the three section type bits SCT2..0
 # SMPTE 306M-2002 Section 11.2.1 ID / Table 52 - DIF block type
 # IEC 61834-2:1998 Section 11.4.1 ID part / Table 36 - DIF block type
-class BlockType(IntEnum):
+class Type(IntEnum):
     HEADER = 0x0
     SUBCODE = 0x1
     VAUX = 0x2
@@ -45,7 +45,7 @@ class BlockType(IntEnum):
 @dataclass(frozen=True, kw_only=True)
 class BlockID:
     # This value is synthesized by the digital interface and should always be accurate.
-    type: BlockType
+    type: Type
 
     # Sequence number in IEC 61834-2; arbitrary bits in SMPTE 306M
     #  - IEC 61834-2:1998 Section 3.3.3 - ID part (Audio sector).
@@ -99,18 +99,16 @@ class BlockID:
             ("dbn", ctypes.c_uint8, 8),
         ]
 
-    __max_dbn: ClassVar[dict[BlockType, int]] = {
-        BlockType.HEADER: 0,
-        BlockType.SUBCODE: 1,
-        BlockType.VAUX: 2,
-        BlockType.AUDIO: 8,
-        BlockType.VIDEO: 134,
+    __max_dbn: ClassVar[dict[Type, int]] = {
+        Type.HEADER: 0,
+        Type.SUBCODE: 1,
+        Type.VAUX: 2,
+        Type.AUDIO: 8,
+        Type.VIDEO: 134,
     }
 
     def validate(self, file_info: dv_file_info.Info) -> str | None:
-        if (
-            self.type == BlockType.HEADER or self.type == BlockType.SUBCODE
-        ) and self.sequence != 0xF:
+        if (self.type == Type.HEADER or self.type == Type.SUBCODE) and self.sequence != 0xF:
             return (
                 "DIF block ID for header or subcode block has unexpected "
                 f"non-0xF sequence number of {du.hex_int(self.sequence, 1)}."
@@ -137,7 +135,7 @@ class BlockID:
         assert len(id_bytes) == 3
         bin = cls._BinaryFields.from_buffer_copy(id_bytes)
 
-        type = BlockType(bin.sct)
+        type = Type(bin.sct)
 
         # If this is triggered, we should look into what we're dealing with.
         if bin.reserved_0 != 0x1 or bin.reserved_1 != 0x7:
@@ -193,7 +191,7 @@ class Block(ABC):
 
     # Functions for going to/from binary blocks
 
-    type: ClassVar[BlockType]
+    type: ClassVar[Type]
 
     @classmethod
     @abstractmethod

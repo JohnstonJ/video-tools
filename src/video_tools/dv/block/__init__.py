@@ -6,7 +6,7 @@ from .base import (
     Block,
     BlockError,
     BlockID,
-    BlockType,
+    Type,
 )
 from .header import (
     ApplicationID1,
@@ -34,7 +34,7 @@ __all__ = [
     "Block",
     "BlockError",
     "BlockID",
-    "BlockType",
+    "Type",
     "BLOCK_SIZE",
     "Header",
     "parse_binary",

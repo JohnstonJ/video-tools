@@ -28,7 +28,7 @@ class VideoBlockBinaryTestCase(BlockBinaryTestCase):
             "7F1BF6F6FEA081C34F4DBCE12E9706B99A4715AA56E10148",
             parsed=block.Video(
                 block_id=block.BlockID(
-                    type=block.BlockType.VIDEO,
+                    type=block.Type.VIDEO,
                     sequence=0x1,
                     channel=0,
                     dif_sequence=4,
@@ -56,7 +56,7 @@ class VideoBlockBinaryTestCase(BlockBinaryTestCase):
             "62E30600022C4C0000000000000002B41CD6000000000000",
             parsed=block.Video(
                 block_id=block.BlockID(
-                    type=block.BlockType.VIDEO,
+                    type=block.Type.VIDEO,
                     sequence=0xF,
                     channel=0,
                     dif_sequence=4,

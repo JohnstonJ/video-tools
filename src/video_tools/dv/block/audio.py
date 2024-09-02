@@ -8,7 +8,7 @@ from typing import ClassVar
 import video_tools.dv.file.info as dv_file_info
 import video_tools.dv.pack as pack
 
-from .base import Block, BlockID, BlockType
+from .base import Block, BlockID, Type
 
 
 # DIF audio block
@@ -155,7 +155,7 @@ class Audio(Block):
 
     # Functions for going to/from binary blocks
 
-    type: ClassVar[BlockType] = BlockType.AUDIO
+    type: ClassVar[Type] = Type.AUDIO
 
     @classmethod
     def _do_parse_binary(

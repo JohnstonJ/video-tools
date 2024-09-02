@@ -30,7 +30,7 @@ from video_tools.dv.block.audio import (
             f"{"".join(["12 34 56 "]*24)}",
             parsed=block.Audio(
                 block_id=block.BlockID(
-                    type=block.BlockType.AUDIO,
+                    type=block.Type.AUDIO,
                     sequence=0xA,
                     channel=0,
                     dif_sequence=6,
@@ -52,7 +52,7 @@ from video_tools.dv.block.audio import (
             "9A993C3F3B0D5A5389B2B468A6A904494816D639E1492136ACB070B7C0834B3F1FF202C6",
             parsed=block.Audio(
                 block_id=block.BlockID(
-                    type=block.BlockType.AUDIO,
+                    type=block.Type.AUDIO,
                     sequence=0x8,
                     channel=0,
                     dif_sequence=2,
@@ -430,7 +430,7 @@ class AudioErrorTestCase:
 def test_audio_error_detection(tc: AudioErrorTestCase) -> None:
     blk = block.Audio(
         block_id=block.BlockID(
-            type=block.BlockType.AUDIO,
+            type=block.Type.AUDIO,
             sequence=0x0,
             channel=0,
             dif_sequence=tc.dif_sequence,

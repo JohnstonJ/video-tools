@@ -463,8 +463,8 @@ class _BinaryParseState:
         # Track the sequence number
         if (
             # These block types always/must have sequence numbers of 0xF.
-            parsed_block.block_id.type != block.BlockType.HEADER
-            and parsed_block.block_id.type != block.BlockType.SUBCODE
+            parsed_block.block_id.type != block.Type.HEADER
+            and parsed_block.block_id.type != block.Type.SUBCODE
         ):
             _count(self.sequence, parsed_block.block_id.sequence)
 

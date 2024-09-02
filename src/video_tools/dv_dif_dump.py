@@ -36,7 +36,7 @@ def parse_args() -> DVDIFDumpArgs:
     )
     parser.add_argument(
         "--block-type",
-        choices=[type.name for type in block.BlockType],
+        choices=[type.name for type in block.Type],
         type=str,
         help="Restrict output to only DIF blocks of a certain type.",
     )
@@ -59,16 +59,16 @@ def dump_dif_blocks(
     frame_bytes: bytes,
     file_info: dv_file_info.Info,
     frame_number: int,
-    block_type: block.BlockType | None,
+    block_type: block.Type | None,
 ) -> None:
     b_start = 0  # current block starting position
     type_color = {
         # Colors from DVRescue
-        block.BlockType.HEADER: Fore.MAGENTA,
-        block.BlockType.SUBCODE: Fore.CYAN,
-        block.BlockType.VAUX: Fore.YELLOW,
-        block.BlockType.AUDIO: Fore.GREEN,
-        block.BlockType.VIDEO: Fore.BLUE,
+        block.Type.HEADER: Fore.MAGENTA,
+        block.Type.SUBCODE: Fore.CYAN,
+        block.Type.VAUX: Fore.YELLOW,
+        block.Type.AUDIO: Fore.GREEN,
+        block.Type.VIDEO: Fore.BLUE,
     }
     for channel in range(file_info.video_frame_channel_count):
         for sequence in range(file_info.video_frame_dif_sequence_count):
@@ -119,7 +119,7 @@ def main() -> None:
                 frame_bytes,
                 info,
                 frame_number,
-                block.BlockType[args.block_type] if args.block_type is not None else None,
+                block.Type[args.block_type] if args.block_type is not None else None,
             )
 
 

@@ -14,16 +14,16 @@ class FrameError(ValueError):
 
 # IEC 61834-2:1998 Figure 65 - Transmission order of DIF blocks in a DIF sequence
 # SMPTE 306M-2002 Section 11.2 Data structure
-BLOCK_TRANSMISSION_ORDER: list[block.BlockType] = [
-    block.BlockType.HEADER,
-    *[block.BlockType.SUBCODE] * 2,
-    *[block.BlockType.VAUX] * 3,
-    *[block.BlockType.AUDIO, *[block.BlockType.VIDEO] * 15] * 9,
+BLOCK_TRANSMISSION_ORDER: list[block.Type] = [
+    block.Type.HEADER,
+    *[block.Type.SUBCODE] * 2,
+    *[block.Type.VAUX] * 3,
+    *[block.Type.AUDIO, *[block.Type.VIDEO] * 15] * 9,
 ]
 
 
 def _calculate_block_numbers() -> list[int]:
-    block_count: dict[block.BlockType, int] = defaultdict(int)
+    block_count: dict[block.Type, int] = defaultdict(int)
     block_numbers = []
     for block_index in range(len(BLOCK_TRANSMISSION_ORDER)):
         block_numbers.append(block_count[BLOCK_TRANSMISSION_ORDER[block_index]])

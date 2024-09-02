@@ -7,7 +7,7 @@ from typing import ClassVar, cast
 import video_tools.dv.file.info as dv_file_info
 import video_tools.dv.pack as pack
 
-from .base import Block, BlockError, BlockID, BlockType
+from .base import Block, BlockError, BlockID, Type
 
 
 # DIF VAUX block
@@ -68,7 +68,7 @@ class VAUX(Block):
 
     # Functions for going to/from binary blocks
 
-    type: ClassVar[BlockType] = BlockType.VAUX
+    type: ClassVar[Type] = Type.VAUX
 
     @classmethod
     def _do_parse_binary(

@@ -9,7 +9,7 @@ from typing import ClassVar
 
 import video_tools.dv.file.info as dv_file_info
 
-from .base import Block, BlockError, BlockID, BlockType
+from .base import Block, BlockError, BlockID, Type
 
 
 # Track pitch
@@ -192,7 +192,7 @@ class Header(Block):
 
     # Functions for going to/from binary blocks
 
-    type: ClassVar[BlockType] = BlockType.HEADER
+    type: ClassVar[Type] = Type.HEADER
 
     @classmethod
     def _do_parse_binary(

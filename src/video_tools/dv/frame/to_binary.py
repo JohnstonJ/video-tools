@@ -52,7 +52,7 @@ def _to_binary_block(
         type=block_type,
         sequence=(
             0xF
-            if block_type == block.BlockType.HEADER or block_type == block.BlockType.SUBCODE
+            if block_type == block.Type.HEADER or block_type == block.Type.SUBCODE
             else frame.sequence
         ),
         channel=channel,
@@ -62,7 +62,7 @@ def _to_binary_block(
 
     blk_data: block.Block
     pack_data: list[pack.Pack | None]
-    if block_type == block.BlockType.HEADER:
+    if block_type == block.Type.HEADER:
         blk_data = block.Header(
             block_id=block_id,
             video_frame_dif_sequence_count=frame.header_video_frame_dif_sequence_count,
@@ -73,7 +73,7 @@ def _to_binary_block(
             application_id_2=frame.header_application_id_2,
             application_id_3=frame.header_application_id_3,
         )
-    elif block_type == block.BlockType.SUBCODE:
+    elif block_type == block.Type.SUBCODE:
         # build ID parts of subcode block
         tag_element_count = 5 if block_number == 0 else 4
         index = [frame.subcode_index] * tag_element_count
@@ -164,7 +164,7 @@ def _to_binary_block(
             packs=pack_data,
             pack_types=pack_types,
         )
-    elif block_type == block.BlockType.VAUX:
+    elif block_type == block.Type.VAUX:
         pack_types = frame.vaux_pack_types[channel][sequence][
             15 * block_number : 15 * block_number + 15
         ]
@@ -177,7 +177,7 @@ def _to_binary_block(
             packs=pack_data,
             pack_types=pack_types,
         )
-    elif block_type == block.BlockType.AUDIO:
+    elif block_type == block.Type.AUDIO:
         if frame.audio_data is None:
             raise FrameError("Audio data is missing.")
         pack_type = frame.aaux_pack_types[channel][sequence][block_number]
@@ -188,7 +188,7 @@ def _to_binary_block(
             pack_type=pack_type,
             audio_data=frame.audio_data[channel][sequence][block_number],
         )
-    elif block_type == block.BlockType.VIDEO:
+    elif block_type == block.Type.VIDEO:
         if frame.video_data is None:
             raise FrameError("Audio data is missing.")
         blk_data = block.Video(
@@ -204,7 +204,7 @@ def _select_pack(
     frame: Data,
     channel: int,
     sequence: int,
-    block_type: block.BlockType,
+    block_type: block.Type,
     pack_type: int,
     file_info: dv_file_info.Info,
 ) -> pack.Pack:
@@ -212,7 +212,7 @@ def _select_pack(
     if pte == pack.Type.NO_INFO:
         return pack.NoInfo()
 
-    if block_type == block.BlockType.SUBCODE:
+    if block_type == block.Type.SUBCODE:
         if pte == pack.Type.TITLE_TIMECODE:
             return frame.subcode_title_timecode
         elif pte == pack.Type.TITLE_BINARY_GROUP:
@@ -226,7 +226,7 @@ def _select_pack(
         elif pte == pack.Type.AAUX_RECORDING_TIME:
             return frame.subcode_aaux_recording_time
 
-    elif block_type == block.BlockType.VAUX:
+    elif block_type == block.Type.VAUX:
         if pte == pack.Type.VAUX_SOURCE:
             return frame.vaux_source
         elif pte == pack.Type.VAUX_SOURCE_CONTROL:
@@ -244,7 +244,7 @@ def _select_pack(
         elif pte == pack.Type.CAMERA_SHUTTER:
             return frame.vaux_camera_shutter
 
-    elif block_type == block.BlockType.AUDIO:
+    elif block_type == block.Type.AUDIO:
         audio_block = int(sequence / int(file_info.video_frame_dif_sequence_count / 2))
         if pte == pack.Type.AAUX_SOURCE:
             return frame.aaux_source[channel][audio_block]
