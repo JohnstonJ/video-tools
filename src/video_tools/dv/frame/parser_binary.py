@@ -1,4 +1,4 @@
-"""Functions for going to/from binary frames."""
+"""Functions for reading binary frames."""
 
 from __future__ import annotations
 

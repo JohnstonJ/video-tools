@@ -7,6 +7,7 @@ from .data import (
     FrameError,
 )
 from .parser_binary import parse_binary
+from .to_binary import to_binary
 
 __all__ = [
     "BLOCK_NUMBER",
@@ -14,4 +15,5 @@ __all__ = [
     "Data",
     "FrameError",
     "parse_binary",
+    "to_binary",
 ]

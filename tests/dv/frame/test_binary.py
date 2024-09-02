@@ -14,11 +14,44 @@ TESTDATA_DIR = Path(__file__).parent / "testdata"
 
 @dataclass(kw_only=True)
 class FileTestCase:
+    # This test works by:
+    # 1.  Read and parse input DV file.  It must have exactly one frame.
+    #     a.  Assert that it matches expected parsed frame.Data (without actual audio/video data).
+    #     b.  Spot check assertions against audio and video data.
+    # 2.  Write the frame.Data back to binary.
+    #     a.  Assert that the rewritten binary matches expected:
+    #     b.  If the input file was perfect and doesn't have any incoherencies that are expected to
+    #         be fixed, then leave "output" as None.  The test will assert that the output bytes
+    #         match the input file - proving that a round trip has modified exactly nothing.
+    #     c.  If the input file had some incoherencies that we expect to be fixing, then set the
+    #         output file to the expected output.
+    # 3.  Read the rewritten binary back to a second frame.Data.
+    #     a.  Assert that this matches the first frame.Data, proving that fixing any incoherencies
+    #         during the data write process did not materially change the frame.Data.
+    #
+    # More about output files and assertion failures on the binary frame data:
+    # Assertion failures when binary frame data does not match will be unintelligible.  The
+    # recommended procedure when debugging these failures is as follows:
+    # 1.  Write debug files using `pytest --write-debug`.  This will write testdata/*.debug.dv files
+    #     that are the result of step 2, above.
+    # 2.  For each block type in [HEADER, SUBCODE, VAUX, AUDIO, VIDEO] for the failing test case:
+    #     a.  Dump both the original input file and the debug file using the dv_dif_dump utility in
+    #         this repository, and redirect the output:
+    #             dv_dif_dump --block-type [TYPE] [input].dv > [input].[TYPE].txt
+    #             dv_dif_dump --block-type [TYPE] [debug].dv > [debug].[TYPE].txt
+    #     b.  Use your favorite file comparison utility to compare the two text files.  Investigate
+    #         any differences.  Use the IEC 61834 standard and other standards to decode data around
+    #         locations that you observe differences.
+    #     c.  If the differences are due to a bug, then fix the bug.  However, if the differences
+    #         are expected (and you are 100% CERTAIN of this), then rename the debug file to an
+    #         appropriate name, and specify it as the output file for the test case.
+
     input: str  # filename in testdata/
     parsed: frame.Data
     # spot checking of audio and video data.  indexed by DIF channel, DIF sequence, block number
     audio_samples: list[tuple[int, int, int, str]]
     video_samples: list[tuple[int, int, int, str]]
+    output: str | None = None  # filename in testdata/
 
 
 @pytest.mark.parametrize(
@@ -274,6 +307,8 @@ class FileTestCase:
             # leading to many incoherencies in the subcode packs.  Some "valid" subcode packs even
             # have the wrong timecode (off by a frame).
             input="sony_subcode_errors.dv",
+            # some subcode incoherencies are fixed in the output; other DIF blocks are unchanged:
+            output="sony_subcode_errors.output.dv",
             parsed=frame.Data(
                 # General information
                 sequence=0xB,
@@ -527,6 +562,20 @@ class FileTestCase:
             # This was from the same tape as "sony_subcode_errors.dv", but one of the heads was
             # having a much more difficult time.
             input="sony_head_clog.dv",
+            # Expected changes in the binary output:
+            # 1.  Incoherencies in the sequence number in DIF block IDs throughout the file are
+            #     fixed.
+            # 2.  Subcodes in zero-based sequence 4 don't have the "front half" bit set in the ID
+            #     parts.  Apparently the tracks got mixed up somehow because this track also
+            #     has timecode frame numbers that were from the previous frame.  Anyway, this
+            #     invalid "front half" bit means that we throw away all the ID parts completely
+            #     for that track.
+            # 3.  Title Timecode packs in general have incoherencies which are resolved
+            #     (unfortunately, to the wrong value of frame 12, not the correct frame 13).
+            #
+            # Header/VAUX/audio/video data remains unchanged, apart from the noted DIF block ID
+            # sequence number changes.
+            output="sony_head_clog.output.dv",
             parsed=frame.Data(
                 # General information
                 sequence=0xF,
@@ -872,16 +921,19 @@ class FileTestCase:
     ],
     ids=lambda tc: tc.input,
 )
-def test_parse_binary(tc: FileTestCase) -> None:
+def test_binary(tc: FileTestCase, write_debug: bool) -> None:
     """Test round trip of a block from binary, to parsed, and then back to binary."""
 
+    # 1.  Read and parse input DV file
     with open(TESTDATA_DIR / tc.input, mode="rb") as input_file:
         file_info = dv_file_info.read_dv_file_info(input_file)
 
         input_file.seek(0)
         input_bytes = input_file.read()
 
-        parsed = frame.parse_binary(input_bytes, file_info)
+    parsed = frame.parse_binary(input_bytes, file_info)
+
+    # 1 Assertions:  Assert that it matches expected parsed frame.Data and audio/video samples.
 
     # Don't include audio/video data in our comparison.
     no_data = replace(parsed, audio_data=None, video_data=None)
@@ -894,3 +946,28 @@ def test_parse_binary(tc: FileTestCase) -> None:
     assert parsed.video_data is not None
     for channel, sequence, blk, data in tc.video_samples:
         assert parsed.video_data[channel][sequence][blk] == bytes.fromhex(data)
+
+    # 2.  Write the frame.Data back to binary.
+
+    output_bytes = frame.to_binary(parsed, file_info)
+    if write_debug:
+        # Write the reserialized frame bytes to a debug file if requested.
+        with open(TESTDATA_DIR / (tc.input + ".debug.dv"), mode="wb") as debug_file:
+            debug_file.write(output_bytes)
+        # Fail the tests if this debug flag was given
+        assert not "Tests cannot pass if --write-debug is used."
+
+    # 2a.  Assert that the output contains expected output bytes.
+    with open(TESTDATA_DIR / (tc.output if tc.output else tc.input), mode="rb") as output_file:
+        expected_output_bytes = output_file.read()
+        # See comments in FileTestCase for advice on debugging this assertion failure.
+        assert output_bytes == expected_output_bytes
+
+        # 3.  Read the rewritten binary back to a second frame.Data and assert it didn't change
+        #     from the first frame.Data.
+        output_file.seek(0)
+        output_file_info = dv_file_info.read_dv_file_info(output_file)
+        output_parsed = frame.parse_binary(output_bytes, output_file_info)
+
+        assert output_file_info == file_info
+        assert output_parsed == parsed

@@ -1,3 +1,7 @@
+# DV-related files
+# if the user opens a .dv file in DVRescue, ignore the XML that it creates
+*.dvrescue.xml
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
