@@ -7,8 +7,8 @@ from typing import ClassVar
 
 import video_tools.dv.file.info as dv_file_info
 import video_tools.dv.pack as pack
-
-from .base import Block, BlockID, Type
+from video_tools.dv.block.base import Block, BlockID, Type
+from video_tools.dv.block.binary_types import _AudioBinaryFields
 
 
 # DIF audio block
@@ -155,13 +155,15 @@ class Audio(Block):
 
     # Functions for going to/from binary blocks
 
-    type: ClassVar[Type] = Type.AUDIO
+    @classmethod
+    def block_type(cls) -> Type:
+        return Type.AUDIO
 
     @classmethod
     def _do_parse_binary(
         cls, block_bytes: bytes, block_id: BlockID, file_info: dv_file_info.Info
     ) -> Audio:
-        bin = _BinaryFields.from_buffer_copy(block_bytes[3:])
+        bin = _AudioBinaryFields.from_buffer_copy(block_bytes[3:])
 
         return cls(
             block_id=block_id,
@@ -171,7 +173,7 @@ class Audio(Block):
         )
 
     def _do_to_binary(self, file_info: dv_file_info.Info) -> bytes:
-        bin = _BinaryFields(
+        bin = _AudioBinaryFields(
             pack=(ctypes.c_uint8 * 5)(
                 *(
                     self.pack_data.to_binary(file_info.system)
@@ -184,14 +186,6 @@ class Audio(Block):
             data=(ctypes.c_uint8 * 72)(*self.audio_data),
         )
         return bytes([*self.block_id.to_binary(file_info), *bytes(bin)])
-
-
-class _BinaryFields(ctypes.BigEndianStructure):
-    _pack_ = 1
-    _fields_: ClassVar = [
-        ("pack", ctypes.c_uint8 * 5),
-        ("data", ctypes.c_uint8 * 72),
-    ]
 
 
 # Audio shuffling patterns

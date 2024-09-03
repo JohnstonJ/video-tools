@@ -2,20 +2,30 @@ from __future__ import annotations
 
 import ctypes
 from dataclasses import dataclass
-from enum import IntEnum
+from enum import Enum
 from typing import ClassVar, cast
 
 import video_tools.dv.file.info as dv_file_info
 import video_tools.dv.pack as pack
-
-from .base import Block, BlockError, BlockID, Type
-from .header import ApplicationID3, ApplicationIDTrack
+from video_tools.dv.block.base import Block, BlockError, BlockID, Type
+from video_tools.dv.block.binary_types import (
+    _SubcodeBinaryFields,
+    _SubcodeID0Part,
+    _SubcodeID0PartWithApplicationID,
+    _SubcodeID0PartWithTag,
+    _SubcodeID1Part,
+    _SubcodeID1PartWithBF,
+    _SubcodeID1PartWithoutBF,
+    _SubcodeIDPart,
+    _SubcodeSyncBlock,
+)
+from video_tools.dv.block.header import ApplicationID3, ApplicationIDTrack
 
 
 # Blank flag: determines whether a discontinuity in the absolute track number exists prior to the
 # current track.
 # IEC 61834-2:1998 Section 8.4.4 - Absolute track number - Numbering of absolute track number
-class BlankFlag(IntEnum):
+class BlankFlag(Enum):
     DISCONTINUOUS = 0x0
     CONTINUOUS = 0x1
 
@@ -211,13 +221,15 @@ class Subcode(Block):
 
     # Functions for going to/from binary blocks
 
-    type: ClassVar[Type] = Type.SUBCODE
+    @classmethod
+    def block_type(cls) -> Type:
+        return Type.SUBCODE
 
     @classmethod
     def _do_parse_binary(
         cls, block_bytes: bytes, block_id: BlockID, file_info: dv_file_info.Info
     ) -> Subcode:
-        bin = _BinaryFields.from_buffer_copy(block_bytes[3:])
+        bin = _SubcodeBinaryFields.from_buffer_copy(block_bytes[3:])
 
         # allocate subcode fields that we will parse into
         tag_count = 5 if block_id.dif_block == 0 else 4
@@ -330,7 +342,7 @@ class Subcode(Block):
 
     def _do_to_binary(self, file_info: dv_file_info.Info) -> bytes:
         # Process ID parts
-        id_parts: list[_IDPart] = []
+        id_parts: list[_SubcodeIDPart] = []
         for dif_sync_block_number in range(6):
             id_block_valid = True
 
@@ -341,12 +353,14 @@ class Subcode(Block):
             pp = None
             if dif_sync_block_number == 0:
                 application_id = (
-                    int(self.application_id_3) if self.application_id_3 is not None else 0x7
+                    self.application_id_3.value if self.application_id_3 is not None else 0x7
                 )
                 id_block_valid = id_block_valid and self.application_id_3 is not None
             elif self.block_id.dif_block == 1 and dif_sync_block_number == 5:
                 application_id = (
-                    int(self.application_id_track) if self.application_id_track is not None else 0x7
+                    self.application_id_track.value
+                    if self.application_id_track is not None
+                    else 0x7
                 )
                 id_block_valid = id_block_valid and self.application_id_track is not None
             else:
@@ -371,7 +385,7 @@ class Subcode(Block):
                     abst = atn if atn is not None else 0x7F
                     abst_upper = abst >> 3
                     abst_lower = abst & 0x7
-                    bf = int(bf_enum) if bf_enum is not None else 0x1
+                    bf = bf_enum.value if bf_enum is not None else 0x1
                     id_block_valid = id_block_valid and bf_enum is not None and atn is not None
                 case 1:
                     atn = self.absolute_track_number_1[abst_index]
@@ -400,10 +414,10 @@ class Subcode(Block):
             )
             syb = self.block_id.dif_block * 6 + dif_sync_block_number if id_block_valid else 0xF
 
-            id_part = _IDPart(
+            id_part = _SubcodeIDPart(
                 id0=(
-                    _ID0Part(
-                        with_tag=_ID0PartWithTag(
+                    _SubcodeID0Part(
+                        with_tag=_SubcodeID0PartWithTag(
                             fr=fr,
                             index=index,
                             skip=skip,
@@ -412,8 +426,8 @@ class Subcode(Block):
                         )
                     )
                     if index is not None
-                    else _ID0Part(
-                        with_application_id=_ID0PartWithApplicationID(
+                    else _SubcodeID0Part(
+                        with_application_id=_SubcodeID0PartWithApplicationID(
                             fr=fr,
                             application_id=application_id,
                             abst=abst_upper,
@@ -421,16 +435,16 @@ class Subcode(Block):
                     )
                 ),
                 id1=(
-                    _ID1Part(
-                        with_bf=_ID1PartWithBF(
+                    _SubcodeID1Part(
+                        with_bf=_SubcodeID1PartWithBF(
                             abst=abst_lower,
                             bf=bf,
                             syb=syb,
                         )
                     )
                     if bf is not None
-                    else _ID1Part(
-                        without_bf=_ID1PartWithoutBF(
+                    else _SubcodeID1Part(
+                        without_bf=_SubcodeID1PartWithoutBF(
                             abst=abst_lower,
                             syb=syb,
                         )
@@ -441,10 +455,10 @@ class Subcode(Block):
             id_parts.append(id_part)
 
         # Build final output
-        bin = _BinaryFields(
-            sync_blocks=(_SyncBlock * 6)(
+        bin = _SubcodeBinaryFields(
+            sync_blocks=(_SubcodeSyncBlock * 6)(
                 *[
-                    _SyncBlock(
+                    _SubcodeSyncBlock(
                         id=id_parts[dif_sync_block_number],
                         data=(ctypes.c_uint8 * 5)(
                             *(
@@ -464,81 +478,3 @@ class Subcode(Block):
             reserved=(ctypes.c_uint8 * 29)(*[0xFF] * 29),
         )
         return bytes([*self.block_id.to_binary(file_info), *bytes(bin)])
-
-
-class _ID0PartWithTag(ctypes.BigEndianStructure):
-    _pack_ = 1
-    _fields_: ClassVar = [
-        ("fr", ctypes.c_uint8, 1),  # first half ID: 1 for first half, 0 for second
-        ("index", ctypes.c_uint8, 1),
-        ("skip", ctypes.c_uint8, 1),
-        ("pp", ctypes.c_uint8, 1),
-        ("abst", ctypes.c_uint8, 4),
-    ]
-
-
-class _ID0PartWithApplicationID(ctypes.BigEndianStructure):
-    _pack_ = 1
-    _fields_: ClassVar = [
-        ("fr", ctypes.c_uint8, 1),  # first half ID: 1 for first half, 0 for second
-        ("application_id", ctypes.c_uint8, 3),
-        ("abst", ctypes.c_uint8, 4),
-    ]
-
-
-class _ID0Part(ctypes.BigEndianUnion):
-    _pack_ = 1
-    _fields_: ClassVar = [
-        ("with_tag", _ID0PartWithTag),
-        ("with_application_id", _ID0PartWithApplicationID),
-    ]
-
-
-class _ID1PartWithBF(ctypes.BigEndianStructure):
-    _pack_ = 1
-    _fields_: ClassVar = [
-        ("abst", ctypes.c_uint8, 3),
-        ("bf", ctypes.c_uint8, 1),
-        ("syb", ctypes.c_uint8, 4),
-    ]
-
-
-class _ID1PartWithoutBF(ctypes.BigEndianStructure):
-    _pack_ = 1
-    _fields_: ClassVar = [
-        ("abst", ctypes.c_uint8, 4),
-        ("syb", ctypes.c_uint8, 4),
-    ]
-
-
-class _ID1Part(ctypes.BigEndianUnion):
-    _pack_ = 1
-    _fields_: ClassVar = [
-        ("with_bf", _ID1PartWithBF),
-        ("without_bf", _ID1PartWithoutBF),
-    ]
-
-
-class _IDPart(ctypes.BigEndianStructure):
-    _pack_ = 1
-    _fields_: ClassVar = [
-        ("id0", _ID0Part),
-        ("id1", _ID1Part),
-        ("parity", ctypes.c_uint8, 8),  # always 0xFF over digital interface
-    ]
-
-
-class _SyncBlock(ctypes.BigEndianStructure):
-    _pack_ = 1
-    _fields_: ClassVar = [
-        ("id", _IDPart),
-        ("data", ctypes.c_uint8 * 5),
-    ]
-
-
-class _BinaryFields(ctypes.BigEndianStructure):
-    _pack_ = 1
-    _fields_: ClassVar = [
-        ("sync_blocks", _SyncBlock * 6),
-        ("reserved", ctypes.c_uint8 * 29),
-    ]

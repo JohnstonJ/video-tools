@@ -5,11 +5,12 @@ from __future__ import annotations
 import ctypes
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from enum import IntEnum
+from enum import Enum
 from typing import ClassVar
 
 import video_tools.dv.data_util as du
 import video_tools.dv.file.info as dv_file_info
+from video_tools.dv.block.binary_types import _BlockIDBinaryFields
 
 
 class BlockError(ValueError):
@@ -30,13 +31,23 @@ BLOCK_SIZE = 80
 # DIF block types.  Values are the three section type bits SCT2..0
 # SMPTE 306M-2002 Section 11.2.1 ID / Table 52 - DIF block type
 # IEC 61834-2:1998 Section 11.4.1 ID part / Table 36 - DIF block type
-class Type(IntEnum):
+class Type(Enum):
     HEADER = 0x0
     SUBCODE = 0x1
     VAUX = 0x2
     AUDIO = 0x3
     VIDEO = 0x4
     # The remaining bit values are reserved, and we're unlikely to ever see them.
+
+
+# Maximum DIF block numbers for each DIF block type
+_max_dbn: dict[Type, int] = {
+    Type.HEADER: 0,
+    Type.SUBCODE: 1,
+    Type.VAUX: 2,
+    Type.AUDIO: 8,
+    Type.VIDEO: 134,
+}
 
 
 # Common DIF block ID which is at the start of every DIF block.
@@ -87,26 +98,6 @@ class BlockID:
     #  - Not stored on tape / it is exclusive to the digital interface.  Errors are not expected.
     dif_block: int
 
-    class _BinaryFields(ctypes.BigEndianStructure):
-        _pack_ = 1
-        _fields_: ClassVar = [
-            ("sct", ctypes.c_uint8, 3),
-            ("reserved_0", ctypes.c_uint8, 1),
-            ("seq", ctypes.c_uint8, 4),
-            ("dseq", ctypes.c_uint8, 4),
-            ("fsc", ctypes.c_uint8, 1),
-            ("reserved_1", ctypes.c_uint8, 3),
-            ("dbn", ctypes.c_uint8, 8),
-        ]
-
-    __max_dbn: ClassVar[dict[Type, int]] = {
-        Type.HEADER: 0,
-        Type.SUBCODE: 1,
-        Type.VAUX: 2,
-        Type.AUDIO: 8,
-        Type.VIDEO: 134,
-    }
-
     def validate(self, file_info: dv_file_info.Info) -> str | None:
         if (self.type == Type.HEADER or self.type == Type.SUBCODE) and self.sequence != 0xF:
             return (
@@ -122,7 +113,7 @@ class BlockID:
                 f"is too high for system {file_info.system.name}."
             )
 
-        if self.dif_block > self.__max_dbn[self.type]:
+        if self.dif_block > _max_dbn[self.type]:
             return (
                 f"DIF block ID has DIF block number of {self.dif_block} that "
                 f"is too high for a block type of {self.type.name}."
@@ -133,7 +124,7 @@ class BlockID:
     @classmethod
     def parse_binary(cls, id_bytes: bytes, file_info: dv_file_info.Info) -> BlockID:
         assert len(id_bytes) == 3
-        bin = cls._BinaryFields.from_buffer_copy(id_bytes)
+        bin = _BlockIDBinaryFields.from_buffer_copy(id_bytes)
 
         type = Type(bin.sct)
 
@@ -158,8 +149,8 @@ class BlockID:
         if validation_message is not None:
             raise BlockError(validation_message)
 
-        bin = self._BinaryFields(
-            sct=int(self.type),
+        bin = _BlockIDBinaryFields(
+            sct=self.type.value,
             reserved_0=0x1,
             seq=int(self.sequence),
             dseq=int(self.dif_sequence),
@@ -171,11 +162,12 @@ class BlockID:
 
 
 # Base class for single 80 byte DIF block instances.
+# TODO: NOTE: mypyc doesn't support dataclass with ABC base class
 @dataclass(frozen=True, kw_only=True)
-class Block(ABC):
+class Block: #TODO (ABC):
     block_id: BlockID
 
-    @abstractmethod
+    # TODO @abstractmethod
     def validate(self, file_info: dv_file_info.Info) -> str | None:
         """Indicate whether the contents of the block are valid and could be written to binary.
 
@@ -187,14 +179,17 @@ class Block(ABC):
         The return value contains a description of the validation failure.  If the block passes
         validation, then None is returned.
         """
-        pass
+        return None
 
     # Functions for going to/from binary blocks
 
-    type: ClassVar[Type]
+    @classmethod
+    # TODO @abstractmethod
+    def block_type(cls) -> Type:
+        return Type.HEADER
 
     @classmethod
-    @abstractmethod
+    # TODO @abstractmethod
     def _do_parse_binary(
         cls, block_bytes: bytes, block_id: BlockID, file_info: dv_file_info.Info
     ) -> Block:
@@ -204,7 +199,11 @@ class Block(ABC):
         indeed correct.  It also does not need to call validate, since the base parse_binary
         function does those common tasks for you.
         """
-        pass
+        return Block(
+            block_id=BlockID(
+                type=Type.HEADER, sequence=-1, channel=-1, dif_sequence=-1, dif_block=-1
+            )
+        )
 
     @classmethod
     def parse_binary(cls, block_bytes: bytes, file_info: dv_file_info.Info) -> Block:
@@ -215,7 +214,7 @@ class Block(ABC):
         """
         assert len(block_bytes) == BLOCK_SIZE
         id = BlockID.parse_binary(block_bytes[0:3], file_info)
-        assert id.type == cls.type
+        assert id.type == cls.block_type()
 
         block = cls._do_parse_binary(block_bytes, id, file_info)
 
@@ -224,10 +223,10 @@ class Block(ABC):
             raise BlockError(validation_message)
         return block
 
-    @abstractmethod
+    # TODO @abstractmethod
     def _do_to_binary(self, file_info: dv_file_info.Info) -> bytes:
         """Convert this block to binary; the block can be assumed to be valid."""
-        pass
+        return bytes([])
 
     def to_binary(self, file_info: dv_file_info.Info) -> bytes:
         """Convert this block back to binary."""

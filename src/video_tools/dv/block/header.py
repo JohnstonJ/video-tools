@@ -4,18 +4,18 @@ from __future__ import annotations
 
 import ctypes
 from dataclasses import dataclass
-from enum import IntEnum
+from enum import Enum
 from typing import ClassVar
 
 import video_tools.dv.file.info as dv_file_info
-
-from .base import Block, BlockError, BlockID, Type
+from video_tools.dv.block.base import Block, BlockError, BlockID, Type
+from video_tools.dv.block.binary_types import _HeaderBinaryFields
 
 
 # Track pitch
 # IEC 61834-1:1998 Section 6.4 - TIA (track information area)
 # IEC 61834-1:1998 Amendment 1 - LP mode (long play mode with narrow track pitch)
-class TrackPitch(IntEnum):
+class TrackPitch(Enum):
     # Standard play defined in IEC 61834-1.  The track pitch is actually 10 um on DV tapes.  For
     # other physical formats (e.g. Digital8), this still means standard play, but the track pitch
     # is different.
@@ -35,7 +35,7 @@ class TrackPitch(IntEnum):
 
 
 # Track application ID (APT)
-class ApplicationIDTrack(IntEnum):
+class ApplicationIDTrack(Enum):
     # Defined in: IEC 61834-1:1998 Table 14 - Application ID of a track in TIA
     CONSUMER_DIGITAL_VCR = 0x0
 
@@ -53,7 +53,7 @@ class ApplicationIDTrack(IntEnum):
 
 
 # Area 1 application ID (AP1)
-class ApplicationID1(IntEnum):
+class ApplicationID1(Enum):
     # Defined in: IEC 61834-2:1998 Table 4 - Application ID of area 1 (AP1)
     CONSUMER_DIGITAL_VCR = 0x0
 
@@ -71,7 +71,7 @@ class ApplicationID1(IntEnum):
 
 
 # Area 2 application ID (AP2)
-class ApplicationID2(IntEnum):
+class ApplicationID2(Enum):
     # Defined in: IEC 61834-2:1998 Table 9 - Application ID of area 2 (AP2)
     CONSUMER_DIGITAL_VCR = 0x0
 
@@ -89,7 +89,7 @@ class ApplicationID2(IntEnum):
 
 
 # Area 3 application ID (AP3)
-class ApplicationID3(IntEnum):
+class ApplicationID3(Enum):
     # Defined in: IEC 61834-2:1998 Table 10 - Application ID of area 3 (AP3)
     CONSUMER_DIGITAL_VCR = 0x0
 
@@ -192,13 +192,15 @@ class Header(Block):
 
     # Functions for going to/from binary blocks
 
-    type: ClassVar[Type] = Type.HEADER
+    @classmethod
+    def block_type(cls) -> Type:
+        return Type.HEADER
 
     @classmethod
     def _do_parse_binary(
         cls, block_bytes: bytes, block_id: BlockID, file_info: dv_file_info.Info
     ) -> Header:
-        bin = _BinaryFields.from_buffer_copy(block_bytes[3:])
+        bin = _HeaderBinaryFields.from_buffer_copy(block_bytes[3:])
 
         # We make several assertions here based on reserved/constant bits.  If the assertions fail,
         # we should investigate more to find out why this is.  Note that it's not expected to be
@@ -246,48 +248,26 @@ class Header(Block):
         )
 
     def _do_to_binary(self, file_info: dv_file_info.Info) -> bytes:
-        bin = _BinaryFields(
+        bin = _HeaderBinaryFields(
             dsf=0x1 if self.video_frame_dif_sequence_count == 12 else 0x0,
             zero=0x0,
             reserved_0=0x3F,
             dftia=(
                 0xF
                 if self.track_pitch is None or self.pilot_frame is None
-                else (int(self.track_pitch) << 1) | self.pilot_frame
+                else (self.track_pitch.value << 1) | self.pilot_frame
             ),
             reserved_1=0x1,
-            apt=self.application_id_track if self.application_id_track is not None else 0x7,
+            apt=self.application_id_track.value if self.application_id_track is not None else 0x7,
             tf1=0x0,
             reserved_2=0xF,
-            ap1=self.application_id_1 if self.application_id_1 is not None else 0x7,
+            ap1=self.application_id_1.value if self.application_id_1 is not None else 0x7,
             tf2=0x0,
             reserved_3=0xF,
-            ap2=self.application_id_2 if self.application_id_2 is not None else 0x7,
+            ap2=self.application_id_2.value if self.application_id_2 is not None else 0x7,
             tf3=0x0,
             reserved_4=0xF,
-            ap3=self.application_id_3 if self.application_id_3 is not None else 0x7,
+            ap3=self.application_id_3.value if self.application_id_3 is not None else 0x7,
             reserved_end=(ctypes.c_uint8 * 72)(*[0xFF] * 72),
         )
         return bytes([*self.block_id.to_binary(file_info), *bytes(bin)])
-
-
-class _BinaryFields(ctypes.BigEndianStructure):
-    _pack_ = 1
-    _fields_: ClassVar = [
-        ("dsf", ctypes.c_uint8, 1),
-        ("zero", ctypes.c_uint8, 1),
-        ("reserved_0", ctypes.c_uint8, 6),
-        ("dftia", ctypes.c_uint8, 4),
-        ("reserved_1", ctypes.c_uint8, 1),
-        ("apt", ctypes.c_uint8, 3),
-        ("tf1", ctypes.c_uint8, 1),
-        ("reserved_2", ctypes.c_uint8, 4),
-        ("ap1", ctypes.c_uint8, 3),
-        ("tf2", ctypes.c_uint8, 1),
-        ("reserved_3", ctypes.c_uint8, 4),
-        ("ap2", ctypes.c_uint8, 3),
-        ("tf3", ctypes.c_uint8, 1),
-        ("reserved_4", ctypes.c_uint8, 4),
-        ("ap3", ctypes.c_uint8, 3),
-        ("reserved_end", ctypes.c_uint8 * 72),
-    ]

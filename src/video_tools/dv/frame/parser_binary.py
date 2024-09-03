@@ -438,8 +438,8 @@ class _BinaryParseState:
         if parsed_block.block_id.type != BLOCK_TRANSMISSION_ORDER[blk]:
             raise FrameError(
                 "DIF block has an unexpected type: expected "
-                f"{du.hex_int(BLOCK_TRANSMISSION_ORDER[blk], 2)} but got "
-                f"{du.hex_int(parsed_block.block_id.type, 2)}."
+                f"{du.hex_int(BLOCK_TRANSMISSION_ORDER[blk].value, 2)} but got "
+                f"{du.hex_int(parsed_block.block_id.type.value, 2)}."
             )
         if parsed_block.block_id.channel != channel:
             raise FrameError(

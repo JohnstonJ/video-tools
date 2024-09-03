@@ -6,7 +6,6 @@ LINT_PYTHON_VERSION = "3.12"
 BUILD_PYTHON_VERSIONS = ["3.12"]
 TEST_PYTHON_VERSIONS = ["3.12"]
 
-MYPY_VERSION = "~=1.11"
 RUFF_VERSION = "~=0.6.2"
 
 BUILD_VERSION = "~=1.2"
@@ -19,7 +18,8 @@ def verify(session: nox.Session) -> None:
     # This is just a meta-session with no virtual environment.
     # We don't install anything here.
     session.notify("lint")
-    session.notify("test")
+    session.notify("test_python")
+    session.notify("test_mypyc")
 
 
 @nox.session(python=False)
@@ -43,15 +43,23 @@ def ruff(session: nox.Session) -> None:
 @nox.session(python=LINT_PYTHON_VERSION)
 def mypy(session: nox.Session) -> None:
     """Run the mypy type checker."""
-    session.install(f"mypy{MYPY_VERSION}")
-    session.install("--editable", ".[dev]")
+    session.install(".[dev]", env={"MYPYC_ENABLE": "False"})
     session.run("mypy")
 
 
 @nox.session(python=TEST_PYTHON_VERSIONS)
-def test(session: nox.Session) -> None:
+def test_python(session: nox.Session) -> None:
     """Run all the tests with coverage."""
-    session.install("--editable", ".[dev]")
+    session.install(".[dev]", env={"MYPYC_ENABLE": "False"})
+    # for now, not bothering to keep more than one coverage report if we have multiple
+    # Python versions...
+    session.run("pytest", "--cov=video_tools", "--cov-report=html", "--cov-report=xml")
+
+
+@nox.session(python=TEST_PYTHON_VERSIONS)
+def test_mypyc(session: nox.Session) -> None:
+    """Run all the tests with coverage."""
+    session.install(".[dev]", env={"MYPYC_ENABLE": "True"})
     # for now, not bothering to keep more than one coverage report if we have multiple
     # Python versions...
     session.run("pytest", "--cov=video_tools", "--cov-report=html", "--cov-report=xml")
@@ -61,7 +69,7 @@ def test(session: nox.Session) -> None:
 def build(session: nox.Session) -> None:
     """Build the distribution files."""
     session.install(f"build{BUILD_VERSION}")
-    session.run("python", "-m", "build")
+    session.run("python", "-m", "build", env={"MYPYC_ENABLE": "True"})
 
 
 @nox.session(python=LINT_PYTHON_VERSION, default=False)

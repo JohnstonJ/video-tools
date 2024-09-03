@@ -26,6 +26,9 @@ To develop this Python project, first start with the activated virtual environme
 pip install --editable .[dev]
 ```
 
+# TODO is it true i have to recompile ?  also can i skip mypyc completely?
+Note that this command will also recompile the C extension using [mypyc](https://mypyc.readthedocs.io/), so this must be rerun whenever Python code has been modified.
+
 To run verifications, first install Nox:
 
 ```
@@ -50,7 +53,19 @@ To reformat code:
 nox -s format
 ```
 
-Don't forget you can add the `-R` parameter to nox if you want to reuse existing virtual environments.
+Don't forget you can add the `-R` parameter to nox if you want to reuse existing virtual environments to save time.
+
+#### Visual C++ dependency
+
+This project makes use of [mypyc](https://mypyc.readthedocs.io/), which requires a Visual C++ compiler on Windows.  The easiest path would be to install Visual C++ if necessary when prompted during the build.  However, a portable version of Visual C++ can also be used:
+
+1.  Use [PortableBuildTools](https://github.com/Data-Oriented-House/PortableBuildTools) to download a portable copy of Visual C++.  The default settings should be fine.
+2.  Open a terminal with Command Prompt or PowerShell 7.  Note that Windows PowerShell 5.1 is not supported by PortableBuildTools.
+2.  Run `devcmd.bat` or `devcmd.ps1`, as appropriate for your shell.  This will prepare the environment variables for compiling.
+4.  Set the `DISTUTILS_USE_SDK` environment variable to `1`, as recognized by Python [distutils](https://github.com/pypa/distutils/blob/29debe531dcdddc456be42a62dbac837ee0ccfa0/distutils/_msvccompiler.py#L146).  This will instruct it not to try to find an installed Visual C++, and just use the environment instead.
+5.  You can now run the above `nox` commands as normal, and they will be able to find Visual C++.
+
+Note that the compiled binaries dynamically link to the Visual C++ runtime, so you may need to install the appropriate Visual C++ redistributable if you don't already have it.
 
 To integrate the linting tools with VS Code:
 

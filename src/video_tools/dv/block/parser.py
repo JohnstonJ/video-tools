@@ -1,11 +1,10 @@
 import video_tools.dv.file.info as dv_file_info
-
-from .audio import Audio
-from .base import BLOCK_SIZE, Block, BlockID, Type
-from .header import Header
-from .subcode import Subcode
-from .vaux import VAUX
-from .video import Video
+from video_tools.dv.block.audio import Audio
+from video_tools.dv.block.base import BLOCK_SIZE, Block, BlockID, Type
+from video_tools.dv.block.header import Header
+from video_tools.dv.block.subcode import Subcode
+from video_tools.dv.block.vaux import VAUX
+from video_tools.dv.block.video import Video
 
 
 def parse_binary(block_bytes: bytes, file_info: dv_file_info.Info) -> Block:

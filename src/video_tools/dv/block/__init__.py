@@ -1,14 +1,14 @@
 """Contains model classes for working with entire DIF blocks in a DV file."""
 
-from .audio import Audio
-from .base import (
+from video_tools.dv.block.audio import Audio
+from video_tools.dv.block.base import (
     BLOCK_SIZE,
     Block,
     BlockError,
     BlockID,
     Type,
 )
-from .header import (
+from video_tools.dv.block.header import (
     ApplicationID1,
     ApplicationID2,
     ApplicationID3,
@@ -16,13 +16,13 @@ from .header import (
     Header,
     TrackPitch,
 )
-from .parser import parse_binary
-from .subcode import (
+from video_tools.dv.block.parser import parse_binary
+from video_tools.dv.block.subcode import (
     BlankFlag,
     Subcode,
 )
-from .vaux import VAUX
-from .video import Video
+from video_tools.dv.block.vaux import VAUX
+from video_tools.dv.block.video import Video
 
 __all__ = [
     "ApplicationID1",

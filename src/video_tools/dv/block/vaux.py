@@ -6,8 +6,8 @@ from typing import ClassVar, cast
 
 import video_tools.dv.file.info as dv_file_info
 import video_tools.dv.pack as pack
-
-from .base import Block, BlockError, BlockID, Type
+from video_tools.dv.block.base import Block, BlockError, BlockID, Type
+from video_tools.dv.block.binary_types import _VAUXBinaryFields, _VAUXPack
 
 
 # DIF VAUX block
@@ -68,13 +68,15 @@ class VAUX(Block):
 
     # Functions for going to/from binary blocks
 
-    type: ClassVar[Type] = Type.VAUX
+    @classmethod
+    def block_type(cls) -> Type:
+        return Type.VAUX
 
     @classmethod
     def _do_parse_binary(
         cls, block_bytes: bytes, block_id: BlockID, file_info: dv_file_info.Info
     ) -> VAUX:
-        bin = _BinaryFields.from_buffer_copy(block_bytes[3:])
+        bin = _VAUXBinaryFields.from_buffer_copy(block_bytes[3:])
 
         # Quick check on the trailing reserved bits, just to minimize risk that this is real data
         # from a different standard that we don't support.  If there's a tape dropout, these bits
@@ -91,10 +93,10 @@ class VAUX(Block):
         )
 
     def _do_to_binary(self, file_info: dv_file_info.Info) -> bytes:
-        bin = _BinaryFields(
-            packs=(_Pack * 15)(
+        bin = _VAUXBinaryFields(
+            packs=(_VAUXPack * 15)(
                 *[
-                    _Pack(
+                    _VAUXPack(
                         data=(ctypes.c_uint8 * 5)(
                             *(
                                 cast(pack.Pack, self.packs[pack_number]).to_binary(file_info.system)
@@ -111,18 +113,3 @@ class VAUX(Block):
             reserved=(ctypes.c_uint8 * 2)(*[0xFF] * 2),
         )
         return bytes([*self.block_id.to_binary(file_info), *bytes(bin)])
-
-
-class _Pack(ctypes.BigEndianStructure):
-    _pack_ = 1
-    _fields_: ClassVar = [
-        ("data", ctypes.c_uint8 * 5),
-    ]
-
-
-class _BinaryFields(ctypes.BigEndianStructure):
-    _pack_ = 1
-    _fields_: ClassVar = [
-        ("packs", _Pack * 15),
-        ("reserved", ctypes.c_uint8 * 2),
-    ]

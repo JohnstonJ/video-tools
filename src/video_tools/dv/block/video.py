@@ -4,8 +4,7 @@ from dataclasses import dataclass
 from typing import ClassVar
 
 import video_tools.dv.file.info as dv_file_info
-
-from .base import Block, BlockID, Type
+from video_tools.dv.block.base import Block, BlockID, Type
 
 
 # DIF video block
@@ -56,7 +55,9 @@ class Video(Block):
 
     # Functions for going to/from binary blocks
 
-    type: ClassVar[Type] = Type.VIDEO
+    @classmethod
+    def block_type(cls) -> Type:
+        return Type.VIDEO
 
     @classmethod
     def _do_parse_binary(
